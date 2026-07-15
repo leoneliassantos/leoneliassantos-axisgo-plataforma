@@ -1,0 +1,311 @@
+<meta charset="utf-8">
+<title>DRE Contábil 2026 — Batux</title>
+<style>
+  :root{
+    --paper:#F4F2EB; --surface:#FFFFFF; --ink:#16211D; --muted:#6C6A5E;
+    --band:#123029; --band2:#0E241F; --teal:#0E6A5A; --teal-tint:#E7F0EC;
+    --copper:#A9743F; --line:#E2DDD1; --line2:#EDE9DF;
+    --pos:#15734F; --neg:#B23A2E;
+    --sh:0 1px 2px rgba(22,33,29,.05),0 8px 24px rgba(22,33,29,.06);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 22px 64px}
+  h1,h2,h3{font-family:Georgia,"Iowan Old Style","Times New Roman",serif;font-weight:600;letter-spacing:-.01em}
+  .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--copper);font-weight:600}
+  .tnum{font-variant-numeric:tabular-nums;font-feature-settings:"tnum"}
+
+  /* Header band */
+  header.band{background:linear-gradient(160deg,var(--band),var(--band2));color:#F3EFE6;
+    border-radius:14px;padding:26px 30px;box-shadow:var(--sh);position:relative;overflow:hidden}
+  header.band::after{content:"";position:absolute;left:30px;right:30px;bottom:0;height:2px;
+    background:linear-gradient(90deg,var(--copper),transparent 60%)}
+  header .eyebrow{color:#C9A87E}
+  header.band h1{color:#F6F2E9;margin:.28em 0 .15em;font-size:29px;text-wrap:balance}
+  header.band p{margin:0;color:#B8C4BD;font-size:14px;max-width:62ch}
+
+  /* Controls */
+  .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:14px;margin:20px 0}
+  .ctl{background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:14px 16px;box-shadow:var(--sh)}
+  .ctl label{display:block;font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:600;margin-bottom:7px}
+  .ctl .field{display:flex;align-items:baseline;gap:6px}
+  .ctl .pre{color:var(--muted);font-size:14px}
+  .ctl input{border:0;background:transparent;font:inherit;font-size:21px;font-weight:600;color:var(--ink);
+    width:100%;padding:0;font-variant-numeric:tabular-nums;outline:none}
+  .ctl input:focus{color:var(--teal)}
+  .ctl .hint{font-size:11px;color:var(--muted);margin-top:5px}
+
+  /* KPI */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:14px 0 8px}
+  .kpi{background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:15px 17px;box-shadow:var(--sh);
+    border-top:3px solid var(--teal)}
+  .kpi .k-lab{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .kpi .k-val{font-family:Georgia,serif;font-size:25px;font-weight:600;margin-top:6px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .kpi .k-sub{font-size:12px;color:var(--muted);margin-top:3px}
+  .kpi.accent{border-top-color:var(--copper)}
+
+  .toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:26px 0 10px}
+  .toolbar h2{font-size:19px;margin:0}
+  .seg{display:inline-flex;background:#EAE6DB;border-radius:9px;padding:3px}
+  .seg button{border:0;background:transparent;font:inherit;font-size:13px;font-weight:600;color:var(--muted);
+    padding:6px 15px;border-radius:7px;cursor:pointer}
+  .seg button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+
+  /* Statement table */
+  .tbl-wrap{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--sh)}
+  table.dre{border-collapse:collapse;width:100%;min-width:100%}
+  table.dre.mensal{min-width:1180px}
+  table.dre th,table.dre td{padding:9px 14px;text-align:right;white-space:nowrap}
+  table.dre th:first-child,table.dre td:first-child{text-align:left;white-space:normal}
+  thead th{background:#F8F6F0;border-bottom:2px solid var(--line);font-size:11px;letter-spacing:.06em;
+    text-transform:uppercase;color:var(--muted);font-weight:700;position:sticky;top:0;z-index:2}
+  thead th.anual{color:var(--band)}
+  tbody td{border-bottom:1px solid var(--line2);font-variant-numeric:tabular-nums}
+  tbody td:last-child{font-weight:600}
+  .col-an{background:#FBFAF6}
+  th.col-an{background:#F2EFE7}
+
+  tr.group{cursor:pointer}
+  tr.group>td:first-child{font-weight:600}
+  tr.group:hover{background:#FAF8F2}
+  .caret{display:inline-block;width:14px;color:var(--copper);font-size:11px;transition:transform .15s;transform:rotate(0deg)}
+  tr.group.open .caret{transform:rotate(90deg)}
+  .op{color:var(--muted);font-weight:400;margin-right:8px;display:inline-block;width:14px}
+  tr.detail{display:none;background:#FCFBF7}
+  tr.detail.show{display:table-row}
+  tr.detail td:first-child{padding-left:44px;color:#4A4A42;font-size:13.5px}
+  tr.detail td{color:#55554C;font-size:13.5px;border-bottom:1px solid #F0ECE2}
+  .tag{font-size:10px;letter-spacing:.03em;color:var(--copper);border:1px solid #E4CDB4;background:#FBF3EA;
+    padding:1px 6px;border-radius:5px;margin-left:8px;vertical-align:1px;white-space:nowrap}
+
+  tr.sub td{background:var(--teal-tint);border-top:1px solid #CFE0D8;border-bottom:1px solid #CFE0D8}
+  tr.sub td:first-child{font-weight:600;color:#0C4A3E}
+  tr.result td{background:var(--band);color:#F4F0E7;font-weight:700}
+  tr.result td:first-child{font-family:Georgia,serif;letter-spacing:.01em}
+  tr.result.final td{background:linear-gradient(90deg,var(--band2),var(--band))}
+  tr.result .caret{color:#C9A87E}
+
+  .neg{color:var(--neg)}
+  tr.result .neg{color:#F0B3AA}
+  tr.result .pos{color:#8FE0BE}
+  .pos{color:var(--pos)}
+  input.rev{border:1px solid var(--line);background:#FFFDF8;border-radius:6px;font:inherit;font-size:13.5px;
+    text-align:right;width:104px;padding:3px 6px;font-variant-numeric:tabular-nums;color:var(--ink)}
+  input.rev:focus{outline:2px solid var(--teal);border-color:var(--teal)}
+  input.rev.big{width:150px;font-size:15px;font-weight:600}
+
+  /* Memo + notes */
+  .memo{margin-top:26px;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--copper);
+    border-radius:11px;padding:18px 22px;box-shadow:var(--sh)}
+  .memo h3{margin:0 0 4px;font-size:16px}
+  .memo p{margin:0 0 14px;color:var(--muted);font-size:13px;max-width:74ch}
+  .memo table{border-collapse:collapse;width:100%}
+  .memo td{padding:7px 10px;border-bottom:1px solid var(--line2);font-variant-numeric:tabular-nums;text-align:right}
+  .memo td:first-child{text-align:left;color:#4A4A42}
+  .memo tr:last-child td{border-bottom:0;font-weight:600;border-top:1.5px solid var(--line)}
+
+  .notes{margin-top:24px;font-size:13px;color:var(--muted);line-height:1.6}
+  .notes h3{color:var(--ink);font-size:15px;margin:0 0 8px}
+  .notes ul{margin:0;padding-left:18px} .notes li{margin:4px 0}
+  .notes b{color:#3C3C34}
+  footer{margin-top:30px;padding-top:16px;border-top:1px solid var(--line);font-size:12px;color:var(--muted);
+    display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+  @media (max-width:640px){.wrap{padding:18px 13px 48px}header.band{padding:20px 18px}header.band h1{font-size:23px}}
+</style>
+
+<div class="wrap">
+  <header class="band">
+    <div class="eyebrow">Batux · Exercício 2026</div>
+    <h1>Demonstração do Resultado do Exercício</h1>
+    <p>DRE contábil por regime de competência, consolidando despesas e pessoal da base 2026. A receita é um campo editável — informe-a nos controles abaixo para apurar o resultado.</p>
+  </header>
+
+  <div class="controls">
+    <div class="ctl">
+      <label>Receita Operacional Bruta (anual)</label>
+      <div class="field"><span class="pre">R$</span><input id="in-receita" inputmode="numeric" value="0"></div>
+      <div class="hint">Distribuída igualmente nos 12 meses. Edite mês a mês na visão “Mensal”.</div>
+    </div>
+    <div class="ctl">
+      <label>Deduções sobre a Receita</label>
+      <div class="field"><input id="in-ded" inputmode="decimal" value="0" style="max-width:70px"><span class="pre">% da receita bruta</span></div>
+      <div class="hint">Impostos sobre serviços (ISS, PIS, COFINS) e cancelamentos.</div>
+    </div>
+    <div class="ctl">
+      <label>IR / CSLL</label>
+      <div class="field"><input id="in-ir" inputmode="decimal" value="0" style="max-width:70px"><span class="pre">% sobre o lucro</span></div>
+      <div class="hint">Aplicado apenas quando há lucro antes do IR/CSLL.</div>
+    </div>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="toolbar">
+    <h2>Demonstração</h2>
+    <div class="seg" id="seg">
+      <button data-v="anual" class="on">Resumo anual</button>
+      <button data-v="mensal">Mensal</button>
+    </div>
+  </div>
+
+  <div class="tbl-wrap">
+    <table class="dre" id="dre"><thead id="thead"></thead><tbody id="tbody"></tbody></table>
+  </div>
+
+  <div class="memo">
+    <h3>Itens não integrantes do resultado <span class="tag">fora do DRE</span></h3>
+    <p>Amortização de passivos (financiamento e parcelamento de tributos). Reduzem o caixa, mas não são despesa do período — o gasto correspondente já transitou pelo resultado em exercícios anteriores. Registrados no Balanço/Fluxo de Caixa, não na apuração do resultado.</p>
+    <table id="memo-tbl"></table>
+  </div>
+
+  <div class="notes">
+    <h3>Critérios e premissas</h3>
+    <ul>
+      <li><b>Fonte:</b> planilha <i>base-dre-2026</i>, abas <i>Despesas</i> e <i>Pessoal</i> (12 meses de 2026).</li>
+      <li><b>PASSIVO fora do resultado:</b> “Bancos/Factory” (R$ 30.000) e “Impostos Parcelados” (R$ 362.896) tratados como amortização de dívida — reclassificados para fora do DRE.</li>
+      <li><b>Investimentos reclassificados por natureza:</b> Treinamento → Pessoal; Consultorias/LGPD, Plataforma e Equip. de TI → Administrativas; Concorrência/Prospecção → Comercial; Abertura Batux Chile → Despesas com Expansão (não recorrente).</li>
+      <li><b>Receita:</b> ausente na base; informada pelo usuário. Deduções e IR/CSLL calculados a partir dos percentuais definidos nos controles.</li>
+      <li><b>Pessoal:</b> agrupado por natureza (CLT, PJ, Sócios, Freelancers, Estagiários). Caso deseje apurar margem bruta, o pessoal ligado à entrega de eventos pode ser reclassificado como Custo dos Serviços Prestados.</li>
+    </ul>
+  </div>
+
+  <footer>
+    <span>Batux · DRE Contábil 2026</span>
+    <span>Valores em R$ · regime de competência · negativos entre parênteses</span>
+  </footer>
+</div>
+
+<script>
+const DATA = {"meses": ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"], "pessoal": {"total": [589049.71, 619021.24, 639524.84, 674539.4, 697095.77, 693636.0, 693636.0, 693636.0, 693636.0, 693636.0, 693636.0, 693636.0], "subs": [{"nome": "CLT", "vals": [15298.67, 15430.41, 15376.66, 15376.66, 15841.7, 16848.43, 16848.43, 16848.43, 16848.43, 16848.43, 16848.43, 16848.43]}, {"nome": "ESTAGIÁRIO", "vals": [2000.37, 1687.52, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]}, {"nome": "FREELANCER", "vals": [12780.0, 12941.28, 12780.0, 39870.91, 102435.62, 106974.44, 106974.44, 106974.44, 106974.44, 106974.44, 106974.44, 106974.44]}, {"nome": "PJ", "vals": [438054.78, 471803.03, 491172.29, 488262.61, 447789.23, 438783.91, 438783.91, 438783.91, 438783.91, 438783.91, 438783.91, 438783.91]}, {"nome": "SÓCIO", "vals": [118750.89, 115714.0, 118750.89, 129584.22, 129584.22, 129584.22, 129584.22, 129584.22, 129584.22, 129584.22, 129584.22, 129584.22]}, {"nome": "Treinamento e Cursos", "vals": [2165.0, 1445.0, 1445.0, 1445.0, 1445.0, 1445.0, 1445.0, 1445.0, 1445.0, 1445.0, 1445.0, 1445.0]}]}, "admin": {"total": [104895.74, 113177.45, 179717.4, 149804.65, 149804.65, 149804.65, 149804.65, 149804.65, 149804.65, 149804.65, 149804.65, 149804.65], "det": [{"nome": "Advogado", "orig": "CUSTO Fixo - ADM", "vals": [7743.97, 17675.59, 31730.87, 20672.75, 20672.75, 20672.75, 20672.75, 20672.75, 20672.75, 20672.75, 20672.75, 20672.75], "anual": 243205.18}, {"nome": "WMS-Medicina do Trabalho", "orig": "CUSTO Fixo - ADM", "vals": [106.24, 0.0, 212.51, 106.24, 106.24, 106.24, 106.24, 106.24, 106.24, 106.24, 106.24, 106.24], "anual": 1274.91}, {"nome": "Serv. TI", "orig": "CUSTO Fixo - ADM", "vals": [7235.95, 7235.95, 7235.95, 7235.95, 7235.95, 7235.95, 7235.95, 7235.95, 7235.95, 7235.95, 7235.95, 7235.95], "anual": 86831.4}, {"nome": "Contabilidade", "orig": "CUSTO Fixo - ADM", "vals": [5810.41, 5810.41, 5810.41, 5810.41, 5810.41, 5810.41, 5810.41, 5810.41, 5810.41, 5810.41, 5810.41, 5810.41], "anual": 69724.92}, {"nome": "Publi / Armazenamento de Nuvem", "orig": "CUSTO Fixo - ADM", "vals": [4398.66, 4398.66, 4398.66, 3174.97, 3174.97, 3174.97, 3174.97, 3174.97, 3174.97, 3174.97, 3174.97, 3174.97], "anual": 41770.71}, {"nome": "Serasa", "orig": "CUSTO Fixo - ADM", "vals": [980.31, 932.37, 734.92, 755.35, 755.35, 755.35, 755.35, 755.35, 755.35, 755.35, 755.35, 755.35], "anual": 9445.75}, {"nome": "Software (Licenças Office + Shutter + Backup diario + Google, Adobe + D4sign + Gerenciamento Projeto)", "orig": "CUSTO Fixo - ADM", "vals": [25457.8, 22048.73, 39271.46, 30573.59, 30573.59, 30573.59, 30573.59, 30573.59, 30573.59, 30573.59, 30573.59, 30573.59], "anual": 361940.3}, {"nome": "Ampro", "orig": "CUSTO Fixo - ADM", "vals": [1718.77, 913.77, 913.77, 913.77, 913.77, 913.77, 913.77, 913.77, 913.77, 913.77, 913.77, 913.77], "anual": 11770.24}, {"nome": "Estacionamento", "orig": "CUSTO Fixo - ADM", "vals": [880.0, 880.0, 880.0, 880.0, 880.0, 880.0, 880.0, 880.0, 880.0, 880.0, 880.0, 880.0], "anual": 10560.0}, {"nome": "Locação Equip Diversos ( Impressoras / I Mac / Filtro)", "orig": "CUSTO Fixo - ADM", "vals": [203.42, 252.39, 246.91, 245.24, 245.24, 245.24, 245.24, 245.24, 245.24, 245.24, 245.24, 245.24], "anual": 2909.88}, {"nome": "Aluguel", "orig": "CUSTO Fixo - ADM", "vals": [18017.99, 18842.89, 19167.59, 17962.89, 17962.89, 17962.89, 17962.89, 17962.89, 17962.89, 17962.89, 17962.89, 17962.89], "anual": 217694.48}, {"nome": "ArkTec - Armazenagem", "orig": "CUSTO Fixo - ADM", "vals": [873.62, 873.62, 1084.57, 873.62, 873.62, 873.62, 873.62, 873.62, 873.62, 873.62, 873.62, 873.62], "anual": 10694.39}, {"nome": "GOODSTORE ( Armazenamento Materiais Diversos)", "orig": "CUSTO Fixo - ADM", "vals": [1271.94, 1497.95, 1497.95, 1497.95, 1497.95, 1497.95, 1497.95, 1497.95, 1497.95, 1497.95, 1497.95, 1497.95], "anual": 17749.39}, {"nome": "Internet e Divs (link dedicado)", "orig": "CUSTO Fixo - ADM", "vals": [391.57, 435.41, 614.51, 392.51, 392.51, 392.51, 392.51, 392.51, 392.51, 392.51, 392.51, 392.51], "anual": 4974.08}, {"nome": "Telefonia + Manutenção", "orig": "CUSTO Fixo - ADM", "vals": [403.22, 176.51, 0.0, 174.95, 174.95, 174.95, 174.95, 174.95, 174.95, 174.95, 174.95, 174.95], "anual": 2154.28}, {"nome": "ADM ESTAGIO", "orig": "CUSTO Variavel", "vals": [320.34, 320.0, 320.34, 160.17, 160.17, 160.17, 160.17, 160.17, 160.17, 160.17, 160.17, 160.17], "anual": 2402.21}, {"nome": "Cartão de Credito", "orig": "CUSTO Variavel", "vals": [80.39, 90.0, 347.95, 376.52, 376.52, 376.52, 376.52, 376.52, 376.52, 376.52, 376.52, 376.52], "anual": 3907.02}, {"nome": "despesas adm e outras não classificadas", "orig": "CUSTO Variavel", "vals": [14161.3, 5772.0, 20468.71, 33788.3, 33788.3, 33788.3, 33788.3, 33788.3, 33788.3, 33788.3, 33788.3, 33788.3], "anual": 344496.71}, {"nome": "Reembolsos Despesas (Taxi / Alimentação / Estacionamento / Pedagio / KM, etc)", "orig": "CUSTO Variavel", "vals": [1331.6, 2631.65, 2093.95, 3858.59, 3858.59, 3858.59, 3858.59, 3858.59, 3858.59, 3858.59, 3858.59, 3858.59], "anual": 40784.51}, {"nome": "Insumos / Limpeza em geral / Mta. Escritorio", "orig": "CUSTO Variavel", "vals": [262.18, 260.0, 282.79, 604.38, 604.38, 604.38, 604.38, 604.38, 604.38, 604.38, 604.38, 604.38], "anual": 6244.39}, {"nome": "Motoboy", "orig": "CUSTO Variavel", "vals": [351.0, 420.0, 840.0, 105.0, 105.0, 105.0, 105.0, 105.0, 105.0, 105.0, 105.0, 105.0], "anual": 2556.0}, {"nome": "Consultorias  e  LGPD", "orig": "Investimentos", "vals": [8967.93, 13967.93, 8967.93, 10136.36, 10136.36, 10136.36, 10136.36, 10136.36, 10136.36, 10136.36, 10136.36, 10136.36], "anual": 123131.03}, {"nome": "Plataforma : promo/pag/anfra", "orig": "Investimentos", "vals": [227.16, 0.0, 25000.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "anual": 25227.16}, {"nome": "Equipamentos de Informática + Seguros +outros investimentos em TI", "orig": "Investimentos", "vals": [3699.97, 7741.62, 7595.65, 9505.14, 9505.14, 9505.14, 9505.14, 9505.14, 9505.14, 9505.14, 9505.14, 9505.14], "anual": 104583.5}]}, "comercial": {"total": [26072.94, 48508.63, 30027.44, 23977.86, 23977.86, 23977.86, 23977.86, 23977.86, 23977.86, 23977.86, 23977.86, 23977.86], "det": [{"nome": "Anuncio /propaganda", "orig": "CUSTO Variavel", "vals": [8650.0, 0.0, 2300.0, 1150.0, 1150.0, 1150.0, 1150.0, 1150.0, 1150.0, 1150.0, 1150.0, 1150.0], "anual": 21300.0}, {"nome": "Investimento em Endomarketing", "orig": "CUSTO Variavel", "vals": [5227.37, 0.0, 7193.24, 4702.18, 4702.18, 4702.18, 4702.18, 4702.18, 4702.18, 4702.18, 4702.18, 4702.18], "anual": 54740.23}, {"nome": "Redes Sociais / PR", "orig": "CUSTO Variavel", "vals": [5500.0, 5500.0, 5500.0, 5500.0, 5500.0, 5500.0, 5500.0, 5500.0, 5500.0, 5500.0, 5500.0, 5500.0], "anual": 66000.0}, {"nome": "Relacionamento com clientes", "orig": "CUSTO Variavel", "vals": [695.57, 246.63, 4634.2, 975.68, 975.68, 975.68, 975.68, 975.68, 975.68, 975.68, 975.68, 975.68], "anual": 14357.52}, {"nome": "Concorrencia/prospecção", "orig": "Investimentos", "vals": [6000.0, 42762.0, 10400.0, 11650.0, 11650.0, 11650.0, 11650.0, 11650.0, 11650.0, 11650.0, 11650.0, 11650.0], "anual": 164012.0}]}, "expansao": {"total": [29532.16, 0.0, 17598.17, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "det": [{"nome": "ABERTURA /  Despesas BATUX CHILE", "orig": "Investimentos", "vals": [29532.16, 0.0, 17598.17, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "anual": 47130.33}]}, "financeiro": {"total": [599.13, 681.44, 200.0, 452.88, 452.88, 452.88, 452.88, 452.88, 452.88, 452.88, 452.88, 452.88], "det": [{"nome": "PACOTES DE TARIFAS MENSAIS - BANCOS", "orig": "DESPESAS FINANCEIRAS", "vals": [599.13, 681.44, 200.0, 452.88, 452.88, 452.88, 452.88, 452.88, 452.88, 452.88, 452.88, 452.88], "anual": 5556.49}]}, "memo": {"total": [129970.37, 131012.87, 131913.18, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "det": [{"nome": "BANCOS/ FACTORY", "orig": "PASSIVO", "vals": [10000.0, 10000.0, 10000.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "anual": 30000.0}, {"nome": "IMPOSTOS Parcelamento", "orig": "PASSIVO", "vals": [119970.37, 121012.87, 121913.18, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "anual": 362896.42}]}};
+const MESES = DATA.meses;
+const state = { receita:new Array(12).fill(0), ded:0, ir:0, view:"anual" };
+
+const sumA = a => a.reduce((x,y)=>x+y,0);
+const arr = (fn)=>MESES.map((_,i)=>fn(i));
+function fmt(v){ if(Math.abs(v)<0.005)v=0; const s=Math.abs(v).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}); return v<0?"("+s+")":s; }
+const parseBR = s => { s=(""+s).replace(/[^\d,.-]/g,"").replace(/\.(?=\d{3}(\D|$))/g,"").replace(",","."); const n=parseFloat(s); return isNaN(n)?0:n; };
+
+// ---- model builders ----
+function receitaLiq(){ return arr(i=> state.receita[i] - deducoes()[i]); }
+function deducoes(){ return arr(i=> state.receita[i]*state.ded/100); }
+const P=DATA.pessoal.total, A=DATA.admin.total, C=DATA.comercial.total, E=DATA.expansao.total, F=DATA.financeiro.total;
+function despOper(){ return arr(i=> P[i]+A[i]+C[i]+E[i]); }
+function ebit(){ const rl=receitaLiq(),d=despOper(); return arr(i=>rl[i]-d[i]); }
+function lair(){ const e=ebit(); return arr(i=>e[i]-F[i]); }
+function ircsll(){ const l=lair(); return arr(i=> l[i]>0? l[i]*state.ir/100:0); }
+function liquido(){ const l=lair(),ir=ircsll(); return arr(i=>l[i]-ir[i]); }
+
+// ---- KPIs ----
+function renderKPIs(){
+  const rb=sumA(state.receita), rl=sumA(receitaLiq()), desp=sumA(despOper())+sumA(F), res=sumA(liquido());
+  const marg = rb>0 ? (res/rb*100) : null;
+  const cls = v => v<0?"neg":"pos";
+  const k=[
+    ["Receita bruta", "R$ "+fmt(rb), "12 meses", ""],
+    ["Despesas totais", "R$ "+fmt(sumA(despOper())+sumA(F)), "operacionais + financeiras", ""],
+    ["Resultado líquido", (res<0?"–":"")+"R$ "+fmt(Math.abs(res)), rb>0?"após IR/CSLL":"informe a receita", cls(res)],
+    ["Margem líquida", marg===null?"—":(marg).toLocaleString("pt-BR",{maximumFractionDigits:1})+"%", "resultado ÷ receita", marg===null?"":cls(marg)],
+  ];
+  document.getElementById("kpis").innerHTML = k.map((x,idx)=>`<div class="kpi${idx===2?' accent':''}">
+     <div class="k-lab">${x[0]}</div>
+     <div class="k-val ${x[3]}">${x[1]}</div>
+     <div class="k-sub">${x[2]}</div></div>`).join("");
+}
+
+// ---- statement ----
+function cols(){ return state.view==="mensal"? MESES.length : 0; }
+function head(){
+  const th=["<th>Conta</th>"];
+  if(state.view==="mensal") MESES.forEach(m=>th.push(`<th>${m}</th>`));
+  th.push(`<th class="anual col-an">Anual</th>`);
+  document.getElementById("thead").innerHTML="<tr>"+th.join("")+"</tr>";
+}
+function ncell(v,extra=""){ const c=v<0?"neg":""; return `<td class="${extra} ${c}">${fmt(v)}</td>`; }
+function rowCells(vals,extra=""){
+  let s="";
+  if(state.view==="mensal") vals.forEach(v=> s+=ncell(v,extra));
+  s+=ncell(sumA(vals),(extra?extra+" ":"")+"col-an");
+  return s;
+}
+let gid=0;
+function groupRow(label,vals,det,tag){
+  const id="g"+(gid++);
+  let s=`<tr class="group" data-g="${id}"><td><span class="caret">▶</span><span class="op">(–)</span>${label}${tag?`<span class="tag">${tag}</span>`:""}</td>${rowCells(vals)}</tr>`;
+  det.forEach(d=>{
+    const t = d.orig==="Investimentos" ? `<span class="tag">reclass.</span>`:"";
+    s+=`<tr class="detail" data-d="${id}"><td>${d.nome}${t}</td>${rowCells(d.vals)}</tr>`;
+  });
+  return s;
+}
+function revenueRow(){
+  // editable receita row
+  let cells="";
+  if(state.view==="mensal"){
+    state.receita.forEach((v,i)=> cells+=`<td><input class="rev" data-m="${i}" value="${v.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})}"></td>`);
+    cells+=`<td class="col-an">${fmt(sumA(state.receita))}</td>`;
+  } else {
+    cells+=`<td class="col-an"><input class="rev big" id="rev-an" value="${sumA(state.receita).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2})}"></td>`;
+  }
+  return `<tr class="group" style="cursor:default"><td><span class="op" style="color:var(--pos)">(+)</span>Receita Operacional Bruta</td>${cells}</tr>`;
+}
+function simpleRow(label,vals,op){ return `<tr><td><span class="op">${op||""}</span>${label}</td>${rowCells(vals)}</tr>`; }
+function subRow(label,vals){ return `<tr class="sub"><td>${label}</td>${rowCells(vals)}</tr>`; }
+function resultRow(label,vals,final){
+  return `<tr class="result${final?' final':''}"><td>${label}</td>${rowCells(vals,"")}</tr>`;
+}
+
+function renderTable(){
+  gid=0;
+  document.getElementById("dre").className="dre"+(state.view==="mensal"?" mensal":"");
+  head();
+  let h="";
+  h+=revenueRow();
+  h+=simpleRow("Deduções da Receita Bruta",deducoes().map(v=>-v),"(–)");
+  h+=subRow("= Receita Operacional Líquida",receitaLiq());
+  h+=groupRow("Despesas com Pessoal",P,DATA.pessoal.subs.map(s=>({nome:s.nome,orig:"",vals:s.vals})));
+  h+=groupRow("Despesas Administrativas e Gerais",A,DATA.admin.det);
+  h+=groupRow("Despesas Comerciais e de Marketing",C,DATA.comercial.det);
+  h+=groupRow("Despesas com Expansão",E,DATA.expansao.det,"não recorrente");
+  h+=subRow("= Total das Despesas Operacionais",despOper().map(v=>-v));
+  h+=resultRow("= Resultado Operacional (EBIT)",ebit());
+  h+=groupRow("Despesas Financeiras",F,DATA.financeiro.det);
+  h+=resultRow("= Resultado antes do IR/CSLL",lair());
+  h+=simpleRow("Provisão para IR / CSLL",ircsll().map(v=>-v),"(–)");
+  h+=resultRow("= Resultado Líquido do Exercício",liquido(),true);
+  document.getElementById("tbody").innerHTML=h;
+  bindTable();
+}
+function bindTable(){
+  document.querySelectorAll("tr.group[data-g]").forEach(tr=>{
+    tr.onclick=e=>{ if(e.target.tagName==="INPUT")return;
+      const id=tr.dataset.g, open=tr.classList.toggle("open");
+      document.querySelectorAll(`tr.detail[data-d="${id}"]`).forEach(d=>d.classList.toggle("show",open));
+    };
+  });
+  const an=document.getElementById("rev-an");
+  if(an) an.addEventListener("change",e=>{ const t=parseBR(e.target.value); state.receita=new Array(12).fill(t/12); update(); });
+  document.querySelectorAll("input.rev[data-m]").forEach(inp=>{
+    inp.addEventListener("change",e=>{ state.receita[+inp.dataset.m]=parseBR(e.target.value); update(); });
+  });
+}
+
+// ---- memo ----
+function renderMemo(){
+  const rows=DATA.memo.det.map(d=>`<tr><td>${d.nome.replace("BANCOS/ FACTORY","Amortização Bancos / Factory").replace("IMPOSTOS Parcelamento","Parcelamento de Impostos")}</td><td class="tnum">${fmt(d.anual)}</td></tr>`).join("");
+  const tot=sumA(DATA.memo.total);
+  document.getElementById("memo-tbl").innerHTML=rows+`<tr><td>Total de amortizações (anual)</td><td class="tnum">${fmt(tot)}</td></tr>`;
+}
+
+function update(){ renderKPIs(); renderTable(); }
+
+document.getElementById("in-receita").addEventListener("change",e=>{ const t=parseBR(e.target.value); state.receita=new Array(12).fill(t/12); update(); });
+document.getElementById("in-ded").addEventListener("change",e=>{ state.ded=parseBR(e.target.value); update(); });
+document.getElementById("in-ir").addEventListener("change",e=>{ state.ir=parseBR(e.target.value); update(); });
+document.getElementById("seg").addEventListener("click",e=>{ const b=e.target.closest("button"); if(!b)return;
+  document.querySelectorAll("#seg button").forEach(x=>x.classList.remove("on")); b.classList.add("on");
+  state.view=b.dataset.v; renderTable(); });
+
+renderMemo(); update();
+</script>
