@@ -244,29 +244,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // modo supabase
-    const perfilPatch: Record<string, unknown> = {}
-    if (dados.nome !== undefined) perfilPatch.nome = dados.nome.trim()
-    if (dados.email !== undefined) perfilPatch.email = dados.email.trim()
-    if (dados.role !== undefined) perfilPatch.role = dados.role
-    if (dados.bloqueado !== undefined) perfilPatch.bloqueado = dados.bloqueado
-    if (Object.keys(perfilPatch).length) {
-      const { error } = await supabase!.from('profiles').update(perfilPatch).eq('id', id)
-      if (error) return { error: 'Não foi possível salvar as alterações.' }
+    if (isSelf) {
+      // Nome vai no perfil (RLS permite editar o próprio); e-mail/senha no Auth.
+      if (dados.nome !== undefined) {
+        const { error } = await supabase!.from('profiles').update({ nome: dados.nome.trim() }).eq('id', id)
+        if (error) return { error: 'Não foi possível salvar as alterações.' }
+      }
+      if (dados.email || (dados.senha && dados.senha !== '')) {
+        const { error } = await supabase!.auth.updateUser({
+          email: dados.email?.trim(),
+          password: dados.senha && dados.senha !== '' ? dados.senha : undefined,
+        })
+        if (error) return { error: traduzErro(error.message) }
+      }
+      setUser(await fetchPerfil(id, dados.email?.trim() ?? user!.email))
+      return {}
     }
 
-    // E-mail/senha da conta de auth: self via updateUser; de terceiros exige Edge Function.
-    if (isSelf && (dados.email || (dados.senha && dados.senha !== ''))) {
-      const { error } = await supabase!.auth.updateUser({
-        email: dados.email?.trim(),
-        password: dados.senha && dados.senha !== '' ? dados.senha : undefined,
-      })
-      if (error) return { error: traduzErro(error.message) }
-    } else if (isAdmin && !isSelf && (dados.email || (dados.senha && dados.senha !== ''))) {
-      const { error } = await supabase!.functions.invoke('admin-update-user', { body: { id, ...dados } })
-      if (error) return { error: 'Alteração de e-mail/senha de terceiros exige a Edge Function admin-update-user.' }
-    }
-
-    if (isSelf) setUser(await fetchPerfil(id, dados.email?.trim() ?? user!.email))
+    // Admin editando terceiros → Edge Function segura (usa service_role no servidor).
+    const { error } = await supabase!.functions.invoke('admin-update-user', { body: { id, ...dados } })
+    if (error) return { error: 'Não foi possível salvar. Verifique a Edge Function admin-update-user.' }
     return {}
   }
 
