@@ -11,6 +11,7 @@ import { DRE } from './pages/financeiro/DRE'
 import { Rentabilidade } from './pages/financeiro/Rentabilidade'
 import { Indicadores } from './pages/financeiro/Indicadores'
 import { Usuarios } from './pages/admin/Usuarios'
+import { MeuPerfil } from './pages/MeuPerfil'
 
 export default function App() {
   return (
@@ -36,6 +37,8 @@ export default function App() {
               <Route path="rentabilidade" element={<Rentabilidade />} />
               <Route path="indicadores" element={<Indicadores />} />
             </Route>
+
+            <Route path="perfil" element={<MeuPerfil />} />
 
             <Route
               path="admin/usuarios"

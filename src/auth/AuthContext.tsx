@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
-import type { AppUser, AuthMode, NovoUsuario, Role } from './types'
+import { avaliarSenha } from '../lib/password'
+import type { AppUser, AuthMode, NovoUsuario, PatchUsuario, Role } from './types'
 
 interface AuthContextValue {
   user: AppUser | null
@@ -9,6 +10,7 @@ interface AuthContextValue {
   signIn: (email: string, senha: string) => Promise<{ error?: string }>
   signOut: () => Promise<void>
   createUser: (dados: NovoUsuario) => Promise<{ error?: string }>
+  updateUser: (id: string, patch: PatchUsuario) => Promise<{ error?: string }>
   listUsers: () => Promise<AppUser[]>
 }
 
@@ -25,8 +27,8 @@ interface DemoUser extends AppUser {
 }
 
 const SEED: DemoUser[] = [
-  { id: 'u-admin', nome: 'Administrador', email: 'admin@axisgo.com.br', role: 'admin', senha: 'admin123' },
-  { id: 'u-user', nome: 'Usuário Padrão', email: 'user@axisgo.com.br', role: 'user', senha: 'user123' },
+  { id: 'u-admin', nome: 'Administrador', email: 'admin@axisgo.com.br', role: 'admin', bloqueado: false, senha: 'admin123' },
+  { id: 'u-user', nome: 'Usuário Padrão', email: 'user@axisgo.com.br', role: 'user', bloqueado: false, senha: 'user123' },
 ]
 
 function demoLoadUsers(): DemoUser[] {
@@ -36,7 +38,9 @@ function demoLoadUsers(): DemoUser[] {
     return SEED
   }
   try {
-    return JSON.parse(raw) as DemoUser[]
+    const parsed = JSON.parse(raw) as DemoUser[]
+    // Compatibilidade: garante o campo `bloqueado` em bases antigas.
+    return parsed.map((u) => ({ ...u, bloqueado: u.bloqueado ?? false }))
   } catch {
     localStorage.setItem(DEMO_USERS_KEY, JSON.stringify(SEED))
     return SEED
@@ -47,7 +51,13 @@ function demoSaveUsers(users: DemoUser[]) {
   localStorage.setItem(DEMO_USERS_KEY, JSON.stringify(users))
 }
 
-const strip = (u: DemoUser): AppUser => ({ id: u.id, nome: u.nome, email: u.email, role: u.role })
+const strip = (u: DemoUser): AppUser => ({
+  id: u.id,
+  nome: u.nome,
+  email: u.email,
+  role: u.role,
+  bloqueado: u.bloqueado,
+})
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null)
@@ -62,24 +72,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const sessionId = localStorage.getItem(DEMO_SESSION_KEY)
         if (sessionId) {
           const found = demoLoadUsers().find((u) => u.id === sessionId)
-          if (found && active) setUser(strip(found))
+          if (found && !found.bloqueado && active) setUser(strip(found))
         }
         if (active) setLoading(false)
         return
       }
 
-      // modo supabase
       const { data } = await supabase!.auth.getSession()
       if (data.session?.user) {
         const perfil = await fetchPerfil(data.session.user.id, data.session.user.email ?? '')
-        if (active) setUser(perfil)
+        if (perfil.bloqueado) {
+          await supabase!.auth.signOut()
+        } else if (active) {
+          setUser(perfil)
+        }
       }
       if (active) setLoading(false)
 
       supabase!.auth.onAuthStateChange(async (_event, session) => {
         if (session?.user) {
           const perfil = await fetchPerfil(session.user.id, session.user.email ?? '')
-          if (active) setUser(perfil)
+          if (active) setUser(perfil.bloqueado ? null : perfil)
         } else if (active) {
           setUser(null)
         }
@@ -96,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function fetchPerfil(id: string, email: string): Promise<AppUser> {
     const { data } = await supabase!
       .from('profiles')
-      .select('nome, role')
+      .select('nome, role, bloqueado')
       .eq('id', id)
       .single()
     return {
@@ -104,15 +117,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       nome: (data?.nome as string) ?? email,
       role: ((data?.role as Role) ?? 'user'),
+      bloqueado: Boolean(data?.bloqueado),
     }
   }
 
   async function signIn(email: string, senha: string): Promise<{ error?: string }> {
     if (mode === 'demo') {
-      const found = demoLoadUsers().find(
-        (u) => u.email.toLowerCase() === email.trim().toLowerCase() && u.senha === senha,
-      )
-      if (!found) return { error: 'E-mail ou senha inválidos.' }
+      const found = demoLoadUsers().find((u) => u.email.toLowerCase() === email.trim().toLowerCase())
+      if (!found || found.senha !== senha) return { error: 'E-mail ou senha inválidos.' }
+      if (found.bloqueado) return { error: 'Usuário bloqueado. Contate o administrador.' }
       localStorage.setItem(DEMO_SESSION_KEY, found.id)
       setUser(strip(found))
       return {}
@@ -120,7 +133,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data, error } = await supabase!.auth.signInWithPassword({ email: email.trim(), password: senha })
     if (error) return { error: traduzErro(error.message) }
-    if (data.user) setUser(await fetchPerfil(data.user.id, data.user.email ?? ''))
+    if (data.user) {
+      const perfil = await fetchPerfil(data.user.id, data.user.email ?? '')
+      if (perfil.bloqueado) {
+        await supabase!.auth.signOut()
+        return { error: 'Usuário bloqueado. Contate o administrador.' }
+      }
+      setUser(perfil)
+    }
     return {}
   }
 
@@ -136,6 +156,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function createUser(dados: NovoUsuario): Promise<{ error?: string }> {
     if (user?.role !== 'admin') return { error: 'Apenas administradores podem criar usuários.' }
+    if (!avaliarSenha(dados.senha).ok) {
+      return { error: 'A senha não atende aos requisitos mínimos de segurança.' }
+    }
 
     if (mode === 'demo') {
       const users = demoLoadUsers()
@@ -147,27 +170,114 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         nome: dados.nome.trim(),
         email: dados.email.trim(),
         role: dados.role,
+        bloqueado: false,
         senha: dados.senha,
       })
       demoSaveUsers(users)
       return {}
     }
 
-    // modo supabase: criação de usuário por admin exige service_role (servidor).
-    // Fica encapsulado numa Edge Function `admin-create-user` (ver supabase/README).
     const { error } = await supabase!.functions.invoke('admin-create-user', { body: dados })
     if (error) return { error: 'Não foi possível criar o usuário. Verifique a Edge Function admin-create-user.' }
     return {}
   }
 
+  async function updateUser(id: string, patch: PatchUsuario): Promise<{ error?: string }> {
+    const isAdmin = user?.role === 'admin'
+    const isSelf = user?.id === id
+    if (!isAdmin && !isSelf) return { error: 'Você não tem permissão para alterar este usuário.' }
+
+    // Usuário comum não altera perfil nem status de bloqueio.
+    const dados: PatchUsuario = { ...patch }
+    if (!isAdmin) {
+      delete dados.role
+      delete dados.bloqueado
+    }
+
+    // Salvaguardas: admin não pode se autobloquear nem se rebaixar (evita lockout).
+    if (isAdmin && isSelf) {
+      if (dados.bloqueado === true) return { error: 'Você não pode bloquear a própria conta.' }
+      if (dados.role && dados.role !== 'admin') {
+        return { error: 'Você não pode remover o próprio acesso de administrador.' }
+      }
+    }
+
+    if (dados.senha !== undefined && dados.senha !== '') {
+      if (!avaliarSenha(dados.senha).ok) {
+        return { error: 'A senha não atende aos requisitos mínimos de segurança.' }
+      }
+    }
+
+    if (mode === 'demo') {
+      const users = demoLoadUsers()
+      const idx = users.findIndex((u) => u.id === id)
+      if (idx === -1) return { error: 'Usuário não encontrado.' }
+
+      if (dados.email) {
+        const emailEmUso = users.some(
+          (u) => u.id !== id && u.email.toLowerCase() === dados.email!.trim().toLowerCase(),
+        )
+        if (emailEmUso) return { error: 'Já existe um usuário com esse e-mail.' }
+      }
+
+      const atual = users[idx]
+      users[idx] = {
+        ...atual,
+        nome: dados.nome?.trim() ?? atual.nome,
+        email: dados.email?.trim() ?? atual.email,
+        role: dados.role ?? atual.role,
+        bloqueado: dados.bloqueado ?? atual.bloqueado,
+        senha: dados.senha && dados.senha !== '' ? dados.senha : atual.senha,
+      }
+      demoSaveUsers(users)
+
+      // Reflete no usuário logado, se for ele mesmo.
+      if (isSelf) {
+        if (users[idx].bloqueado) {
+          localStorage.removeItem(DEMO_SESSION_KEY)
+          setUser(null)
+        } else {
+          setUser(strip(users[idx]))
+        }
+      }
+      return {}
+    }
+
+    // modo supabase
+    const perfilPatch: Record<string, unknown> = {}
+    if (dados.nome !== undefined) perfilPatch.nome = dados.nome.trim()
+    if (dados.email !== undefined) perfilPatch.email = dados.email.trim()
+    if (dados.role !== undefined) perfilPatch.role = dados.role
+    if (dados.bloqueado !== undefined) perfilPatch.bloqueado = dados.bloqueado
+    if (Object.keys(perfilPatch).length) {
+      const { error } = await supabase!.from('profiles').update(perfilPatch).eq('id', id)
+      if (error) return { error: 'Não foi possível salvar as alterações.' }
+    }
+
+    // E-mail/senha da conta de auth: self via updateUser; de terceiros exige Edge Function.
+    if (isSelf && (dados.email || (dados.senha && dados.senha !== ''))) {
+      const { error } = await supabase!.auth.updateUser({
+        email: dados.email?.trim(),
+        password: dados.senha && dados.senha !== '' ? dados.senha : undefined,
+      })
+      if (error) return { error: traduzErro(error.message) }
+    } else if (isAdmin && !isSelf && (dados.email || (dados.senha && dados.senha !== ''))) {
+      const { error } = await supabase!.functions.invoke('admin-update-user', { body: { id, ...dados } })
+      if (error) return { error: 'Alteração de e-mail/senha de terceiros exige a Edge Function admin-update-user.' }
+    }
+
+    if (isSelf) setUser(await fetchPerfil(id, dados.email?.trim() ?? user!.email))
+    return {}
+  }
+
   async function listUsers(): Promise<AppUser[]> {
     if (mode === 'demo') return demoLoadUsers().map(strip)
-    const { data } = await supabase!.from('profiles').select('id, email, nome, role').order('nome')
+    const { data } = await supabase!.from('profiles').select('id, email, nome, role, bloqueado').order('nome')
     return (data as AppUser[]) ?? []
   }
 
   const value = useMemo(
-    () => ({ user, loading, mode, signIn, signOut, createUser, listUsers }),
+    () => ({ user, loading, mode, signIn, signOut, createUser, updateUser, listUsers }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [user, loading, mode],
   )

@@ -29,6 +29,14 @@ export function AppLayout() {
             >
               Início
             </NavLink>
+            <NavLink
+              to="/perfil"
+              className={({ isActive }) =>
+                `rounded-md px-3 py-1.5 transition ${isActive ? 'bg-white/10 text-paper' : 'text-paper/70 hover:text-paper'}`
+              }
+            >
+              Meu perfil
+            </NavLink>
             {user?.role === 'admin' && (
               <NavLink
                 to="/admin/usuarios"
@@ -42,10 +50,10 @@ export function AppLayout() {
           </nav>
 
           <div className="ml-auto flex items-center gap-3">
-            <div className="hidden text-right leading-tight sm:block">
-              <div className="text-sm font-medium text-paper">{user?.nome}</div>
+            <Link to="/perfil" className="hidden text-right leading-tight sm:block">
+              <div className="text-sm font-medium text-paper hover:underline">{user?.nome}</div>
               <div className="text-[11px] text-paper/60">{user?.email}</div>
-            </div>
+            </Link>
             <span
               className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
                 user?.role === 'admin' ? 'bg-copper text-white' : 'bg-white/15 text-paper'

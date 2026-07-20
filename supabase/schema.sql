@@ -9,8 +9,12 @@ create table if not exists public.profiles (
   email      text,
   nome       text,
   role       text not null default 'user' check (role in ('admin', 'user')),
+  bloqueado  boolean not null default false,
   created_at timestamptz not null default now()
 );
+
+-- Para bases já existentes:
+alter table public.profiles add column if not exists bloqueado boolean not null default false;
 
 alter table public.profiles enable row level security;
 
