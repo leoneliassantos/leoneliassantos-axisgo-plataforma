@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { CLIENT } from '../config/client'
 
 export function AppLayout() {
   const { user, mode, signOut } = useAuth()
@@ -87,7 +88,7 @@ export function AppLayout() {
       <footer className="border-t border-line">
         <div className="mx-auto flex max-w-content flex-wrap justify-between gap-2 px-5 py-4 text-xs text-muted">
           <span>AxisGo · Business Transformation Outsourcing</span>
-          <span>Cliente: Batux</span>
+          <span>Cliente: {CLIENT.nome}</span>
         </div>
       </footer>
     </div>

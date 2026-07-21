@@ -101,8 +101,7 @@ export function Login() {
                 Use as credenciais de teste:
               </p>
               <ul className="mt-2 space-y-1 font-mono text-[12px]">
-                <li>admin@axisgo.com.br · admin123 <span className="text-copper">(admin)</span></li>
-                <li>user@axisgo.com.br · user123 <span className="text-muted">(usuário)</span></li>
+                <li>leon.santos@axisgo.com.br · admin123 <span className="text-copper">(admin)</span></li>
               </ul>
             </div>
           )}

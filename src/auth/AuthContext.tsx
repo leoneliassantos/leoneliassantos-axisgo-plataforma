@@ -27,8 +27,7 @@ interface DemoUser extends AppUser {
 }
 
 const SEED: DemoUser[] = [
-  { id: 'u-admin', nome: 'Administrador', email: 'admin@axisgo.com.br', role: 'admin', bloqueado: false, senha: 'admin123' },
-  { id: 'u-user', nome: 'Usuário Padrão', email: 'user@axisgo.com.br', role: 'user', bloqueado: false, senha: 'user123' },
+  { id: 'u-admin', nome: 'Leon Santos', email: 'leon.santos@axisgo.com.br', role: 'admin', bloqueado: false, senha: 'admin123' },
 ]
 
 function demoLoadUsers(): DemoUser[] {
