@@ -15,9 +15,11 @@ export function AppLayout() {
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-20 border-b border-line bg-band text-paper">
         <div className="mx-auto flex h-14 w-full max-w-content items-center gap-4 px-5">
-          <Link to="/" className="flex items-baseline gap-2">
-            <span className="font-serif text-lg font-semibold tracking-tight text-paper">AxisGo</span>
-            <span className="text-[11px] uppercase tracking-[0.18em] text-copper">Plataforma</span>
+          <Link to="/" className="flex items-center gap-3">
+            <img src="/axisgo-logo.webp" alt="AxisGo" className="h-7 w-auto" />
+            <span className="hidden text-[11px] uppercase tracking-[0.18em] text-cyan sm:inline">
+              {CLIENT.nome}
+            </span>
           </Link>
 
           <nav className="ml-4 hidden items-center gap-1 text-sm sm:flex">
