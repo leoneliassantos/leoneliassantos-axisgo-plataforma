@@ -4,6 +4,8 @@
 
 :root {
   color-scheme: light;
+  /* Cor de destaque do cliente (white-label). Padrão: azul AxisGo. */
+  --brand: 29 95 168;
 }
 
 html,

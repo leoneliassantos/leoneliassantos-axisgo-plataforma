@@ -10,7 +10,7 @@ export function EmConstrucao({
   return (
     <div className="grid place-items-center rounded-2xl border border-dashed border-line bg-surface/60 px-6 py-16 text-center">
       <div className="max-w-md">
-        <span className="grid h-12 w-12 place-items-center rounded-xl bg-teal-tint text-teal mx-auto">
+        <span className="grid h-12 w-12 place-items-center rounded-xl bg-brand/10 text-brand mx-auto">
           <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor">
             <path
               d="M12 8v4l3 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z"

@@ -18,13 +18,17 @@ export default {
         line: '#DBE4EF',
         pos: '#15805A',
         neg: '#C0392B',
+        // Cor de destaque do CLIENTE (white-label do ambiente interno) — via CSS var
+        brand: 'rgb(var(--brand) / <alpha-value>)',
       },
       fontFamily: {
         serif: ['Georgia', '"Iowan Old Style"', '"Times New Roman"', 'serif'],
         sans: ['ui-sans-serif', '-apple-system', '"Segoe UI"', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
       },
       boxShadow: {
-        card: '0 1px 2px rgba(11,37,69,.05), 0 10px 30px rgba(11,37,69,.08)',
+        // Sombras na cor da marca do cliente (via CSS var --brand)
+        card: '0 1px 2px rgb(var(--brand) / 0.05), 0 8px 24px rgb(var(--brand) / 0.08)',
+        brand: '0 10px 26px rgb(var(--brand) / 0.14)',
       },
       maxWidth: {
         content: '1180px',

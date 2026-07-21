@@ -98,14 +98,14 @@ export function Usuarios() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <span className="text-[12px] font-semibold uppercase tracking-[0.14em] text-copper">Administração</span>
+          <span className="text-[12px] font-semibold uppercase tracking-[0.14em] text-brand">Administração</span>
           <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">Gestão de Usuários</h1>
           <p className="mt-1 text-muted">Crie, edite, bloqueie e defina o perfil de acesso de cada pessoa.</p>
         </div>
         <button
           type="button"
           onClick={abrirNovo}
-          className="inline-flex items-center gap-2 rounded-lg bg-teal px-4 py-2.5 font-semibold text-white transition hover:bg-band"
+          className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 font-semibold text-white transition hover:brightness-95"
         >
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor">
             <path d="M12 5v14M5 12h14" strokeWidth="2" strokeLinecap="round" />
@@ -153,7 +153,7 @@ export function Usuarios() {
                     <td className="px-4 py-3">
                       <span
                         className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                          u.role === 'admin' ? 'bg-copper/15 text-copper' : 'bg-teal-tint text-teal'
+                          u.role === 'admin' ? 'bg-brand/15 text-brand' : 'bg-brand/10 text-brand'
                         }`}
                       >
                         {u.role === 'admin' ? 'Admin' : 'Usuário'}
@@ -202,7 +202,7 @@ export function Usuarios() {
       </div>
 
       {modal && (
-        <div className="fixed inset-0 z-40 grid place-items-center bg-band2/50 p-4" onClick={fechar}>
+        <div className="fixed inset-0 z-40 grid place-items-center bg-ink/40 p-4" onClick={fechar}>
           <form
             onSubmit={salvar}
             onClick={(e) => e.stopPropagation()}
@@ -225,7 +225,7 @@ export function Usuarios() {
                 required
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
-                className="rounded-lg border border-line bg-surface px-3.5 py-2.5 text-ink outline-none transition focus:border-teal focus:ring-2 focus:ring-teal/20"
+                className="rounded-lg border border-line bg-surface px-3.5 py-2.5 text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
               />
             </label>
             <label className="flex flex-col gap-1.5">
@@ -235,7 +235,7 @@ export function Usuarios() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="rounded-lg border border-line bg-surface px-3.5 py-2.5 text-ink outline-none transition focus:border-teal focus:ring-2 focus:ring-teal/20"
+                className="rounded-lg border border-line bg-surface px-3.5 py-2.5 text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
               />
             </label>
             <label className="flex flex-col gap-1.5">
@@ -243,7 +243,7 @@ export function Usuarios() {
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value as Role)}
-                className="rounded-lg border border-line bg-surface px-3.5 py-2.5 text-ink outline-none transition focus:border-teal focus:ring-2 focus:ring-teal/20"
+                className="rounded-lg border border-line bg-surface px-3.5 py-2.5 text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
               >
                 <option value="user">Usuário</option>
                 <option value="admin">Administrador</option>
@@ -273,7 +273,7 @@ export function Usuarios() {
               <button
                 type="submit"
                 disabled={salvando || !podeSalvar}
-                className="rounded-lg bg-teal px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-band disabled:opacity-50"
+                className="rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-50"
               >
                 {salvando ? 'Salvando…' : modal === 'novo' ? 'Criar usuário' : 'Salvar alterações'}
               </button>
