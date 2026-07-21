@@ -77,10 +77,13 @@ export function AppLayout() {
         <Outlet />
       </main>
 
-      <footer className="border-t border-line">
-        <div className="mx-auto flex max-w-content flex-wrap justify-between gap-2 px-5 py-4 text-xs text-muted">
-          <span>{CLIENT.nome} · ambiente por AxisGo</span>
-          <span>Business Transformation Outsourcing</span>
+      <footer className="bg-band text-paper">
+        <div className="mx-auto flex max-w-content flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3.5 text-xs">
+          <span className="flex flex-wrap items-center gap-2 text-paper/85">
+            {CLIENT.nome} - Ambiente desenvolvido por
+            <img src="/axisgo-logo.webp" alt="AxisGo" className="h-5 w-auto" />
+          </span>
+          <span className="text-paper/70">Business Transformation Outsourcing</span>
         </div>
       </footer>
     </div>
