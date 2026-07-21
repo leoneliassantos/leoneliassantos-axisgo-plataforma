@@ -54,7 +54,7 @@ const iconFinanceiro = (
   </>
 )
 
-export const FRENTES: Frente[] = [
+const TODAS_FRENTES: Frente[] = [
   {
     slug: 'comercial',
     nome: 'Comercial',
@@ -118,3 +118,17 @@ export const FRENTES: Frente[] = [
     ],
   },
 ]
+
+/**
+ * Frentes ATIVAS nesta instância.
+ * Configurável por VITE_FRONTS = lista de slugs separados por vírgula.
+ *   Ex.: VITE_FRONTS="financeiro"                  → só Financeiro (ex.: MC Distribuidora)
+ *        VITE_FRONTS="comercial,operacoes,financeiro" ou vazio → todas
+ */
+const ativos = (import.meta.env.VITE_FRONTS as string | undefined)
+  ?.split(',')
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean)
+
+export const FRENTES: Frente[] =
+  ativos && ativos.length ? TODAS_FRENTES.filter((f) => ativos.includes(f.slug)) : TODAS_FRENTES
