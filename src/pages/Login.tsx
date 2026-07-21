@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
+import { CLIENT } from '../config/client'
 
 export function Login() {
   const { user, signIn, mode } = useAuth()
@@ -43,16 +44,20 @@ export function Login() {
             própria base. Business Transformation Outsourcing.
           </p>
         </div>
-        <div className="text-xs text-paper/50">Ambiente seguro · acesso restrito</div>
+        <div className="text-xs text-paper/50">Ambiente {CLIENT.nome} · acesso restrito</div>
       </div>
 
       {/* Formulário */}
       <div className="flex items-center justify-center px-6 py-12">
         <div className="w-full max-w-sm">
-          <div className="mb-8 lg:hidden">
+          <div className="mb-8 flex items-baseline gap-2 lg:hidden">
             <span className="font-serif text-2xl font-semibold text-ink">AxisGo</span>
+            <span className="text-[11px] uppercase tracking-[0.2em] text-copper">Plataforma BTO</span>
           </div>
-          <h2 className="font-serif text-2xl font-semibold text-ink">Entrar</h2>
+          <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-copper">
+            AxisGo · Ambiente {CLIENT.nome}
+          </div>
+          <h2 className="mt-1 font-serif text-2xl font-semibold text-ink">Entrar</h2>
           <p className="mt-1 text-sm text-muted">Informe seu usuário e senha para acessar a plataforma.</p>
 
           <form onSubmit={handleSubmit} className="mt-7 flex flex-col gap-4">
