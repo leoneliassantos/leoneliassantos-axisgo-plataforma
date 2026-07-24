@@ -420,12 +420,13 @@ function BarrasMensais({ receb, pag, labels }: { receb: number[]; pag: number[];
   )
 }
 function BarrasHorizontais({ itens, cor, total }: { itens: { nome: string; valor: number }[]; cor: string; total: number }) {
-  if (!itens.length) return <p className="text-[12px] text-muted">Sem dados no filtro.</p>
+  if (!itens.length) return <div className="flex h-full items-center text-[12px] text-muted">Sem dados no filtro.</div>
   const max = itens[0].valor || 1
   return (
-    <div className="flex h-full flex-col justify-between gap-1 overflow-hidden">
+    // cada linha é flexível (flex-1) → todas dividem a altura e SEMPRE cabem, sem corte
+    <div className="flex h-full flex-col">
       {itens.map((it) => (
-        <div key={it.nome} className="flex items-center gap-1.5 text-[11px]">
+        <div key={it.nome} className="flex min-h-0 flex-1 items-center gap-1.5 text-[11px]">
           <div className="w-[32%] shrink-0 truncate text-ink" title={it.nome}>{it.nome}</div>
           <div className="h-3.5 flex-1 overflow-hidden rounded bg-paper">
             <div className="h-full rounded" style={{ width: `${(it.valor / max) * 100}%`, background: cor, minWidth: 2 }} />
