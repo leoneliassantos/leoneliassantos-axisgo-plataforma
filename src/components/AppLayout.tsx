@@ -73,7 +73,7 @@ export function AppLayout() {
         </div>
       )}
 
-      <main className="mx-auto w-full max-w-content flex-1 px-5 py-7">
+      <main className="mx-auto w-full max-w-content flex-1 px-5 py-4">
         <Outlet />
       </main>
 

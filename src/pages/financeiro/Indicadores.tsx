@@ -28,7 +28,7 @@ export function Indicadores() {
       const el = wrapRef.current
       if (!el) return
       const top = el.getBoundingClientRect().top
-      setAltura(Math.max(430, window.innerHeight - top - 96))
+      setAltura(Math.max(430, window.innerHeight - top - 80))
     }
     calc()
     window.addEventListener('resize', calc)
