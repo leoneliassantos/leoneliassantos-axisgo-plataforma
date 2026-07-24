@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 
@@ -113,28 +113,34 @@ function sortedCats(bag: Record<string, number[]>): string[] {
 }
 
 /**
- * Ordem FIXA das linhas, seguindo a estrutura do fluxo de referência (print).
- * Categorias não listadas entram ao final, ordenadas por valor (fallback).
+ * Estrutura FIXA das linhas, seguindo o fluxo de referência (print).
+ * Um bloco é uma categoria isolada ('cat') ou um GRUPO com subtotal ('grupo'),
+ * que soma várias categorias. Categorias que aparecerem na base e não estiverem
+ * em bloco nenhum entram ao final da seção (por valor), para nada sumir.
  */
-const ORDEM_ENTRADAS = ['ANTECIPAÇÕES', 'EVENTO', 'PROMO', 'INCENTIVO', 'ATIVAÇÃO', 'BV', 'REND. APLIC MENSAL', 'REND.DIARIO']
-const ORDEM_SAIDAS = [
-  'PESSOAS E BENEFÍCIOS',
-  'DESPESAS GERAIS E ADMINISTRATIVAS',
-  'TRIBUTOS',
-  'CONCORRÊNCIAS',
-  'BATUX CHILE',
-  'TRIBUTOS PARCELADOS',
-  'PASSIVO DE FORNECEDOR',
-  'PROMO',
-  'EVENTOS',
-  'ATIVAÇÃO',
-  'INCENTIVO',
+type Bloco = { tipo: 'cat'; cat: string } | { tipo: 'grupo'; nome: string; membros: string[] }
+
+const ENTRADAS_BLOCOS: Bloco[] = [
+  { tipo: 'cat', cat: 'ANTECIPAÇÕES' },
+  { tipo: 'grupo', nome: 'Recebimento de Clientes', membros: ['PROMO', 'EVENTO', 'INCENTIVO', 'ATIVAÇÃO'] },
+  { tipo: 'cat', cat: 'BV' },
+  { tipo: 'cat', cat: 'REND. APLIC MENSAL' },
+  { tipo: 'cat', cat: 'REND.DIARIO' },
 ]
-function orderCats(bag: Record<string, number[]>, ordem: string[]): string[] {
-  const present = new Set(Object.keys(bag))
-  const inOrder = ordem.filter((c) => present.has(c))
-  const rest = sortedCats(bag).filter((c) => !ordem.includes(c)) // categorias novas → por valor, ao final
-  return [...inOrder, ...rest]
+const SAIDAS_BLOCOS: Bloco[] = [
+  { tipo: 'grupo', nome: 'Fornecedores Job', membros: ['PROMO', 'EVENTOS', 'INCENTIVO', 'ATIVAÇÃO'] },
+  { tipo: 'cat', cat: 'PESSOAS E BENEFÍCIOS' },
+  { tipo: 'cat', cat: 'DESPESAS GERAIS E ADMINISTRATIVAS' },
+  { tipo: 'cat', cat: 'TRIBUTOS' },
+  { tipo: 'cat', cat: 'CONCORRÊNCIAS' },
+  { tipo: 'cat', cat: 'BATUX CHILE' },
+  { tipo: 'cat', cat: 'TRIBUTOS PARCELADOS' },
+  { tipo: 'cat', cat: 'PASSIVO DE FORNECEDOR' },
+]
+function groupSum(bag: Record<string, number[]>, membros: string[]): number[] {
+  const t = z12()
+  for (const m of membros) if (bag[m]) for (let i = 0; i < 12; i++) t[i] += bag[m][i]
+  return t
 }
 function colSum(bag: Record<string, number[]>): number[] {
   const t = z12()
@@ -151,6 +157,7 @@ export function FluxoCaixa() {
   const [saldoInicial, setSaldoInicial] = useState<number>(0)
   const [saldoTexto, setSaldoTexto] = useState<string>('0,00')
   const [openCats, setOpenCats] = useState<Record<string, boolean>>({})
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -208,12 +215,57 @@ export function FluxoCaixa() {
       saldo[m] = disp[m] - pag[m]
       prev = saldo[m]
     }
-    return { d, receb, pag, saldoAnt, disp, saldo, ec: orderCats(d.ent, ORDEM_ENTRADAS), sc: orderCats(d.sai, ORDEM_SAIDAS) }
+    return { d, receb, pag, saldoAnt, disp, saldo }
   }, [rows, saldoInicial])
 
   /* ---------- ações ---------- */
   function toggleCat(key: string) {
     setOpenCats((o) => ({ ...o, [key]: !o[key] }))
+  }
+  function toggleGroup(nome: string) {
+    setOpenGroups((o) => ({ ...o, [nome]: !(o[nome] ?? true) }))
+  }
+
+  /** Renderiza uma seção (blocos: categorias soltas + grupos com subtotal). */
+  function renderSecao(
+    blocos: Bloco[],
+    pfx: string,
+    bag: Record<string, number[]>,
+    bagD: Record<string, Record<string, number[]>>,
+  ): ReactNode[] {
+    const usadas = new Set<string>()
+    const out: ReactNode[] = []
+    const catRow = (cat: string, nested?: boolean) => (
+      <Categoria
+        key={`${pfx}-${cat}`}
+        pfx={pfx}
+        cat={cat}
+        arr={bag[cat]}
+        detalhe={bagD[cat]}
+        open={!!openCats[`${pfx}|${cat}`]}
+        onToggle={toggleCat}
+        nested={nested}
+      />
+    )
+    for (const b of blocos) {
+      if (b.tipo === 'cat') {
+        if (!bag[b.cat]) continue
+        usadas.add(b.cat)
+        out.push(catRow(b.cat))
+      } else {
+        const membros = b.membros.filter((m) => bag[m])
+        if (!membros.length) continue
+        membros.forEach((m) => usadas.add(m))
+        const aberto = openGroups[b.nome] ?? true
+        out.push(
+          <GrupoLinha key={`G-${b.nome}`} nome={b.nome} sub={groupSum(bag, b.membros)} open={aberto} onToggle={() => toggleGroup(b.nome)} />,
+        )
+        if (aberto) for (const m of membros) out.push(catRow(m, true))
+      }
+    }
+    // Categorias presentes na base fora de qualquer bloco → ao final, por valor.
+    for (const c of sortedCats(bag).filter((c) => !usadas.has(c))) out.push(catRow(c))
+    return out
   }
 
   async function salvarSaldo(novo: number) {
@@ -324,12 +376,13 @@ export function FluxoCaixa() {
   }
 
   /* ---------- render ---------- */
-  const { d, receb, pag, saldoAnt, disp, saldo, ec, sc } = modelo
+  const { d, receb, pag, saldoAnt, disp, saldo } = modelo
   const totR = sum12(receb)
   const totP = sum12(pag)
   const res = totR - totP
   const fim = saldo[11]
   const anos = d.years.length ? d.years.join(' / ') : ''
+  const nCats = Object.keys(d.ent).length + Object.keys(d.sai).length
   const vazio = rows.length === 0
 
   return (
@@ -401,7 +454,7 @@ export function FluxoCaixa() {
         <div className="flex items-center gap-2 border-b border-line px-4 py-3">
           <h3 className="text-[15px] font-bold text-ink">Demonstrativo do Fluxo de Caixa</h3>
           <span className="text-[11px] text-muted">
-            {loading ? 'carregando…' : `${rows.length} lançamentos · ${ec.length + sc.length} categorias`}
+            {loading ? 'carregando…' : `${rows.length} lançamentos · ${nCats} categorias`}
           </span>
         </div>
 
@@ -431,15 +484,11 @@ export function FluxoCaixa() {
               <tbody>
                 <Linha cls="saldo-ant" label="(=) Saldo Anterior" arr={saldoAnt} total={saldoInicial} />
                 <Secao label="(+) Recebimentos" />
-                {ec.map((cat) => (
-                  <Categoria key={`E-${cat}`} pfx="E" cat={cat} arr={d.ent[cat]} detalhe={d.entD[cat]} open={!!openCats[`E|${cat}`]} onToggle={toggleCat} />
-                ))}
+                {renderSecao(ENTRADAS_BLOCOS, 'E', d.ent, d.entD)}
                 <Linha cls="total-receb" label="(=) Total de Recebimentos" arr={receb} total={totR} />
                 <Linha cls="disponivel" label="(=) Caixa Disponível" arr={disp} total={disp[11]} />
                 <Secao label="(−) Pagamentos" />
-                {sc.map((cat) => (
-                  <Categoria key={`S-${cat}`} pfx="S" cat={cat} arr={d.sai[cat]} detalhe={d.saiD[cat]} open={!!openCats[`S|${cat}`]} onToggle={toggleCat} />
-                ))}
+                {renderSecao(SAIDAS_BLOCOS, 'S', d.sai, d.saiD)}
                 <Linha cls="total-pag" label="(=) Total de Pagamentos" arr={pag} total={totP} />
                 <Linha cls="saldo-caixa" label="(=) Saldo de Caixa" arr={saldo} total={fim} />
               </tbody>
@@ -488,8 +537,18 @@ function Secao({ label }: { label: string }) {
     </tr>
   )
 }
+function GrupoLinha({ nome, sub, open, onToggle }: { nome: string; sub: number[]; open: boolean; onToggle: () => void }) {
+  return (
+    <tr className={`grupo${open ? ' open' : ''}`} onClick={onToggle}>
+      <td className="rowlabel">
+        <span className="caret">▶</span> {nome}
+      </td>
+      <Cells arr={sub} total={sum12(sub)} />
+    </tr>
+  )
+}
 function Categoria({
-  pfx, cat, arr, detalhe, open, onToggle,
+  pfx, cat, arr, detalhe, open, onToggle, nested,
 }: {
   pfx: string
   cat: string
@@ -497,12 +556,14 @@ function Categoria({
   detalhe?: Record<string, number[]>
   open: boolean
   onToggle: (k: string) => void
+  nested?: boolean
 }) {
   const key = `${pfx}|${cat}`
   const descs = detalhe ? Object.keys(detalhe).sort((a, b) => sum12(detalhe[b]) - sum12(detalhe[a])) : []
+  const nc = nested ? ' nested' : ''
   return (
     <>
-      <tr className={`cat${open ? ' open' : ''}`} onClick={() => onToggle(key)}>
+      <tr className={`cat${nc}${open ? ' open' : ''}`} onClick={() => onToggle(key)}>
         <td className="rowlabel">
           <span className="caret">▶</span> {cat}
         </td>
@@ -510,7 +571,7 @@ function Categoria({
       </tr>
       {open &&
         descs.map((dd) => (
-          <tr className="detail" key={dd}>
+          <tr className={`detail${nc}`} key={dd}>
             <td className="rowlabel">
               <span className="dot">•</span> {dd}
             </td>
@@ -560,6 +621,13 @@ function ScopedStyle() {
 .fcx tr.cat:hover td{background:#FCFBFA}
 .fcx tr.cat td.rowlabel .caret{display:inline-block;width:14px;color:rgb(var(--brand));font-size:10px;transition:transform .15s}
 .fcx tr.cat.open td.rowlabel .caret{transform:rotate(90deg)}
+.fcx tr.cat.nested td.rowlabel{padding-left:26px}
+.fcx tr.detail.nested td.rowlabel{padding-left:40px}
+.fcx tr.grupo{cursor:pointer}
+.fcx tr.grupo td{background:#FFF1E8;font-weight:800;color:#9a4a24;border-top:1px solid #F6D9C9;border-bottom:1px solid #F6D9C9}
+.fcx tr.grupo:hover td{background:#FDE9DC}
+.fcx tr.grupo td.rowlabel .caret{display:inline-block;width:14px;color:rgb(var(--brand));font-size:10px;transition:transform .15s}
+.fcx tr.grupo.open td.rowlabel .caret{transform:rotate(90deg)}
 .fcx tr.detail td{background:#FBFAF9;color:#4B5563;font-size:clamp(8px,0.74vw,11px);font-style:italic;border-bottom:1px solid #F3F1EF}
 .fcx tr.detail td.rowlabel{background:#FBFAF9;padding-left:18px;font-weight:500;white-space:normal;font-size:clamp(8.5px,0.74vw,11.5px);font-style:italic}
 .fcx tr.detail td.rowlabel .dot{color:#9aa0a6}
