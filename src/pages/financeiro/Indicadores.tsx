@@ -189,10 +189,13 @@ export function Indicadores() {
 
       {/* Grid de gráficos — 2 linhas que preenchem a altura */}
       <div className="grid min-h-0 flex-1 grid-cols-12 grid-rows-2 gap-2">
-        <Tile className="col-span-12 lg:col-span-7" titulo="Evolução do Saldo de Caixa" tip="Trajetória do saldo de caixa mês a mês. A linha tracejada marca o zero; pontos em vermelho indicam saldo negativo.">
+        <Tile className="col-span-12 lg:col-span-5" titulo="Evolução do Saldo de Caixa" tip="Trajetória do saldo de caixa mês a mês. A linha tracejada marca o zero; pontos em vermelho indicam saldo negativo.">
           <AreaSaldo saldo={m.saldo} labels={m.labels} minIdx={m.minIdx} />
         </Tile>
-        <Tile className="col-span-12 lg:col-span-5" titulo="Recebimentos × Pagamentos" tip="Compara, mês a mês, o total de entradas (laranja) e saídas (navy) de caixa.">
+        <Tile className="col-span-12 lg:col-span-3" titulo="Concentração das Despesas" tip="Distribuição percentual das despesas por categoria no período (donut).">
+          <DonutDespesas itens={cap(m.compDesp, 6)} total={m.totP} />
+        </Tile>
+        <Tile className="col-span-12 lg:col-span-4" titulo="Recebimentos × Pagamentos" tip="Compara, mês a mês, o total de entradas (laranja) e saídas (navy) de caixa.">
           <BarrasMensais receb={m.receb} pag={m.pag} labels={m.labels} />
         </Tile>
         <Tile className="col-span-6 lg:col-span-3" titulo="Composição — Receitas" tip="Participação de cada categoria de receita no total de recebimentos do período.">
@@ -423,6 +426,58 @@ function BarrasMensais({ receb, pag, labels }: { receb: number[]; pag: number[];
     </div>
   )
 }
+// Tons de navy (paleta das despesas) para as fatias do donut
+const PAL_DESP = ['#2B2D42', '#3C4063', '#4E5482', '#666C99', '#8791B4', '#AAB2CC', '#CDD3E2']
+
+function DonutDespesas({ itens, total }: { itens: { nome: string; valor: number }[]; total: number }) {
+  if (!itens.length || total <= 0) return <div className="flex h-full items-center text-[12px] text-muted">Sem dados no filtro.</div>
+  const size = 132
+  const stroke = 26
+  const r = (size - stroke) / 2
+  const c = size / 2
+  const C = 2 * Math.PI * r
+  let off = 0
+  const segs = itens.map((it, i) => {
+    const len = (it.valor / total) * C
+    const el = (
+      <circle
+        key={it.nome}
+        cx={c}
+        cy={c}
+        r={r}
+        fill="none"
+        stroke={PAL_DESP[i % PAL_DESP.length]}
+        strokeWidth={stroke}
+        strokeDasharray={`${len} ${C - len}`}
+        strokeDashoffset={-off}
+        transform={`rotate(-90 ${c} ${c})`}
+      />
+    )
+    off += len
+    return el
+  })
+  return (
+    <div className="flex h-full items-center gap-2">
+      <div className="flex-none" style={{ height: 'min(100%, 152px)', aspectRatio: '1 / 1' }}>
+        <svg viewBox={`0 0 ${size} ${size}`} width="100%" height="100%">
+          {segs}
+          <text x={c} y={c - 3} textAnchor="middle" fontSize={11} fill="#64748B">Despesas</text>
+          <text x={c} y={c + 13} textAnchor="middle" fontSize={15} fontWeight={700} fill="#2B2D42">{fmtCompacto(total)}</text>
+        </svg>
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col justify-center gap-1">
+        {itens.map((it, i) => (
+          <div key={it.nome} className="flex items-center gap-1.5 text-[11px]">
+            <span className="inline-block h-2.5 w-2.5 flex-none rounded-sm" style={{ background: PAL_DESP[i % PAL_DESP.length] }} />
+            <span className="min-w-0 flex-1 truncate text-ink" title={it.nome}>{it.nome}</span>
+            <span className="flex-none font-semibold tnum text-ink">{Math.round((it.valor / total) * 100)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function BarrasHorizontais({ itens, cor, total }: { itens: { nome: string; valor: number }[]; cor: string; total: number }) {
   if (!itens.length) return <div className="flex h-full items-center text-[12px] text-muted">Sem dados no filtro.</div>
   const max = itens[0].valor || 1
