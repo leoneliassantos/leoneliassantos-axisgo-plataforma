@@ -24,7 +24,12 @@ const z12 = () => new Array(12).fill(0) as number[]
 const sum12 = (a: number[]) => a.reduce((s, v) => s + v, 0)
 
 function fmt(v: number): string {
-  if (Math.abs(v) < 0.005) return '—'
+  // Sem centavos, para os valores caberem 100% na tela (arredonda ao inteiro).
+  if (Math.abs(v) < 0.5) return '—'
+  return v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+}
+function fmtSaldo(v: number): string {
+  // Campo de saldo mantém os centavos (não estoura e preserva a precisão ao salvar).
   return v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 function numClass(v: number): string {
@@ -155,7 +160,7 @@ export function FluxoCaixa() {
     setRows(mapped)
     const sal = cfg.data ? Number(cfg.data.valor) || 0 : 0
     setSaldoInicial(sal)
-    setSaldoTexto(fmt(sal))
+    setSaldoTexto(fmtSaldo(sal))
     setLoading(false)
   }, [mode])
 
@@ -188,7 +193,7 @@ export function FluxoCaixa() {
 
   async function salvarSaldo(novo: number) {
     setSaldoInicial(novo)
-    setSaldoTexto(fmt(novo))
+    setSaldoTexto(fmtSaldo(novo))
     if (!isAdmin || mode !== 'supabase' || !supabase) return
     const { error } = await supabase
       .from('fluxo_caixa_config')
@@ -303,7 +308,10 @@ export function FluxoCaixa() {
   const vazio = rows.length === 0
 
   return (
-    <div className="fcx flex flex-col gap-4">
+    <div
+      className="fcx flex flex-col gap-4"
+      style={{ width: 'min(1400px, 95vw)', position: 'relative', left: '50%', transform: 'translateX(-50%)' }}
+    >
       <ScopedStyle />
 
       {/* Cabeçalho do módulo */}

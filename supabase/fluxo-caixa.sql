@@ -76,7 +76,9 @@ begin
     raise exception 'Apenas administradores podem atualizar a base.';
   end if;
 
-  delete from public.fluxo_caixa;
+  -- TRUNCATE esvazia a tabela sem esbarrar na proteção safe-update do
+  -- Supabase (que exige WHERE em DELETE). restart identity zera o id.
+  truncate table public.fluxo_caixa restart identity;
 
   insert into public.fluxo_caixa (tipo, descricao, categoria, valor, data)
   select x.tipo, x.descricao, x.categoria, x.valor, x.data
