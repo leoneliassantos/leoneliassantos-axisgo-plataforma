@@ -647,6 +647,12 @@ function ScopedStyle() {
 .fcx tr.saldo-caixa td{background:#0B2545;color:#fff;font-weight:800;font-size:14px}
 .fcx tr.saldo-caixa td.num.neg{color:#FF9B8A}
 .fcx tr.saldo-caixa td.col-total{background:#0a1f3d;border-left:1px solid #24406a}
+/* Fundo do RÓTULO (1ª coluna) das linhas especiais — sobrepõe o branco padrão */
+.fcx tr.saldo-ant td.rowlabel{background:#F3F4F6}
+.fcx tr.total-receb td.rowlabel{background:#EAF6F0}
+.fcx tr.total-pag td.rowlabel{background:#FBECE9}
+.fcx tr.grupo td.rowlabel{background:#FFF1E8}
+.fcx tr.saldo-caixa td.rowlabel{background:#0B2545;color:#fff}
 `}</style>
   )
 }
