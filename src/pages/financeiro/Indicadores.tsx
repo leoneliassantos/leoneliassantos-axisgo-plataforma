@@ -391,11 +391,17 @@ function AreaSaldo({ saldo, labels, minIdx }: { saldo: number[]; labels: string[
         {saldo.map((v, i) => {
           const neg = v < 0
           const destaque = i === minIdx || i === n - 1
+          // Rótulo sempre DENTRO da área do gráfico (nunca invade eixo X/Y):
+          // ponto embaixo → rótulo acima; ponto no topo → rótulo abaixo.
+          const nearTop = ys(v) < padT + innerH * 0.22
+          const ly = nearTop ? ys(v) + 22 : ys(v) - 12
+          const anchor = i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'
+          const lx = i === 0 ? xs(i) + 2 : i === n - 1 ? xs(i) - 2 : xs(i)
           return (
             <g key={i}>
               <circle cx={xs(i)} cy={ys(v)} r={destaque ? 5 : 3.4} fill={neg ? SALDO_NEG : SALDO_POS} />
               {destaque && (
-                <text x={xs(i)} y={ys(v) + (v >= 0 ? -12 : 22)} fontSize={18} fontWeight={700} textAnchor="middle" fill={neg ? SALDO_NEG : '#0B2545'}>
+                <text x={lx} y={ly} fontSize={18} fontWeight={700} textAnchor={anchor} fill={neg ? SALDO_NEG : '#0B2545'}>
                   {fmtCompacto(v)}
                 </text>
               )}
