@@ -158,6 +158,8 @@ export function FluxoCaixa() {
   const [saldoTexto, setSaldoTexto] = useState<string>('0,00')
   const [openCats, setOpenCats] = useState<Record<string, boolean>>({})
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
+  const [secReceb, setSecReceb] = useState(true)
+  const [secPag, setSecPag] = useState(true)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -206,16 +208,14 @@ export function FluxoCaixa() {
     const receb = colSum(d.ent)
     const pag = colSum(d.sai)
     const saldoAnt = z12()
-    const disp = z12()
     const saldo = z12()
     let prev = saldoInicial
     for (let m = 0; m < 12; m++) {
       saldoAnt[m] = prev
-      disp[m] = prev + receb[m]
-      saldo[m] = disp[m] - pag[m]
+      saldo[m] = prev + receb[m] - pag[m]
       prev = saldo[m]
     }
-    return { d, receb, pag, saldoAnt, disp, saldo }
+    return { d, receb, pag, saldoAnt, saldo }
   }, [rows, saldoInicial])
 
   /* ---------- ações ---------- */
@@ -376,7 +376,7 @@ export function FluxoCaixa() {
   }
 
   /* ---------- render ---------- */
-  const { d, receb, pag, saldoAnt, disp, saldo } = modelo
+  const { d, receb, pag, saldoAnt, saldo } = modelo
   const totR = sum12(receb)
   const totP = sum12(pag)
   const res = totR - totP
@@ -483,14 +483,11 @@ export function FluxoCaixa() {
               </thead>
               <tbody>
                 <Linha cls="saldo-ant" label="(=) Saldo Anterior" arr={saldoAnt} total={saldoInicial} />
-                <Secao label="(+) Recebimentos" />
-                {renderSecao(ENTRADAS_BLOCOS, 'E', d.ent, d.entD)}
-                <Linha cls="total-receb" label="(=) Total de Recebimentos" arr={receb} total={totR} />
-                <Linha cls="disponivel" label="(=) Caixa Disponível" arr={disp} total={disp[11]} />
-                <Secao label="(−) Pagamentos" />
-                {renderSecao(SAIDAS_BLOCOS, 'S', d.sai, d.saiD)}
-                <Linha cls="total-pag" label="(=) Total de Pagamentos" arr={pag} total={totP} />
-                <Linha cls="saldo-caixa" label="(=) Saldo de Caixa" arr={saldo} total={fim} />
+                <SecaoTotal cls="total-receb" label="(+) Recebimentos" arr={receb} total={totR} open={secReceb} onToggle={() => setSecReceb((v) => !v)} />
+                {secReceb && renderSecao(ENTRADAS_BLOCOS, 'E', d.ent, d.entD)}
+                <SecaoTotal cls="total-pag" label="(−) Pagamentos" arr={pag} total={totP} open={secPag} onToggle={() => setSecPag((v) => !v)} />
+                {secPag && renderSecao(SAIDAS_BLOCOS, 'S', d.sai, d.saiD)}
+                <Linha cls="saldo-caixa" label="(=) Saldo Final" arr={saldo} total={fim} />
               </tbody>
             </table>
           </div>
@@ -527,13 +524,22 @@ function Linha({ cls, label, arr, total }: { cls: string; label: string; arr: nu
     </tr>
   )
 }
-function Secao({ label }: { label: string }) {
+function SecaoTotal({
+  cls, label, arr, total, open, onToggle,
+}: {
+  cls: string
+  label: string
+  arr: number[]
+  total: number
+  open: boolean
+  onToggle: () => void
+}) {
   return (
-    <tr className="section">
-      <td className="rowlabel">{label}</td>
-      {new Array(13).fill(0).map((_, i) => (
-        <td key={i} />
-      ))}
+    <tr className={`${cls} sechead${open ? ' open' : ''}`} onClick={onToggle}>
+      <td className="rowlabel">
+        <span className="caret">▶</span> {label}
+      </td>
+      <Cells arr={arr} total={total} />
     </tr>
   )
 }
@@ -633,6 +639,9 @@ function ScopedStyle() {
 .fcx tr.detail td.rowlabel .dot{color:#9aa0a6}
 .fcx tr.total-receb td{background:#EAF6F0;font-weight:800;color:#14663f;border-top:1px solid #CDE9DC;border-bottom:1px solid #CDE9DC}
 .fcx tr.total-pag td{background:#FBECE9;font-weight:800;color:#8f2f22;border-top:1px solid #F1D2CB;border-bottom:1px solid #F1D2CB}
+.fcx tr.sechead{cursor:pointer}
+.fcx tr.sechead td.rowlabel .caret{display:inline-block;width:14px;font-size:10px;color:currentColor;transition:transform .15s}
+.fcx tr.sechead.open td.rowlabel .caret{transform:rotate(90deg)}
 .fcx tr.saldo-ant td{background:#F3F4F6;font-weight:700;color:#1F2937}
 .fcx tr.disponivel td{background:rgb(var(--brand)/0.08);font-weight:800;color:rgb(var(--brand));border-top:1px solid rgb(var(--brand)/0.18)}
 .fcx tr.saldo-caixa td{background:#0B2545;color:#fff;font-weight:800;font-size:14px}
