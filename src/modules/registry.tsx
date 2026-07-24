@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { EmConstrucao } from '../components/EmConstrucao'
 import { Rentabilidade } from '../pages/financeiro/Rentabilidade'
 import { Indicadores } from '../pages/financeiro/Indicadores'
+import { FluxoCaixa } from '../pages/financeiro/FluxoCaixa'
 
 /**
  * ============================================================
@@ -113,6 +114,7 @@ const TODAS_FRENTES: Frente[] = [
           />
         ),
       },
+      { slug: 'fluxo-caixa', label: 'Fluxo de Caixa', element: <FluxoCaixa /> },
       { slug: 'rentabilidade', label: 'Rentabilidade de Projetos', element: <Rentabilidade /> },
       { slug: 'indicadores', label: 'Indicadores', element: <Indicadores /> },
     ],
