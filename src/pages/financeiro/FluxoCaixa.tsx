@@ -121,21 +121,21 @@ function sortedCats(bag: Record<string, number[]>): string[] {
 type Bloco = { tipo: 'cat'; cat: string } | { tipo: 'grupo'; nome: string; membros: string[] }
 
 const ENTRADAS_BLOCOS: Bloco[] = [
-  { tipo: 'cat', cat: 'ANTECIPAÇÕES' },
   { tipo: 'grupo', nome: 'Recebimento de Clientes', membros: ['PROMO', 'EVENTO', 'INCENTIVO', 'ATIVAÇÃO'] },
   { tipo: 'cat', cat: 'BV' },
+  { tipo: 'cat', cat: 'ANTECIPAÇÕES' },
   { tipo: 'cat', cat: 'REND. APLIC MENSAL' },
   { tipo: 'cat', cat: 'REND.DIARIO' },
 ]
 const SAIDAS_BLOCOS: Bloco[] = [
-  { tipo: 'grupo', nome: 'Fornecedores Job', membros: ['PROMO', 'EVENTOS', 'INCENTIVO', 'ATIVAÇÃO'] },
   { tipo: 'cat', cat: 'PESSOAS E BENEFÍCIOS' },
+  { tipo: 'grupo', nome: 'Fornecedores Job', membros: ['PROMO', 'EVENTOS', 'INCENTIVO', 'ATIVAÇÃO'] },
+  { tipo: 'cat', cat: 'CONCORRÊNCIAS' },
   { tipo: 'cat', cat: 'DESPESAS GERAIS E ADMINISTRATIVAS' },
   { tipo: 'cat', cat: 'TRIBUTOS' },
-  { tipo: 'cat', cat: 'CONCORRÊNCIAS' },
-  { tipo: 'cat', cat: 'BATUX CHILE' },
   { tipo: 'cat', cat: 'TRIBUTOS PARCELADOS' },
   { tipo: 'cat', cat: 'PASSIVO DE FORNECEDOR' },
+  { tipo: 'cat', cat: 'BATUX CHILE' },
 ]
 function groupSum(bag: Record<string, number[]>, membros: string[]): number[] {
   const t = z12()
