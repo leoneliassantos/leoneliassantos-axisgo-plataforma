@@ -111,6 +111,31 @@ function build(rows: Lancamento[]): Pivot {
 function sortedCats(bag: Record<string, number[]>): string[] {
   return Object.keys(bag).sort((a, b) => sum12(bag[b]) - sum12(bag[a]))
 }
+
+/**
+ * Ordem FIXA das linhas, seguindo a estrutura do fluxo de referência (print).
+ * Categorias não listadas entram ao final, ordenadas por valor (fallback).
+ */
+const ORDEM_ENTRADAS = ['ANTECIPAÇÕES', 'EVENTO', 'PROMO', 'INCENTIVO', 'ATIVAÇÃO', 'BV', 'REND. APLIC MENSAL', 'REND.DIARIO']
+const ORDEM_SAIDAS = [
+  'PESSOAS E BENEFÍCIOS',
+  'DESPESAS GERAIS E ADMINISTRATIVAS',
+  'TRIBUTOS',
+  'CONCORRÊNCIAS',
+  'BATUX CHILE',
+  'TRIBUTOS PARCELADOS',
+  'PASSIVO DE FORNECEDOR',
+  'PROMO',
+  'EVENTOS',
+  'ATIVAÇÃO',
+  'INCENTIVO',
+]
+function orderCats(bag: Record<string, number[]>, ordem: string[]): string[] {
+  const present = new Set(Object.keys(bag))
+  const inOrder = ordem.filter((c) => present.has(c))
+  const rest = sortedCats(bag).filter((c) => !ordem.includes(c)) // categorias novas → por valor, ao final
+  return [...inOrder, ...rest]
+}
 function colSum(bag: Record<string, number[]>): number[] {
   const t = z12()
   for (const c of Object.keys(bag)) for (let i = 0; i < 12; i++) t[i] += bag[c][i]
@@ -183,7 +208,7 @@ export function FluxoCaixa() {
       saldo[m] = disp[m] - pag[m]
       prev = saldo[m]
     }
-    return { d, receb, pag, saldoAnt, disp, saldo, ec: sortedCats(d.ent), sc: sortedCats(d.sai) }
+    return { d, receb, pag, saldoAnt, disp, saldo, ec: orderCats(d.ent, ORDEM_ENTRADAS), sc: orderCats(d.sai, ORDEM_SAIDAS) }
   }, [rows, saldoInicial])
 
   /* ---------- ações ---------- */
