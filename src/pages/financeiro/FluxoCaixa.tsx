@@ -158,8 +158,8 @@ export function FluxoCaixa() {
   const [saldoTexto, setSaldoTexto] = useState<string>('0,00')
   const [openCats, setOpenCats] = useState<Record<string, boolean>>({})
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
-  const [secReceb, setSecReceb] = useState(true)
-  const [secPag, setSecPag] = useState(true)
+  const [secReceb, setSecReceb] = useState(false)
+  const [secPag, setSecPag] = useState(false)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -256,7 +256,7 @@ export function FluxoCaixa() {
         const membros = b.membros.filter((m) => bag[m])
         if (!membros.length) continue
         membros.forEach((m) => usadas.add(m))
-        const aberto = openGroups[b.nome] ?? true
+        const aberto = openGroups[b.nome] ?? false
         out.push(
           <GrupoLinha key={`G-${b.nome}`} nome={b.nome} sub={groupSum(bag, b.membros)} open={aberto} onToggle={() => toggleGroup(b.nome)} />,
         )
