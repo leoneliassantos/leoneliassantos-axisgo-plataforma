@@ -4,8 +4,12 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { MESES, z12, fmt0, fmtCompacto, build, loadFluxo, type Lancamento, type Pivot } from './fluxoData'
 
-const VERDE = '#15805A'
-const VERMELHO = '#C0392B'
+// Paleta do logotipo Batux (laranja + navy escuro) — visual moderno
+const COR_REC = '#E9622E' // Receitas / entradas — laranja Batux
+const COR_DESP = '#2B2D42' // Despesas / pagamentos — navy escuro do logo
+// Cores exclusivas do gráfico "Evolução do Saldo" (mantido como já estava)
+const SALDO_POS = '#15805A'
+const SALDO_NEG = '#C0392B'
 const sumArr = (a: number[]) => a.reduce((s, v) => s + v, 0)
 
 export function Indicadores() {
@@ -176,10 +180,10 @@ export function Indicadores() {
 
       {/* KPIs */}
       <div className="grid flex-none grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-        <Kpi lbl="Saldo Final" val={m.saldoFinal} cor={m.saldoFinal < 0 ? VERMELHO : undefined} foot="Ao fim do período" tip="Saldo de caixa projetado ao fim do período filtrado = saldo no início + recebimentos − pagamentos acumulados." />
-        <Kpi lbl="Resultado de Caixa" val={m.totR - m.totP} cor={m.totR - m.totP < 0 ? VERMELHO : VERDE} foot="Recebimentos − Pagamentos" tip="Diferença entre tudo que entrou e tudo que saiu no período. Positivo = geração de caixa; negativo = consumo." />
-        <Kpi lbl="Menor Saldo" val={m.minSaldo} cor={m.minSaldo < 0 ? VERMELHO : undefined} foot={`Mês mais apertado: ${m.labels[m.minIdx] ?? '—'}`} tip="O menor saldo de caixa alcançado no período — aponta o mês de maior aperto financeiro." />
-        <Kpi lbl="Queima Média / mês" val={m.queimaMedia} cor={m.queimaMedia > 0 ? VERMELHO : undefined} foot="Média dos meses no negativo" tip="Média mensal de quanto o caixa ficou negativo, considerando só os meses em que saiu mais do que entrou." />
+        <Kpi lbl="Saldo Final" val={m.saldoFinal} cor={m.saldoFinal < 0 ? COR_DESP : undefined} foot="Ao fim do período" tip="Saldo de caixa projetado ao fim do período filtrado = saldo no início + recebimentos − pagamentos acumulados." />
+        <Kpi lbl="Resultado de Caixa" val={m.totR - m.totP} cor={m.totR - m.totP < 0 ? COR_DESP : COR_REC} foot="Recebimentos − Pagamentos" tip="Diferença entre tudo que entrou e tudo que saiu no período. Positivo = geração de caixa; negativo = consumo." />
+        <Kpi lbl="Menor Saldo" val={m.minSaldo} cor={m.minSaldo < 0 ? COR_DESP : undefined} foot={`Mês mais apertado: ${m.labels[m.minIdx] ?? '—'}`} tip="O menor saldo de caixa alcançado no período — aponta o mês de maior aperto financeiro." />
+        <Kpi lbl="Queima Média / mês" val={m.queimaMedia} cor={m.queimaMedia > 0 ? COR_DESP : undefined} foot="Média dos meses no negativo" tip="Média mensal de quanto o caixa ficou negativo, considerando só os meses em que saiu mais do que entrou." />
         <KpiTexto lbl="Meses de Caixa" valor={m.runway === null ? '—' : m.runway.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} foot={m.runway === null ? 'Sem queima média' : 'Saldo ÷ queima média'} tip="Por quantos meses o caixa se sustenta na queima média atual (saldo no início do período ÷ queima média mensal)." />
       </div>
 
@@ -192,16 +196,16 @@ export function Indicadores() {
           <BarrasMensais receb={m.receb} pag={m.pag} labels={m.labels} />
         </Tile>
         <Tile className="col-span-6 lg:col-span-3" titulo="Composição — Receitas" tip="Participação de cada categoria de receita no total de recebimentos do período.">
-          <BarrasHorizontais itens={cap(m.compRec, 6)} cor={VERDE} total={m.totR} />
+          <BarrasHorizontais itens={cap(m.compRec, 6)} cor={COR_REC} total={m.totR} />
         </Tile>
         <Tile className="col-span-6 lg:col-span-3" titulo="Composição — Despesas" tip="Participação de cada categoria de despesa no total de pagamentos do período.">
-          <BarrasHorizontais itens={cap(m.compDesp, 6)} cor={VERMELHO} total={m.totP} />
+          <BarrasHorizontais itens={cap(m.compDesp, 6)} cor={COR_DESP} total={m.totP} />
         </Tile>
         <Tile className="col-span-6 lg:col-span-3" titulo="Top Clientes" tip="Maiores fontes de recebimento (por descrição) no período.">
-          <BarrasHorizontais itens={m.topCli} cor={VERDE} total={m.totR} />
+          <BarrasHorizontais itens={m.topCli} cor={COR_REC} total={m.totR} />
         </Tile>
         <Tile className="col-span-6 lg:col-span-3" titulo="Maiores Pagamentos" tip="Maiores saídas de caixa (por descrição) no período.">
-          <BarrasHorizontais itens={m.topPag} cor={VERMELHO} total={m.totP} />
+          <BarrasHorizontais itens={m.topPag} cor={COR_DESP} total={m.totP} />
         </Tile>
       </div>
     </div>
@@ -382,9 +386,9 @@ function AreaSaldo({ saldo, labels, minIdx }: { saldo: number[]; labels: string[
         const destaque = i === minIdx || i === n - 1
         return (
           <g key={i}>
-            <circle cx={xs(i)} cy={ys(v)} r={destaque ? 4 : 2.6} fill={neg ? VERMELHO : VERDE} />
+            <circle cx={xs(i)} cy={ys(v)} r={destaque ? 4 : 2.6} fill={neg ? SALDO_NEG : SALDO_POS} />
             {destaque && (
-              <text x={xs(i)} y={ys(v) + (v >= 0 ? -8 : 15)} fontSize={11} fontWeight={700} textAnchor="middle" fill={neg ? VERMELHO : '#0B2545'}>
+              <text x={xs(i)} y={ys(v) + (v >= 0 ? -8 : 15)} fontSize={11} fontWeight={700} textAnchor="middle" fill={neg ? SALDO_NEG : '#0B2545'}>
                 {fmtCompacto(v)}
               </text>
             )}
@@ -400,14 +404,14 @@ function BarrasMensais({ receb, pag, labels }: { receb: number[]; pag: number[];
   return (
     <div className="flex h-full flex-col">
       <div className="mb-1 flex flex-none gap-3">
-        <Leg cor={VERDE} txt="Recebimentos" />
-        <Leg cor={VERMELHO} txt="Pagamentos" />
+        <Leg cor={COR_REC} txt="Recebimentos" />
+        <Leg cor={COR_DESP} txt="Pagamentos" />
       </div>
       <div className="flex min-h-0 flex-1 items-end gap-1">
         {labels.map((mes, i) => (
           <div key={mes} className="flex h-full flex-1 items-end justify-center gap-[3px]">
-            <div className="w-1/3 rounded-t-sm" style={{ height: `${(receb[i] / maxVal) * 100}%`, background: VERDE }} title={`Recebimentos ${mes}: R$ ${fmt0(receb[i])}`} />
-            <div className="w-1/3 rounded-t-sm" style={{ height: `${(pag[i] / maxVal) * 100}%`, background: VERMELHO }} title={`Pagamentos ${mes}: R$ ${fmt0(pag[i])}`} />
+            <div className="w-1/3 rounded-t-sm" style={{ height: `${(receb[i] / maxVal) * 100}%`, background: COR_REC }} title={`Recebimentos ${mes}: R$ ${fmt0(receb[i])}`} />
+            <div className="w-1/3 rounded-t-sm" style={{ height: `${(pag[i] / maxVal) * 100}%`, background: COR_DESP }} title={`Pagamentos ${mes}: R$ ${fmt0(pag[i])}`} />
           </div>
         ))}
       </div>
