@@ -4,12 +4,12 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { MESES, z12, fmt0, fmtCompacto, build, loadFluxo, type Lancamento, type Pivot } from './fluxoData'
 
-// Paleta do logotipo Batux (laranja + navy escuro) — visual moderno
-const COR_REC = '#E9622E' // Receitas / entradas — laranja Batux
-const COR_DESP = '#2B2D42' // Despesas / pagamentos — navy escuro do logo
-// Cores exclusivas do gráfico "Evolução do Saldo" (mantido como já estava)
-const SALDO_POS = '#15805A'
-const SALDO_NEG = '#C0392B'
+// Paleta quente (tons de laranja) — referência do dashboard aprovado pelo cliente
+const COR_REC = '#E9622E' // Receitas / entradas — laranja forte
+const COR_DESP = '#F5A97F' // Despesas / pagamentos — salmão suave
+// Pontos do gráfico "Evolução do Saldo" (dentro da família laranja)
+const SALDO_POS = '#E9622E'
+const SALDO_NEG = '#A8401B' // laranja queimado (saldo negativo)
 const sumArr = (a: number[]) => a.reduce((s, v) => s + v, 0)
 
 export function Indicadores() {
@@ -180,10 +180,10 @@ export function Indicadores() {
 
       {/* KPIs */}
       <div className="grid flex-none grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-        <Kpi lbl="Saldo Final" val={m.saldoFinal} cor={m.saldoFinal < 0 ? COR_DESP : undefined} foot="Ao fim do período" tip="Saldo de caixa projetado ao fim do período filtrado = saldo no início + recebimentos − pagamentos acumulados." />
-        <Kpi lbl="Resultado de Caixa" val={m.totR - m.totP} cor={m.totR - m.totP < 0 ? COR_DESP : COR_REC} foot="Recebimentos − Pagamentos" tip="Diferença entre tudo que entrou e tudo que saiu no período. Positivo = geração de caixa; negativo = consumo." />
-        <Kpi lbl="Menor Saldo" val={m.minSaldo} cor={m.minSaldo < 0 ? COR_DESP : undefined} foot={`Mês mais apertado: ${m.labels[m.minIdx] ?? '—'}`} tip="O menor saldo de caixa alcançado no período — aponta o mês de maior aperto financeiro." />
-        <Kpi lbl="Queima Média / mês" val={m.queimaMedia} cor={m.queimaMedia > 0 ? COR_DESP : undefined} foot="Média dos meses no negativo" tip="Média mensal de quanto o caixa ficou negativo, considerando só os meses em que saiu mais do que entrou." />
+        <Kpi lbl="Saldo Final" val={m.saldoFinal} foot="Ao fim do período" tip="Saldo de caixa projetado ao fim do período filtrado = saldo no início + recebimentos − pagamentos acumulados." />
+        <Kpi lbl="Resultado de Caixa" val={m.totR - m.totP} foot="Recebimentos − Pagamentos" tip="Diferença entre tudo que entrou e tudo que saiu no período. Positivo = geração de caixa; negativo = consumo." />
+        <Kpi lbl="Menor Saldo" val={m.minSaldo} foot={`Mês mais apertado: ${m.labels[m.minIdx] ?? '—'}`} tip="O menor saldo de caixa alcançado no período — aponta o mês de maior aperto financeiro." />
+        <Kpi lbl="Queima Média / mês" val={m.queimaMedia} foot="Média dos meses no negativo" tip="Média mensal de quanto o caixa ficou negativo, considerando só os meses em que saiu mais do que entrou." />
         <KpiTexto lbl="Meses de Caixa" valor={m.runway === null ? '—' : m.runway.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} foot={m.runway === null ? 'Sem queima média' : 'Saldo ÷ queima média'} tip="Por quantos meses o caixa se sustenta na queima média atual (saldo no início do período ÷ queima média mensal)." />
       </div>
 
@@ -192,7 +192,7 @@ export function Indicadores() {
         <Tile className="col-span-12 lg:col-span-5 lg:row-span-2" titulo="Evolução do Saldo de Caixa" tip="Trajetória do saldo de caixa mês a mês. A linha tracejada marca o zero; pontos em vermelho indicam saldo negativo.">
           <AreaSaldo saldo={m.saldo} labels={m.labels} minIdx={m.minIdx} />
         </Tile>
-        <Tile className="col-span-12 lg:col-span-4" titulo="Recebimentos × Pagamentos" tip="Compara, mês a mês, o total de entradas (laranja) e saídas (navy) de caixa.">
+        <Tile className="col-span-12 lg:col-span-4" titulo="Recebimentos × Pagamentos" tip="Compara, mês a mês, o total de entradas (laranja) e saídas (salmão) de caixa.">
           <BarrasMensais receb={m.receb} pag={m.pag} labels={m.labels} />
         </Tile>
         <Tile className="col-span-12 lg:col-span-3 lg:row-span-2" titulo="Concentração das Despesas" tip="Distribuição percentual das despesas por categoria no período (donut).">
@@ -325,15 +325,15 @@ function Tile({ titulo, tip, className, children }: { titulo: string; tip: strin
     </div>
   )
 }
-function Kpi({ lbl, val, cor, foot, tip }: { lbl: string; val: number; cor?: string; foot: string; tip: string }) {
+function Kpi({ lbl, val, foot, tip }: { lbl: string; val: number; foot: string; tip: string }) {
   return (
     <div className="relative overflow-hidden rounded-xl border border-line bg-surface px-3 py-2">
-      <span className="absolute inset-y-0 left-0 w-1" style={{ background: cor ?? 'rgb(var(--brand))' }} />
+      <span className="absolute inset-y-0 left-0 w-1" style={{ background: COR_REC }} />
       <div className="flex items-center">
         <span className="text-[10px] font-bold uppercase tracking-wider text-muted">{lbl}</span>
         <Info tip={tip} />
       </div>
-      <div className="mt-0.5 text-[18px] font-extrabold leading-tight tnum" style={{ color: cor ?? undefined }}>R$ {fmt0(val)}</div>
+      <div className="mt-0.5 text-[18px] font-extrabold leading-tight tnum text-ink">R$ {fmt0(val)}</div>
       <div className="text-[10px] text-muted">{foot}</div>
     </div>
   )
@@ -341,7 +341,7 @@ function Kpi({ lbl, val, cor, foot, tip }: { lbl: string; val: number; cor?: str
 function KpiTexto({ lbl, valor, foot, tip }: { lbl: string; valor: string; foot: string; tip: string }) {
   return (
     <div className="relative overflow-hidden rounded-xl border border-line bg-surface px-3 py-2">
-      <span className="absolute inset-y-0 left-0 w-1 bg-band" />
+      <span className="absolute inset-y-0 left-0 w-1" style={{ background: COR_REC }} />
       <div className="flex items-center">
         <span className="text-[10px] font-bold uppercase tracking-wider text-muted">{lbl}</span>
         <Info tip={tip} />
@@ -401,7 +401,7 @@ function AreaSaldo({ saldo, labels, minIdx }: { saldo: number[]; labels: string[
             <g key={i}>
               <circle cx={xs(i)} cy={ys(v)} r={destaque ? 5 : 3.4} fill={neg ? SALDO_NEG : SALDO_POS} />
               {destaque && (
-                <text x={lx} y={ly} fontSize={18} fontWeight={700} textAnchor={anchor} fill={neg ? SALDO_NEG : '#0B2545'}>
+                <text x={lx} y={ly} fontSize={18} fontWeight={700} textAnchor={anchor} fill={neg ? SALDO_NEG : '#334155'}>
                   {fmtCompacto(v)}
                 </text>
               )}
@@ -437,8 +437,8 @@ function BarrasMensais({ receb, pag, labels }: { receb: number[]; pag: number[];
     </div>
   )
 }
-// Tons de navy (paleta das despesas) para as fatias do donut
-const PAL_DESP = ['#2B2D42', '#3C4063', '#4E5482', '#666C99', '#8791B4', '#AAB2CC', '#CDD3E2']
+// Degradê de laranja (do queimado ao pêssego) para as fatias do donut
+const PAL_DESP = ['#C33C16', '#E0531F', '#EC6B34', '#F2854E', '#F5A177', '#F8BE9E', '#FBD9C6']
 
 function DonutDespesas({ itens, total }: { itens: { nome: string; valor: number }[]; total: number }) {
   if (!itens.length || total <= 0) return <div className="flex h-full items-center text-[12px] text-muted">Sem dados no filtro.</div>
@@ -473,7 +473,7 @@ function DonutDespesas({ itens, total }: { itens: { nome: string; valor: number 
         <svg viewBox={`0 0 ${size} ${size}`} width="100%" height="100%">
           {segs}
           <text x={c} y={c - 3} textAnchor="middle" fontSize={11} fill="#64748B">Despesas</text>
-          <text x={c} y={c + 13} textAnchor="middle" fontSize={15} fontWeight={700} fill="#2B2D42">{fmtCompacto(total)}</text>
+          <text x={c} y={c + 13} textAnchor="middle" fontSize={15} fontWeight={700} fill="#B0451F">{fmtCompacto(total)}</text>
         </svg>
       </div>
       <div className="flex min-h-0 w-full flex-1 flex-col overflow-hidden">
