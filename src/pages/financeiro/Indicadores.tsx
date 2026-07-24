@@ -187,24 +187,24 @@ export function Indicadores() {
         <KpiTexto lbl="Meses de Caixa" valor={m.runway === null ? '—' : m.runway.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} foot={m.runway === null ? 'Sem queima média' : 'Saldo ÷ queima média'} tip="Por quantos meses o caixa se sustenta na queima média atual (saldo no início do período ÷ queima média mensal)." />
       </div>
 
-      {/* Grid Power BI — Saldo grande (esq.) + Receb×Pag (dir.); faixa inferior com composições e rankings */}
-      <div className="grid min-h-0 flex-1 grid-cols-12 grid-rows-5 gap-2">
-        <Tile className="col-span-12 lg:col-span-8 lg:row-span-3" titulo="Evolução do Saldo de Caixa" tip="Trajetória do saldo de caixa mês a mês. A linha tracejada marca o zero; pontos em vermelho indicam saldo negativo.">
+      {/* Grid de gráficos — 2 linhas que preenchem a altura */}
+      <div className="grid min-h-0 flex-1 grid-cols-12 grid-rows-2 gap-2">
+        <Tile className="col-span-12 lg:col-span-7" titulo="Evolução do Saldo de Caixa" tip="Trajetória do saldo de caixa mês a mês. A linha tracejada marca o zero; pontos em vermelho indicam saldo negativo.">
           <AreaSaldo saldo={m.saldo} labels={m.labels} minIdx={m.minIdx} />
         </Tile>
-        <Tile className="col-span-12 lg:col-span-4 lg:row-span-3" titulo="Recebimentos × Pagamentos" tip="Compara, mês a mês, o total de entradas (laranja) e saídas (navy) de caixa.">
+        <Tile className="col-span-12 lg:col-span-5" titulo="Recebimentos × Pagamentos" tip="Compara, mês a mês, o total de entradas (laranja) e saídas (navy) de caixa.">
           <BarrasMensais receb={m.receb} pag={m.pag} labels={m.labels} />
         </Tile>
-        <Tile className="col-span-6 lg:col-span-3 lg:row-span-2" titulo="Composição — Receitas" tip="Participação de cada categoria de receita no total de recebimentos do período.">
+        <Tile className="col-span-6 lg:col-span-3" titulo="Composição — Receitas" tip="Participação de cada categoria de receita no total de recebimentos do período.">
           <BarrasHorizontais itens={cap(m.compRec, 6)} cor={COR_REC} total={m.totR} />
         </Tile>
-        <Tile className="col-span-6 lg:col-span-3 lg:row-span-2" titulo="Composição — Despesas" tip="Participação de cada categoria de despesa no total de pagamentos do período.">
+        <Tile className="col-span-6 lg:col-span-3" titulo="Composição — Despesas" tip="Participação de cada categoria de despesa no total de pagamentos do período.">
           <BarrasHorizontais itens={cap(m.compDesp, 6)} cor={COR_DESP} total={m.totP} />
         </Tile>
-        <Tile className="col-span-6 lg:col-span-3 lg:row-span-2" titulo="Top Clientes" tip="Maiores fontes de recebimento (por descrição) no período.">
+        <Tile className="col-span-6 lg:col-span-3" titulo="Top Clientes" tip="Maiores fontes de recebimento (por descrição) no período.">
           <BarrasHorizontais itens={m.topCli} cor={COR_REC} total={m.totR} />
         </Tile>
-        <Tile className="col-span-6 lg:col-span-3 lg:row-span-2" titulo="Maiores Pagamentos" tip="Maiores saídas de caixa (por descrição) no período.">
+        <Tile className="col-span-6 lg:col-span-3" titulo="Maiores Pagamentos" tip="Maiores saídas de caixa (por descrição) no período.">
           <BarrasHorizontais itens={m.topPag} cor={COR_DESP} total={m.totP} />
         </Tile>
       </div>
@@ -360,21 +360,9 @@ function KpiTexto({ lbl, valor, foot, tip }: { lbl: string; valor: string; foot:
 
 /* ---------------------------- gráficos --------------------------- */
 function AreaSaldo({ saldo, labels, minIdx }: { saldo: number[]; labels: string[]; minIdx: number }) {
-  // Mede o próprio quadro para preencher 100% (sem sobras nas laterais).
-  const ref = useRef<HTMLDivElement>(null)
-  const [dim, setDim] = useState({ w: 680, h: 260 })
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const update = () => setDim({ w: Math.max(220, el.clientWidth), h: Math.max(140, el.clientHeight) })
-    update()
-    const ro = new ResizeObserver(update)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-  const W = dim.w
-  const H = dim.h
-  const padL = 10, padR = 12, padT = 26, padB = 24
+  const W = 860
+  const H = 240
+  const padL = 6, padR = 6, padT = 26, padB = 30
   const innerW = W - padL - padR
   const innerH = H - padT - padB
   const n = saldo.length
@@ -388,28 +376,27 @@ function AreaSaldo({ saldo, labels, minIdx }: { saldo: number[]; labels: string[
   const pts = saldo.map((v, i) => `${xs(i)},${ys(v)}`).join(' ')
   const area = `M ${xs(0)},${zeroY} L ${pts} L ${xs(n - 1)},${zeroY} Z`
   return (
-    <div ref={ref} className="h-full w-full">
-      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }} role="img" aria-label="Evolução do saldo">
-        <line x1={padL} y1={zeroY} x2={W - padR} y2={zeroY} stroke="#CBD5E1" strokeWidth={1} strokeDasharray="4 4" />
-        <text x={padL} y={zeroY - 3} fontSize={10} fill="#94A3B8">0</text>
-        <path d={area} style={{ fill: 'rgb(var(--brand))', fillOpacity: 0.12 }} />
-        <polyline points={pts} fill="none" style={{ stroke: 'rgb(var(--brand))' }} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
-        {saldo.map((v, i) => {
-          const neg = v < 0
-          const destaque = i === minIdx || i === n - 1
-          const ly = ys(v) + (v >= 0 ? -9 : 16)
-          return (
-            <g key={i}>
-              <circle cx={xs(i)} cy={ys(v)} r={destaque ? 4.5 : 3} fill={neg ? SALDO_NEG : SALDO_POS} />
-              <text x={xs(i)} y={ly} fontSize={destaque ? 11.5 : 10} fontWeight={destaque ? 700 : 500} textAnchor="middle" fill={neg ? SALDO_NEG : destaque ? '#0B2545' : '#64748B'}>
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="100%" preserveAspectRatio="xMidYMid meet" style={{ display: 'block' }} role="img" aria-label="Evolução do saldo">
+      <line x1={padL} y1={zeroY} x2={W - padR} y2={zeroY} stroke="#CBD5E1" strokeWidth={1} strokeDasharray="4 4" />
+      <text x={padL} y={zeroY - 4} fontSize={13} fill="#94A3B8">0</text>
+      <path d={area} style={{ fill: 'rgb(var(--brand))', fillOpacity: 0.12 }} />
+      <polyline points={pts} fill="none" style={{ stroke: 'rgb(var(--brand))' }} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+      {saldo.map((v, i) => {
+        const neg = v < 0
+        const destaque = i === minIdx || i === n - 1
+        return (
+          <g key={i}>
+            <circle cx={xs(i)} cy={ys(v)} r={destaque ? 5 : 3.4} fill={neg ? SALDO_NEG : SALDO_POS} />
+            {destaque && (
+              <text x={xs(i)} y={ys(v) + (v >= 0 ? -11 : 20)} fontSize={18} fontWeight={700} textAnchor="middle" fill={neg ? SALDO_NEG : '#0B2545'}>
                 {fmtCompacto(v)}
               </text>
-              <text x={xs(i)} y={H - 7} fontSize={10.5} textAnchor="middle" fill="#64748B">{labels[i]}</text>
-            </g>
-          )
-        })}
-      </svg>
-    </div>
+            )}
+            <text x={xs(i)} y={H - 8} fontSize={15} textAnchor="middle" fill="#64748B">{labels[i]}</text>
+          </g>
+        )
+      })}
+    </svg>
   )
 }
 function BarrasMensais({ receb, pag, labels }: { receb: number[]; pag: number[]; labels: string[] }) {
