@@ -482,7 +482,7 @@ export function FluxoCaixa() {
                 </tr>
               </thead>
               <tbody>
-                <Linha cls="saldo-ant" label="(=) Saldo Anterior" arr={saldoAnt} total={saldoInicial} />
+                <Linha cls="saldo-ant" label="(=) Saldo Atual" arr={saldoAnt} total={saldoInicial} />
                 <SecaoTotal cls="total-receb" label="(+) Recebimentos" arr={receb} total={totR} open={secReceb} onToggle={() => setSecReceb((v) => !v)} />
                 {secReceb && renderSecao(ENTRADAS_BLOCOS, 'E', d.ent, d.entD)}
                 <SecaoTotal cls="total-pag" label="(−) Pagamentos" arr={pag} total={totP} open={secPag} onToggle={() => setSecPag((v) => !v)} />
