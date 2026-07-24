@@ -192,11 +192,11 @@ export function Indicadores() {
         <Tile className="col-span-12 lg:col-span-5 lg:row-span-2" titulo="Evolução do Saldo de Caixa" tip="Trajetória do saldo de caixa mês a mês. A linha tracejada marca o zero; pontos em vermelho indicam saldo negativo.">
           <AreaSaldo saldo={m.saldo} labels={m.labels} minIdx={m.minIdx} />
         </Tile>
-        <Tile className="col-span-12 lg:col-span-3 lg:row-span-2" titulo="Concentração das Despesas" tip="Distribuição percentual das despesas por categoria no período (donut).">
-          <DonutDespesas itens={cap(m.compDesp, 6)} total={m.totP} />
-        </Tile>
         <Tile className="col-span-12 lg:col-span-4" titulo="Recebimentos × Pagamentos" tip="Compara, mês a mês, o total de entradas (laranja) e saídas (navy) de caixa.">
           <BarrasMensais receb={m.receb} pag={m.pag} labels={m.labels} />
+        </Tile>
+        <Tile className="col-span-12 lg:col-span-3 lg:row-span-2" titulo="Concentração das Despesas" tip="Distribuição percentual das despesas por categoria no período (donut).">
+          <DonutDespesas itens={cap(m.compDesp, 6)} total={m.totP} />
         </Tile>
         <Tile className="col-span-12 lg:col-span-4" titulo="Top Clientes" tip="Maiores fontes de recebimento (por descrição) no período.">
           <BarrasHorizontais itens={m.topCli} cor={COR_REC} total={m.totR} />
