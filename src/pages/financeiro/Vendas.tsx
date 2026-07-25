@@ -692,7 +692,7 @@ function AreaFat({ serie }: { serie: { label: string; fat: number }[] }) {
           const hw = n > 1 ? innerW / (n - 1) : innerW
           return (
             <rect key={`h${i}`} x={Math.max(padL, xs(i) - hw / 2)} y={padT} width={hw} height={innerH} fill="transparent">
-              <title>{`${b.label}: R$ ${fmt0(b.fat)}`}</title>
+              <title>{`${b.label}\nFaturamento: R$ ${fmt0(b.fat)}`}</title>
             </rect>
           )
         })}
@@ -708,7 +708,7 @@ function BarrasH({ itens, total }: { itens: { nome: string; valor: number }[]; t
       {itens.map((it, i) => (
         <div key={it.nome} className="flex min-h-0 flex-1 items-center gap-1.5 text-[11px]">
           <div className="w-[38%] shrink-0 truncate text-ink" title={it.nome}>{it.nome}</div>
-          <div className="h-3.5 flex-1 overflow-hidden rounded bg-paper" title={`${it.nome}: R$ ${fmt0(it.valor)}${total ? ` · ${Math.round((it.valor / total) * 100)}% do total` : ''}`}>
+          <div className="h-3.5 flex-1 overflow-hidden rounded bg-paper" title={`${it.nome}\nFaturamento: R$ ${fmt0(it.valor)}${total ? `\nParticipação: ${Math.round((it.valor / total) * 100)}% do total` : ''}`}>
             <div className="h-full rounded" style={{ width: `${(it.valor / max) * 100}%`, background: gradAt(i), minWidth: 2 }} />
           </div>
           <div className="w-[56px] shrink-0 text-right font-semibold tnum text-ink">{fmtCompacto(it.valor)}</div>
@@ -728,7 +728,7 @@ function Donut({ itens, total }: { itens: { nome: string; valor: number }[]; tot
     const len = (it.valor / total) * C
     const el = (
       <circle key={it.nome} cx={c} cy={c} r={r} fill="none" stroke={GRAD[i % GRAD.length]} strokeWidth={stroke} strokeDasharray={`${len} ${C - len}`} strokeDashoffset={-off} transform={`rotate(-90 ${c} ${c})`}>
-        <title>{`${it.nome}: R$ ${fmt0(it.valor)} (${Math.round((it.valor / total) * 100)}%)`}</title>
+        <title>{`${it.nome}\nFaturamento: R$ ${fmt0(it.valor)}\nParticipação: ${Math.round((it.valor / total) * 100)}%`}</title>
       </circle>
     )
     off += len
@@ -789,7 +789,7 @@ function Pareto({ itens, total }: { itens: { nome: string; valor: number }[]; to
           const bh = (it.valor / maxv) * innerH
           return (
             <rect key={i} x={padL + bw * i + 2} y={padT + innerH - bh} width={Math.max(1, bw - 4)} height={bh} rx={1.5} style={{ fill: gradAt(i) }}>
-              <title>{`${it.nome}: R$ ${fmt0(it.valor)} · ${Math.round(cum[i] * 100)}% acumulado`}</title>
+              <title>{`${it.nome}\nFaturamento: R$ ${fmt0(it.valor)}\nAcumulado: ${Math.round(cum[i] * 100)}%`}</title>
             </rect>
           )
         })}
@@ -994,7 +994,7 @@ function BarrasMes({ itens, mesA, mesB }: { itens: { ym: string; label: string; 
         return (
           <div key={it.ym} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
             <span className="text-[10px] font-semibold tnum text-ink">{fmtCompacto(it.fat)}</span>
-            <div className="w-full rounded-t" style={{ height: `${(it.fat / max) * 100}%`, background: cor, minHeight: 2 }} title={`${it.label}: R$ ${fmt0(it.fat)}`} />
+            <div className="w-full rounded-t" style={{ height: `${(it.fat / max) * 100}%`, background: cor, minHeight: 2 }} title={`${it.label}\nFaturamento: R$ ${fmt0(it.fat)}`} />
             <span className={`text-[10px] ${dest ? 'font-bold text-ink' : 'text-muted'}`}>{it.label}</span>
           </div>
         )
@@ -1013,18 +1013,18 @@ function ListaCmp({ itens, rotA, rotB }: { itens: { nome: string; a: number; b: 
             <span className="min-w-0 flex-1 truncate font-semibold text-ink" title={x.nome}>{x.nome}</span>
             <span className="tnum font-bold" style={{ color: deltaCor(x.a, x.b) }}>{pctTxt(x.a, x.b)}</span>
           </div>
-          <BarraAB rot={rotA} v={x.a} max={max} cor="#FDBE45" />
-          <BarraAB rot={rotB} v={x.b} max={max} cor="#E8420A" />
+          <BarraAB nome={x.nome} rot={rotA} v={x.a} max={max} cor="#FDBE45" />
+          <BarraAB nome={x.nome} rot={rotB} v={x.b} max={max} cor="#E8420A" />
         </div>
       ))}
     </div>
   )
 }
-function BarraAB({ rot, v, max, cor }: { rot: string; v: number; max: number; cor: string }) {
+function BarraAB({ nome, rot, v, max, cor }: { nome: string; rot: string; v: number; max: number; cor: string }) {
   return (
     <div className="flex items-center gap-1.5 text-[10px]">
       <span className="w-16 shrink-0 truncate text-muted" title={rot}>{rot}</span>
-      <div className="h-2.5 flex-1 overflow-hidden rounded bg-paper" title={`${rot}: R$ ${fmt0(v)}`}>
+      <div className="h-2.5 flex-1 overflow-hidden rounded bg-paper" title={`${nome}\n${rot}: R$ ${fmt0(v)}`}>
         <div className="h-full rounded" style={{ width: `${(v / max) * 100}%`, background: cor, minWidth: 2 }} />
       </div>
       <span className="w-16 shrink-0 text-right tnum font-semibold text-ink">R$ {fmtCompacto(v)}</span>
@@ -1196,7 +1196,7 @@ function AbcChart({ itens }: { itens: { nome: string; fat: number; pct: number; 
           const bh = (it.pct / maxPct) * innerH
           return (
             <rect key={i} x={padL + bw * i + (bw > 4 ? 1 : 0)} y={padT + innerH - bh} width={Math.max(0.6, bw - (bw > 4 ? 2 : 0))} height={bh} style={{ fill: ABC_COR[it.classe] }}>
-              <title>{`${it.nome} — Classe ${it.classe}: R$ ${fmt0(it.fat)} (${it.pct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% ind · ${it.cumPct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% acum)`}</title>
+              <title>{`${it.nome}\nClasse: ${it.classe}\nFaturamento: R$ ${fmt0(it.fat)}\n% individual: ${it.pct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%\n% acumulado: ${it.cumPct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`}</title>
             </rect>
           )
         })}
