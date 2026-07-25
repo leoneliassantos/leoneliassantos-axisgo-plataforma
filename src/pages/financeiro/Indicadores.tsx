@@ -24,6 +24,7 @@ export function Indicadores() {
   const [mesAte, setMesAte] = useState(11)
   const [selRec, setSelRec] = useState<Set<string> | null>(null) // null = todas
   const [selDesp, setSelDesp] = useState<Set<string> | null>(null)
+  const [detalhe, setDetalhe] = useState<Detalhe | null>(null)
 
   // altura disponível (para caber 100% na tela, sem scroll)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -121,7 +122,6 @@ export function Indicadores() {
         .map((nome) => ({ nome, valor: acc[nome] }))
         .filter((x) => x.valor > 0.5)
         .sort((a, b) => b.valor - a.valor)
-        .slice(0, 5)
     }
 
     const totR = sumArr(receb)
@@ -152,6 +152,28 @@ export function Indicadores() {
         <p className="max-w-md text-sm text-muted">Carregue a base no módulo <b>Fluxo de Caixa</b> e os indicadores aparecerão aqui.</p>
       </div>
     )
+
+  const detalheDespesas = (): Detalhe => {
+    const total = m.totP
+    const linhas: (string | number)[][] = m.compDesp.map((x) => [x.nome, Math.round(x.valor), total ? Math.round((x.valor / total) * 100) : 0])
+    if (m.compDesp.length) linhas.push(['TOTAL', Math.round(total), 100])
+    return { titulo: 'Despesas por categoria', arquivo: 'Detalhes - Despesas por categoria.xlsx', colunas: [{ label: 'Categoria', tipo: 'texto' }, { label: 'Valor (R$)', tipo: 'num' }, { label: '% do total', tipo: 'pct' }], linhas }
+  }
+  const detalheClientes = (): Detalhe => {
+    const total = m.totR
+    const linhas: (string | number)[][] = m.topCli.map((x) => [x.nome, Math.round(x.valor), total ? Math.round((x.valor / total) * 100) : 0])
+    if (m.topCli.length) linhas.push(['TOTAL', Math.round(total), 100])
+    return { titulo: 'Recebimentos por cliente / descrição', arquivo: 'Detalhes - Recebimentos por cliente.xlsx', colunas: [{ label: 'Cliente / Descrição', tipo: 'texto' }, { label: 'Valor (R$)', tipo: 'num' }, { label: '% do total', tipo: 'pct' }], linhas }
+  }
+  const detalheRecebPag = (): Detalhe => {
+    const linhas: (string | number)[][] = m.labels.map((mes, i) => [mes, Math.round(m.receb[i]), Math.round(m.pag[i]), Math.round(m.receb[i] - m.pag[i])])
+    linhas.push(['TOTAL', Math.round(m.totR), Math.round(m.totP), Math.round(m.totR - m.totP)])
+    return { titulo: 'Recebimentos × Pagamentos por mês', arquivo: 'Detalhes - Recebimentos x Pagamentos.xlsx', colunas: [{ label: 'Mês', tipo: 'texto' }, { label: 'Recebimentos', tipo: 'num' }, { label: 'Pagamentos', tipo: 'num' }, { label: 'Resultado', tipo: 'num' }], linhas }
+  }
+  const detalheSaldo = (): Detalhe => {
+    const linhas: (string | number)[][] = m.labels.map((mes, i) => [mes, Math.round(m.receb[i]), Math.round(m.pag[i]), Math.round(m.saldo[i])])
+    return { titulo: 'Evolução do saldo por mês', arquivo: 'Detalhes - Evolucao do saldo.xlsx', colunas: [{ label: 'Mês', tipo: 'texto' }, { label: 'Recebimentos', tipo: 'num' }, { label: 'Pagamentos', tipo: 'num' }, { label: 'Saldo', tipo: 'num' }], linhas }
+  }
 
   return (
     <div
@@ -189,19 +211,21 @@ export function Indicadores() {
 
       {/* Grid de gráficos — 2 linhas que preenchem a altura */}
       <div className="grid min-h-0 flex-1 grid-cols-12 grid-rows-2 gap-2">
-        <Tile className="col-span-12 lg:col-span-5 lg:row-span-2" titulo="Evolução do Saldo de Caixa" tip="Trajetória do saldo de caixa mês a mês. A linha tracejada marca o zero; pontos em vermelho indicam saldo negativo.">
+        <Tile className="col-span-12 lg:col-span-5 lg:row-span-2" titulo="Evolução do Saldo de Caixa" tip="Trajetória do saldo de caixa mês a mês. A linha tracejada marca o zero; pontos em laranja queimado indicam saldo negativo." onDetalhes={() => setDetalhe(detalheSaldo())}>
           <AreaSaldo saldo={m.saldo} labels={m.labels} minIdx={m.minIdx} />
         </Tile>
-        <Tile className="col-span-12 lg:col-span-4" titulo="Recebimentos × Pagamentos" tip="Compara, mês a mês, o total de entradas (laranja) e saídas (salmão) de caixa.">
+        <Tile className="col-span-12 lg:col-span-4" titulo="Recebimentos × Pagamentos" tip="Compara, mês a mês, o total de entradas (laranja) e saídas (salmão) de caixa." onDetalhes={() => setDetalhe(detalheRecebPag())}>
           <BarrasMensais receb={m.receb} pag={m.pag} labels={m.labels} />
         </Tile>
-        <Tile className="col-span-12 lg:col-span-3 lg:row-span-2" titulo="Concentração das Despesas" tip="Distribuição percentual das despesas por categoria no período (donut).">
+        <Tile className="col-span-12 lg:col-span-3 lg:row-span-2" titulo="Concentração das Despesas" tip="Participação de cada categoria de despesa. O donut resume as principais (o resto em “Outras”); clique em Detalhes para ver TODAS." onDetalhes={() => setDetalhe(detalheDespesas())}>
           <DonutDespesas itens={cap(m.compDesp, 6)} total={m.totP} />
         </Tile>
-        <Tile className="col-span-12 lg:col-span-4" titulo="Top Clientes" tip="Maiores fontes de recebimento (por descrição) no período.">
-          <BarrasHorizontais itens={m.topCli} cor={COR_REC} total={m.totR} />
+        <Tile className="col-span-12 lg:col-span-4" titulo="Top Clientes" tip="Maiores fontes de recebimento (por descrição) no período. Clique em Detalhes para a lista completa." onDetalhes={() => setDetalhe(detalheClientes())}>
+          <BarrasHorizontais itens={m.topCli.slice(0, 5)} cor={COR_REC} total={m.totR} />
         </Tile>
       </div>
+
+      {detalhe && <ModalDetalhe dados={detalhe} onClose={() => setDetalhe(null)} />}
     </div>
   )
 }
@@ -314,15 +338,92 @@ function MultiSelect({ label, opcoes, value, onChange }: { label: string; opcoes
 }
 
 /* ---------------------------- tiles ------------------------------ */
-function Tile({ titulo, tip, className, children }: { titulo: string; tip: string; className?: string; children: ReactNode }) {
+function Tile({ titulo, tip, className, onDetalhes, children }: { titulo: string; tip: string; className?: string; onDetalhes?: () => void; children: ReactNode }) {
   return (
     <div className={`flex min-h-0 flex-col rounded-xl border border-line bg-surface p-2.5 shadow-card ${className ?? ''}`}>
       <div className="mb-1.5 flex flex-none items-center">
         <h3 className="text-[13px] font-bold text-ink">{titulo}</h3>
         <Info tip={tip} />
+        {onDetalhes && (
+          <button
+            onClick={onDetalhes}
+            className="ml-auto inline-flex items-center gap-1 rounded-md border border-brand/30 bg-brand/5 px-2 py-0.5 text-[10px] font-bold text-brand transition hover:bg-brand/15"
+            title="Ver tabela detalhada"
+          >
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <path d="M3 9h18M3 15h18M9 3v18" />
+            </svg>
+            Detalhes
+          </button>
+        )}
       </div>
       <div className="relative min-h-0 flex-1">{children}</div>
     </div>
+  )
+}
+
+type Detalhe = {
+  titulo: string
+  arquivo: string
+  colunas: { label: string; tipo: 'texto' | 'num' | 'pct' }[]
+  linhas: (string | number)[][]
+}
+function fmtCel(cel: string | number, tipo: 'texto' | 'num' | 'pct'): string {
+  if (tipo === 'texto') return String(cel)
+  if (tipo === 'pct') return `${cel}%`
+  return Number(cel).toLocaleString('pt-BR', { maximumFractionDigits: 0 })
+}
+function ModalDetalhe({ dados, onClose }: { dados: Detalhe; onClose: () => void }) {
+  async function exportar() {
+    const XLSX = await import('xlsx')
+    const aoa: (string | number)[][] = [dados.colunas.map((c) => c.label), ...dados.linhas]
+    const ws = XLSX.utils.aoa_to_sheet(aoa)
+    ws['!cols'] = dados.colunas.map((c) => ({ wch: c.tipo === 'texto' ? 44 : 16 }))
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Detalhes')
+    XLSX.writeFile(wb, dados.arquivo)
+  }
+  return createPortal(
+    <div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex flex-none items-center justify-between border-b border-line px-5 py-3">
+          <h3 className="font-serif text-lg font-semibold text-ink">{dados.titulo}</h3>
+          <button onClick={onClose} className="text-2xl leading-none text-muted transition hover:text-ink" aria-label="Fechar">×</button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-auto px-5 py-2">
+          <table className="w-full text-[13px]">
+            <thead className="sticky top-0 bg-white">
+              <tr className="border-b-2 border-line text-muted">
+                {dados.colunas.map((c, i) => (
+                  <th key={i} className={`py-2 font-semibold ${c.tipo === 'texto' ? 'text-left' : 'text-right'}`}>{c.label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {dados.linhas.map((linha, ri) => {
+                const total = linha[0] === 'TOTAL'
+                return (
+                  <tr key={ri} className={`border-b border-line/60 ${total ? 'font-bold text-ink' : 'text-ink/90'}`}>
+                    {linha.map((cel, ci) => (
+                      <td key={ci} className={`py-1.5 tnum ${dados.colunas[ci].tipo === 'texto' ? 'text-left' : 'text-right'}`}>{fmtCel(cel, dados.colunas[ci].tipo)}</td>
+                    ))}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex flex-none items-center justify-end gap-2 border-t border-line px-5 py-3">
+          <button onClick={onClose} className="rounded-lg border border-line px-4 py-2 text-sm font-medium text-muted transition hover:bg-paper">Fechar</button>
+          <button onClick={exportar} className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white shadow-brand transition hover:opacity-90">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></svg>
+            Exportar Excel
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   )
 }
 function Kpi({ lbl, val, foot, tip }: { lbl: string; val: number; foot: string; tip: string }) {
