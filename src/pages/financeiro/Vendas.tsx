@@ -104,7 +104,7 @@ export function Vendas() {
   const [gran, setGran] = useState<Gran>('semana')
   const [rankPor, setRankPor] = useState<'produto' | 'sku'>('produto')
   const [detalhe, setDetalhe] = useState<Detalhe | null>(null)
-  const [view, setView] = useState<'painel' | 'comparativo'>('painel')
+  const [view, setView] = useState<'painel' | 'comparativo' | 'abc'>('painel')
 
   // altura disponível (caber 100% na tela)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -360,7 +360,7 @@ export function Vendas() {
           <p className="text-[12px] text-muted">Notas de venda item a item · faturamento por canal, produto e período</p>
         </div>
         {!vazio && (
-          <Toggle valor={view} set={setView} ops={[['painel', 'Painel'], ['comparativo', 'Comparativo']]} />
+          <Toggle valor={view} set={setView} ops={[['painel', 'Painel'], ['comparativo', 'Comparativo'], ['abc', 'Curva ABC']]} />
         )}
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -397,6 +397,8 @@ export function Vendas() {
         </div>
       ) : view === 'comparativo' ? (
         <Comparativo rows={rows} />
+      ) : view === 'abc' ? (
+        <AbcCurva rows={rows} />
       ) : (
         <>
           {/* Filtros */}
@@ -1039,6 +1041,175 @@ function TabelaCmp({ itens, rotA, rotB, rot }: { itens: { nome: string; a: numbe
           })}
         </tbody>
       </table>
+    </div>
+  )
+}
+
+/* ============================== CURVA ABC ============================== */
+const ABC_COR: Record<'A' | 'B' | 'C', string> = { A: '#E8420A', B: '#FB960E', C: '#FDC24C' }
+
+function AbcCurva({ rows }: { rows: Venda[] }) {
+  const [dim, setDim] = useState<'produto' | 'sku' | 'cliente'>('produto')
+  const [dataDe, setDataDe] = useState(''); const [dataAte, setDataAte] = useState('')
+  const [selCanais, setSelCanais] = useState<Set<string> | null>(null)
+  const [detalhe, setDetalhe] = useState<Detalhe | null>(null)
+
+  const canais = useMemo(() => Array.from(new Set(rows.map((r) => r.origem))).sort((a, b) => a.localeCompare(b)), [rows])
+  useEffect(() => {
+    const ds = rows.map((r) => r.data).filter(Boolean).sort()
+    if (ds.length) { setDataDe(ds[0]); setDataAte(ds[ds.length - 1]) }
+  }, [rows])
+
+  const rot = dim === 'produto' ? 'Produto' : dim === 'sku' ? 'SKU' : 'Cliente'
+  const abc = useMemo(() => {
+    const canalOk = (c: string) => selCanais === null || selCanais.has(c)
+    const de = dataDe || '0000-01-01', ate = dataAte || '9999-12-31'
+    const f = rows.filter((r) => r.data >= de && r.data <= ate && canalOk(r.origem))
+    const keyf = (r: Venda) => (dim === 'produto' ? r.produto : dim === 'sku' ? r.sku : r.cliente) || `(sem ${rot.toLowerCase()})`
+    const acc = new Map<string, { fat: number; qtd: number }>()
+    for (const r of f) { const k = keyf(r); const e = acc.get(k) || { fat: 0, qtd: 0 }; e.fat += r.qtd * r.unit; e.qtd += r.qtd; acc.set(k, e) }
+    const arr = Array.from(acc.entries()).map(([nome, v]) => ({ nome, fat: v.fat, qtd: v.qtd })).filter((x) => x.fat > 0.005).sort((a, b) => b.fat - a.fat)
+    const total = arr.reduce((s, x) => s + x.fat, 0)
+    let cum = 0
+    const itens = arr.map((x) => {
+      const antes = total ? (cum / total) * 100 : 0
+      cum += x.fat
+      const classe: 'A' | 'B' | 'C' = antes < 80 ? 'A' : antes < 95 ? 'B' : 'C'
+      return { ...x, pct: total ? (x.fat / total) * 100 : 0, cumPct: total ? (cum / total) * 100 : 0, classe }
+    })
+    const resumo = (['A', 'B', 'C'] as const).map((c) => {
+      const its = itens.filter((i) => i.classe === c)
+      return { classe: c, n: its.length, fat: its.reduce((s, i) => s + i.fat, 0) }
+    })
+    return { itens, total, resumo, n: itens.length }
+  }, [rows, dim, dataDe, dataAte, selCanais, rot])
+
+  const det = (): Detalhe => ({
+    titulo: `Curva ABC por ${rot.toLowerCase()}`, arquivo: `Vendas - Curva ABC ${dim}.xlsx`,
+    colunas: [{ label: rot, tipo: 'texto' }, { label: 'Classe', tipo: 'texto' }, { label: 'Faturamento (R$)', tipo: 'num' }, { label: '% ind.', tipo: 'pct' }, { label: '% acum.', tipo: 'pct' }, { label: 'Qtd', tipo: 'num' }],
+    linhas: abc.itens.map((x) => [x.nome, x.classe, Math.round(x.fat), Math.round(x.pct), Math.round(x.cumPct), Math.round(x.qtd)]),
+  })
+
+  return (
+    <div className="flex flex-col gap-3 pb-4">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-muted">Classificar por</span>
+        <Toggle valor={dim} set={setDim} ops={[['produto', 'Produto'], ['sku', 'SKU'], ['cliente', 'Cliente']]} />
+        <div className="flex items-center gap-1.5 text-[12px]">
+          <span className="text-muted">Período</span>
+          <DateIn value={dataDe} onChange={setDataDe} /><span className="text-muted">até</span><DateIn value={dataAte} onChange={setDataAte} />
+        </div>
+        <MultiSelect label="Canal" opcoes={canais} value={selCanais} onChange={setSelCanais} />
+        <span className="ml-auto text-[11px] text-muted">{abc.n} {rot.toLowerCase()}s · R$ {fmt0(abc.total)}</span>
+      </div>
+
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+        {abc.resumo.map((c) => <AbcResumo key={c.classe} classe={c.classe} n={c.n} nTot={abc.n} fat={c.fat} total={abc.total} />)}
+      </div>
+
+      <CardC titulo="Curva ABC" sub="Participação acumulada no faturamento (A ≤ 80% · B ≤ 95% · C o restante)">
+        <AbcChart itens={abc.itens} />
+      </CardC>
+
+      <CardC titulo={`${rot}s classificados`} sub="Ordenados por faturamento" onDet={() => setDetalhe(det())}>
+        <AbcTabela itens={abc.itens} rot={rot} />
+      </CardC>
+
+      {detalhe && <ModalDetalhe dados={detalhe} onClose={() => setDetalhe(null)} />}
+    </div>
+  )
+}
+
+function AbcResumo({ classe, n, nTot, fat, total }: { classe: 'A' | 'B' | 'C'; n: number; nTot: number; fat: number; total: number }) {
+  const cor = ABC_COR[classe]
+  const desc = classe === 'A' ? 'Essenciais — priorize' : classe === 'B' ? 'Intermediários' : 'Cauda longa'
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-line bg-surface px-4 py-3">
+      <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: cor }} />
+      <div className="flex items-center gap-2">
+        <span className="grid h-7 w-7 place-items-center rounded-md text-[15px] font-extrabold text-white" style={{ background: cor }}>{classe}</span>
+        <div>
+          <div className="text-[13px] font-bold text-ink">Classe {classe}</div>
+          <div className="text-[10px] text-muted">{desc}</div>
+        </div>
+        <div className="ml-auto text-right">
+          <div className="text-[18px] font-semibold tnum text-ink">{total ? Math.round((fat / total) * 100) : 0}%</div>
+          <div className="text-[10px] text-muted">do faturamento</div>
+        </div>
+      </div>
+      <div className="mt-2 flex items-center justify-between text-[11px] text-muted">
+        <span><b className="text-ink tnum">{n}</b> itens ({nTot ? Math.round((n / nTot) * 100) : 0}%)</span>
+        <span className="tnum">R$ {fmt0(fat)}</span>
+      </div>
+    </div>
+  )
+}
+
+function AbcChart({ itens }: { itens: { nome: string; pct: number; cumPct: number; classe: 'A' | 'B' | 'C' }[] }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [sz, setSz] = useState({ w: 700, h: 208 })
+  useLayoutEffect(() => {
+    const el = ref.current; if (!el) return
+    const up = () => setSz({ w: Math.max(240, el.clientWidth), h: Math.max(150, el.clientHeight) })
+    up(); const ro = new ResizeObserver(up); ro.observe(el); return () => ro.disconnect()
+  }, [])
+  if (!itens.length) return <div className="py-8 text-center text-[12px] text-muted">Sem dados.</div>
+  const { w: W, h: H } = sz
+  const padL = 6, padR = 30, padT = 12, padB = 8
+  const innerW = W - padL - padR, innerH = H - padT - padB
+  const n = itens.length
+  const bw = innerW / n
+  const maxPct = Math.max(1, ...itens.map((i) => i.pct))
+  const yCum = (p: number) => padT + innerH * (1 - p / 100)
+  const cx = (i: number) => padL + bw * i + bw / 2
+  return (
+    <div ref={ref} className="h-52 w-full">
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }} role="img" aria-label="Curva ABC">
+        {[80, 95].map((t) => (
+          <g key={t}>
+            <line x1={padL} y1={yCum(t)} x2={W - padR} y2={yCum(t)} stroke="#CBD5E1" strokeWidth={1} strokeDasharray="4 4" />
+            <text x={W - padR + 3} y={yCum(t) + 3} fontSize={10} fill="#94A3B8">{t}%</text>
+          </g>
+        ))}
+        {itens.map((it, i) => {
+          const bh = (it.pct / maxPct) * innerH
+          return <rect key={i} x={padL + bw * i + (bw > 4 ? 1 : 0)} y={padT + innerH - bh} width={Math.max(0.6, bw - (bw > 4 ? 2 : 0))} height={bh} style={{ fill: ABC_COR[it.classe] }} />
+        })}
+        <polyline points={itens.map((it, i) => `${cx(i)},${yCum(it.cumPct)}`).join(' ')} fill="none" stroke="#8A3F1C" strokeWidth={2} />
+        {n <= 40 && itens.map((it, i) => <circle key={i} cx={cx(i)} cy={yCum(it.cumPct)} r={2} fill="#8A3F1C" />)}
+      </svg>
+    </div>
+  )
+}
+
+function AbcTabela({ itens, rot }: { itens: { nome: string; fat: number; qtd: number; pct: number; cumPct: number; classe: 'A' | 'B' | 'C' }[]; rot: string }) {
+  if (!itens.length) return <div className="py-6 text-center text-[12px] text-muted">Sem dados.</div>
+  const top = itens.slice(0, 15)
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-[12px]">
+        <thead>
+          <tr className="border-b-2 border-line text-muted">
+            <th className="py-1.5 text-center font-semibold">Classe</th>
+            <th className="py-1.5 text-left font-semibold">{rot}</th>
+            <th className="py-1.5 text-right font-semibold">Faturamento</th>
+            <th className="py-1.5 text-right font-semibold">% ind.</th>
+            <th className="py-1.5 text-right font-semibold">% acum.</th>
+          </tr>
+        </thead>
+        <tbody>
+          {top.map((x) => (
+            <tr key={x.nome} className="border-b border-line/60">
+              <td className="py-1.5 text-center"><span className="inline-grid h-5 w-5 place-items-center rounded text-[11px] font-bold text-white" style={{ background: ABC_COR[x.classe] }}>{x.classe}</span></td>
+              <td className="max-w-0 truncate py-1.5 pr-2 text-ink" title={x.nome}>{x.nome}</td>
+              <td className="py-1.5 text-right tnum font-semibold text-ink">R$ {fmtCompacto(x.fat)}</td>
+              <td className="py-1.5 text-right tnum text-muted">{x.pct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</td>
+              <td className="py-1.5 text-right tnum text-muted">{x.cumPct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {itens.length > top.length && <div className="mt-1.5 text-center text-[11px] text-muted">Mostrando 15 de {itens.length} — use <b>Detalhes</b> para a lista completa e exportar.</div>}
     </div>
   )
 }
