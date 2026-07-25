@@ -104,6 +104,7 @@ export function Vendas() {
   const [gran, setGran] = useState<Gran>('semana')
   const [rankPor, setRankPor] = useState<'produto' | 'sku'>('produto')
   const [detalhe, setDetalhe] = useState<Detalhe | null>(null)
+  const [view, setView] = useState<'painel' | 'comparativo'>('painel')
 
   // altura disponível (caber 100% na tela)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -349,7 +350,7 @@ export function Vendas() {
   return (
     <div
       ref={wrapRef}
-      style={{ width: 'min(1600px, 96vw)', height: vazio ? undefined : altura, position: 'relative', left: '50%', transform: 'translateX(-50%)', overflow: vazio ? undefined : 'hidden' }}
+      style={{ width: 'min(1600px, 96vw)', height: !vazio && view === 'painel' ? altura : undefined, position: 'relative', left: '50%', transform: 'translateX(-50%)', overflow: !vazio && view === 'painel' ? 'hidden' : undefined }}
       className="flex flex-col gap-2"
     >
       {/* Barra de topo: título + ações */}
@@ -358,6 +359,9 @@ export function Vendas() {
           <h2 className="font-serif text-lg font-semibold text-ink">Vendas</h2>
           <p className="text-[12px] text-muted">Notas de venda item a item · faturamento por canal, produto e período</p>
         </div>
+        {!vazio && (
+          <Toggle valor={view} set={setView} ops={[['painel', 'Painel'], ['comparativo', 'Comparativo']]} />
+        )}
         <div className="flex flex-wrap items-center gap-2">
           <button
             className="inline-flex items-center gap-1.5 rounded-lg border border-brand/30 bg-brand/10 px-3 py-2 text-[12px] font-bold text-brand transition hover:bg-brand/20 disabled:opacity-50"
@@ -391,6 +395,8 @@ export function Vendas() {
               : 'Assim que um administrador enviar a planilha, o painel de vendas aparecerá aqui.'}
           </p>
         </div>
+      ) : view === 'comparativo' ? (
+        <Comparativo rows={rows} />
       ) : (
         <>
           {/* Filtros */}
@@ -775,6 +781,264 @@ function Pareto({ itens, total }: { itens: { nome: string; valor: number }[]; to
       <div className="-mt-4 text-center text-[10px] text-muted">
         {marca >= 0 ? `${marca + 1} de ${itens.length} produtos = 80% do faturamento` : `${itens.length} produtos no filtro`}
       </div>
+    </div>
+  )
+}
+
+/* ============================ COMPARATIVO ============================ */
+function monthRange(ym: string): [string, string] {
+  const [y, mo] = ym.split('-').map(Number)
+  return [`${ym}-01`, `${ym}-${pad2(new Date(y, mo, 0).getDate())}`]
+}
+function mesLabel(ym: string): string {
+  if (!ym) return '—'
+  const [y, mo] = ym.split('-')
+  return `${MESES[+mo - 1]}/${y.slice(2)}`
+}
+function br(iso: string): string {
+  const p = iso.split('-')
+  return p.length === 3 ? `${p[2]}/${p[1]}` : iso
+}
+interface Metrica {
+  fat: number; itens: number; pedidos: number; skus: number; ticket: number
+  canal: Map<string, number>; produto: Map<string, number>; sku: Map<string, number>
+}
+function calcMetrica(sub: Venda[]): Metrica {
+  const byKey = (k: (r: Venda) => string) => {
+    const mp = new Map<string, number>()
+    for (const r of sub) { const key = k(r) || '(sem)'; mp.set(key, (mp.get(key) || 0) + r.qtd * r.unit) }
+    return mp
+  }
+  const fat = sub.reduce((s, r) => s + r.qtd * r.unit, 0)
+  const pedidos = new Set(sub.map((r) => r.nota)).size
+  return {
+    fat, itens: sub.reduce((s, r) => s + r.qtd, 0), pedidos,
+    skus: new Set(sub.filter((r) => r.sku).map((r) => r.sku)).size,
+    ticket: pedidos ? fat / pedidos : 0,
+    canal: byKey((r) => r.origem), produto: byKey((r) => r.produto), sku: byKey((r) => r.sku),
+  }
+}
+function pct(a: number, b: number): number | null { return a <= 0 ? null : ((b - a) / a) * 100 }
+function pctTxt(a: number, b: number): string {
+  const p = pct(a, b)
+  if (p === null) return b > 0 ? 'novo' : '—'
+  return `${p >= 0 ? '+' : ''}${p.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
+}
+const UP = '#0F9D58', DOWN = '#C0392B', FLAT = '#94A3B8'
+const deltaCor = (a: number, b: number) => (b > a + 0.005 ? UP : b < a - 0.005 ? DOWN : FLAT)
+
+function Comparativo({ rows }: { rows: Venda[] }) {
+  const [modo, setModo] = useState<'mes' | 'intervalo'>('mes')
+  const [selCanais, setSelCanais] = useState<Set<string> | null>(null)
+  const [rankPor, setRankPor] = useState<'produto' | 'sku'>('produto')
+  const [detalhe, setDetalhe] = useState<Detalhe | null>(null)
+  const [mesA, setMesA] = useState(''); const [mesB, setMesB] = useState('')
+  const [aDe, setADe] = useState(''); const [aAte, setAAte] = useState('')
+  const [bDe, setBDe] = useState(''); const [bAte, setBAte] = useState('')
+
+  const meses = useMemo(() => Array.from(new Set(rows.map((r) => r.data.slice(0, 7)))).sort(), [rows])
+  const canais = useMemo(() => Array.from(new Set(rows.map((r) => r.origem))).sort((a, b) => a.localeCompare(b)), [rows])
+
+  useEffect(() => {
+    if (!meses.length) return
+    const b = meses[meses.length - 1], a = meses[Math.max(0, meses.length - 2)]
+    setMesA(a); setMesB(b)
+    const [a1, a2] = monthRange(a), [b1, b2] = monthRange(b)
+    setADe(a1); setAAte(a2); setBDe(b1); setBAte(b2)
+  }, [meses])
+
+  const canalOk = (c: string) => selCanais === null || selCanais.has(c)
+  const A = useMemo(() => calcMetrica(rows.filter((r) => canalOk(r.origem) && (modo === 'mes' ? r.data.slice(0, 7) === mesA : r.data >= aDe && r.data <= aAte))), [rows, modo, mesA, aDe, aAte, selCanais])
+  const B = useMemo(() => calcMetrica(rows.filter((r) => canalOk(r.origem) && (modo === 'mes' ? r.data.slice(0, 7) === mesB : r.data >= bDe && r.data <= bAte))), [rows, modo, mesB, bDe, bAte, selCanais])
+  const rotA = modo === 'mes' ? mesLabel(mesA) : `${br(aDe)}–${br(aAte)}`
+  const rotB = modo === 'mes' ? mesLabel(mesB) : `${br(bDe)}–${br(bAte)}`
+
+  const uni = (ma: Map<string, number>, mb: Map<string, number>) =>
+    Array.from(new Set([...ma.keys(), ...mb.keys()])).map((nome) => ({ nome, a: ma.get(nome) || 0, b: mb.get(nome) || 0 }))
+  const canalCmp = uni(A.canal, B.canal).sort((x, y) => y.b - x.b)
+  const dim: 'produto' | 'sku' = rankPor
+  const rankCmp = uni(A[dim], B[dim]).filter((x) => x.a > 0 || x.b > 0).sort((x, y) => y.b - x.b)
+  const evol = meses.map((ym) => ({ ym, label: mesLabel(ym), fat: rows.filter((r) => canalOk(r.origem) && r.data.slice(0, 7) === ym).reduce((s, r) => s + r.qtd * r.unit, 0) }))
+
+  const kpis: { lbl: string; a: number; b: number; money?: boolean; dec?: boolean }[] = [
+    { lbl: 'Faturamento', a: A.fat, b: B.fat, money: true },
+    { lbl: 'Pedidos', a: A.pedidos, b: B.pedidos },
+    { lbl: 'Itens', a: A.itens, b: B.itens },
+    { lbl: 'Ticket médio', a: A.ticket, b: B.ticket, money: true, dec: true },
+    { lbl: 'SKUs ativos', a: A.skus, b: B.skus },
+  ]
+  const linhasDet = (arr: { nome: string; a: number; b: number }[]): (string | number)[][] =>
+    arr.map((x) => [x.nome, Math.round(x.a), Math.round(x.b), Math.round(x.b - x.a), pct(x.a, x.b) === null ? 0 : Math.round(pct(x.a, x.b)!)])
+  const colsCmp = (rot: string) => [{ label: rot, tipo: 'texto' as const }, { label: `${rotA} (R$)`, tipo: 'num' as const }, { label: `${rotB} (R$)`, tipo: 'num' as const }, { label: 'Δ (R$)', tipo: 'num' as const }, { label: 'Δ %', tipo: 'pct' as const }]
+
+  return (
+    <div className="flex flex-col gap-3 pb-4">
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-muted">Comparar</span>
+        <Toggle valor={modo} set={setModo} ops={[['mes', 'Por mês'], ['intervalo', 'Por intervalo']]} />
+        {modo === 'mes' ? (
+          <div className="flex items-center gap-1.5 text-[12px]">
+            <SelMes meses={meses} value={mesA} onChange={setMesA} /><span className="text-muted">×</span><SelMes meses={meses} value={mesB} onChange={setMesB} />
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
+            <span className="rounded bg-paper px-1.5 py-0.5 text-[11px] font-semibold text-muted">A</span>
+            <DateIn value={aDe} onChange={setADe} /><span className="text-muted">–</span><DateIn value={aAte} onChange={setAAte} />
+            <span className="mx-1 text-muted">×</span>
+            <span className="rounded bg-paper px-1.5 py-0.5 text-[11px] font-semibold text-muted">B</span>
+            <DateIn value={bDe} onChange={setBDe} /><span className="text-muted">–</span><DateIn value={bAte} onChange={setBAte} />
+          </div>
+        )}
+        <MultiSelect label="Canal" opcoes={canais} value={selCanais} onChange={setSelCanais} />
+        <span className="ml-auto text-[11px] text-muted">A = <b className="text-ink">{rotA}</b> · B = <b className="text-ink">{rotB}</b></span>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        {kpis.map((k) => <KpiCmp key={k.lbl} {...k} rotA={rotA} rotB={rotB} />)}
+      </div>
+
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+        <CardC titulo="Evolução mês a mês" sub="Faturamento por mês (canal filtrado)">
+          <BarrasMes itens={evol} mesA={modo === 'mes' ? mesA : ''} mesB={modo === 'mes' ? mesB : ''} />
+        </CardC>
+        <CardC titulo="Por canal (Origem)" sub={`${rotA} × ${rotB}`} onDet={() => setDetalhe({ titulo: 'Comparativo por canal', arquivo: 'Vendas - Comparativo canal.xlsx', colunas: colsCmp('Canal'), linhas: linhasDet(canalCmp) })}>
+          <ListaCmp itens={canalCmp} rotA={rotA} rotB={rotB} />
+        </CardC>
+      </div>
+
+      <CardC titulo={`Por ${rankPor === 'produto' ? 'produto' : 'SKU'} — quem cresceu e quem caiu`} sub={`${rotA} × ${rotB}`}
+        acao={<Toggle valor={rankPor} set={setRankPor} ops={[['produto', 'Produto'], ['sku', 'SKU']]} />}
+        onDet={() => setDetalhe({ titulo: `Comparativo por ${rankPor}`, arquivo: `Vendas - Comparativo ${rankPor}.xlsx`, colunas: colsCmp(rankPor === 'produto' ? 'Produto' : 'SKU'), linhas: linhasDet(rankCmp) })}>
+        <TabelaCmp itens={rankCmp.slice(0, 10)} rotA={rotA} rotB={rotB} rot={rankPor === 'produto' ? 'Produto' : 'SKU'} />
+      </CardC>
+
+      {detalhe && <ModalDetalhe dados={detalhe} onClose={() => setDetalhe(null)} />}
+    </div>
+  )
+}
+
+function SelMes({ meses, value, onChange }: { meses: string[]; value: string; onChange: (v: string) => void }) {
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)} className="rounded-md border border-line bg-white px-2 py-1 text-[12px] font-semibold text-ink outline-none focus:border-brand">
+      {meses.map((ym) => <option key={ym} value={ym}>{mesLabel(ym)}</option>)}
+    </select>
+  )
+}
+function DateIn({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return <input type="date" value={value} onChange={(e) => onChange(e.target.value)} className="rounded-md border border-line bg-white px-1.5 py-1 text-[12px] font-semibold text-ink outline-none focus:border-brand" />
+}
+function KpiCmp({ lbl, a, b, money, dec, rotA, rotB }: { lbl: string; a: number; b: number; money?: boolean; dec?: boolean; rotA: string; rotB: string }) {
+  const cor = deltaCor(a, b)
+  const val = (v: number) => (money ? `R$ ${dec ? fmt2(v) : fmt0(v)}` : fmt0(v))
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-line bg-surface px-3 py-2">
+      <span className="absolute inset-y-0 left-0 w-1" style={{ background: cor }} />
+      <div className="text-[10px] font-bold uppercase tracking-wider text-muted">{lbl}</div>
+      <div className="mt-0.5 flex items-baseline gap-1.5">
+        <span className="text-[19px] font-medium leading-tight tnum text-ink">{val(b)}</span>
+        <span className="text-[12px] font-bold tnum" style={{ color: cor }}>{pctTxt(a, b)}</span>
+      </div>
+      <div className="text-[10px] text-muted">{rotB} · {rotA}: <span className="tnum">{val(a)}</span></div>
+    </div>
+  )
+}
+function CardC({ titulo, sub, acao, onDet, children }: { titulo: string; sub?: string; acao?: ReactNode; onDet?: () => void; children: ReactNode }) {
+  return (
+    <div className="rounded-xl border border-line bg-surface p-3 shadow-card">
+      <div className="mb-2 flex items-center gap-2">
+        <div><h3 className="text-[13px] font-bold text-ink">{titulo}</h3>{sub && <p className="text-[11px] text-muted">{sub}</p>}</div>
+        <div className="ml-auto flex items-center gap-1.5">
+          {acao}
+          {onDet && (
+            <button onClick={onDet} className="inline-flex items-center gap-1 rounded-md border border-brand/30 bg-brand/5 px-2 py-0.5 text-[10px] font-bold text-brand transition hover:bg-brand/15" title="Ver tabela detalhada">
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M3 15h18M9 3v18" /></svg>
+              Detalhes
+            </button>
+          )}
+        </div>
+      </div>
+      {children}
+    </div>
+  )
+}
+function BarrasMes({ itens, mesA, mesB }: { itens: { ym: string; label: string; fat: number }[]; mesA: string; mesB: string }) {
+  if (!itens.length) return <div className="py-6 text-center text-[12px] text-muted">Sem dados.</div>
+  const max = Math.max(1, ...itens.map((i) => i.fat))
+  return (
+    <div className="flex h-40 items-end gap-2">
+      {itens.map((it) => {
+        const dest = it.ym === mesA || it.ym === mesB
+        const cor = it.ym === mesB ? '#E8420A' : it.ym === mesA ? '#FDAD1E' : 'rgba(251,84,3,0.28)'
+        return (
+          <div key={it.ym} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
+            <span className="text-[10px] font-semibold tnum text-ink">{fmtCompacto(it.fat)}</span>
+            <div className="w-full rounded-t" style={{ height: `${(it.fat / max) * 100}%`, background: cor, minHeight: 2 }} title={`${it.label}: R$ ${fmt0(it.fat)}`} />
+            <span className={`text-[10px] ${dest ? 'font-bold text-ink' : 'text-muted'}`}>{it.label}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+function ListaCmp({ itens, rotA, rotB }: { itens: { nome: string; a: number; b: number }[]; rotA: string; rotB: string }) {
+  if (!itens.length) return <div className="py-6 text-center text-[12px] text-muted">Sem dados.</div>
+  const max = Math.max(1, ...itens.flatMap((x) => [x.a, x.b]))
+  return (
+    <div className="flex flex-col gap-2.5">
+      {itens.map((x) => (
+        <div key={x.nome} className="text-[12px]">
+          <div className="mb-1 flex items-center gap-2">
+            <span className="min-w-0 flex-1 truncate font-semibold text-ink" title={x.nome}>{x.nome}</span>
+            <span className="tnum font-bold" style={{ color: deltaCor(x.a, x.b) }}>{pctTxt(x.a, x.b)}</span>
+          </div>
+          <BarraAB rot={rotA} v={x.a} max={max} cor="#FDBE45" />
+          <BarraAB rot={rotB} v={x.b} max={max} cor="#E8420A" />
+        </div>
+      ))}
+    </div>
+  )
+}
+function BarraAB({ rot, v, max, cor }: { rot: string; v: number; max: number; cor: string }) {
+  return (
+    <div className="flex items-center gap-1.5 text-[10px]">
+      <span className="w-16 shrink-0 truncate text-muted" title={rot}>{rot}</span>
+      <div className="h-2.5 flex-1 overflow-hidden rounded bg-paper">
+        <div className="h-full rounded" style={{ width: `${(v / max) * 100}%`, background: cor, minWidth: 2 }} />
+      </div>
+      <span className="w-16 shrink-0 text-right tnum font-semibold text-ink">R$ {fmtCompacto(v)}</span>
+    </div>
+  )
+}
+function TabelaCmp({ itens, rotA, rotB, rot }: { itens: { nome: string; a: number; b: number }[]; rotA: string; rotB: string; rot: string }) {
+  if (!itens.length) return <div className="py-6 text-center text-[12px] text-muted">Sem dados.</div>
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-[12px]">
+        <thead>
+          <tr className="border-b-2 border-line text-muted">
+            <th className="py-1.5 text-left font-semibold">{rot}</th>
+            <th className="py-1.5 text-right font-semibold">{rotA}</th>
+            <th className="py-1.5 text-right font-semibold">{rotB}</th>
+            <th className="py-1.5 text-right font-semibold">Δ</th>
+            <th className="py-1.5 text-right font-semibold">Δ %</th>
+          </tr>
+        </thead>
+        <tbody>
+          {itens.map((x) => {
+            const cor = deltaCor(x.a, x.b)
+            const d = x.b - x.a
+            return (
+              <tr key={x.nome} className="border-b border-line/60">
+                <td className="max-w-0 truncate py-1.5 pr-2 text-ink" title={x.nome}>{x.nome}</td>
+                <td className="py-1.5 text-right tnum text-muted">R$ {fmtCompacto(x.a)}</td>
+                <td className="py-1.5 text-right tnum font-semibold text-ink">R$ {fmtCompacto(x.b)}</td>
+                <td className="py-1.5 text-right tnum" style={{ color: cor }}>{d >= 0 ? '+' : '−'}{fmtCompacto(Math.abs(d))}</td>
+                <td className="py-1.5 text-right tnum font-bold" style={{ color: cor }}>{pctTxt(x.a, x.b)}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
     </div>
   )
 }
