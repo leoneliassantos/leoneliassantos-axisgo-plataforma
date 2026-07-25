@@ -344,6 +344,13 @@ export function Vendas() {
   /* ---------- render ---------- */
   const vazio = rows.length === 0
   const rank = rankPor === 'produto' ? m.porProduto : m.porSku
+  const conc80 = (() => {
+    const arr = m.porProduto, tot = m.faturamento
+    if (!arr.length || tot <= 0) return ''
+    let acc = 0, k = 0
+    for (const it of arr) { acc += it.valor; k++; if (acc / tot >= 0.8) break }
+    return `${k} de ${arr.length} produtos = 80% do faturamento`
+  })()
 
   if (loading) return <div className="grid place-items-center rounded-2xl border border-line bg-surface py-20 text-sm text-muted">Carregando vendas…</div>
 
@@ -448,7 +455,7 @@ export function Vendas() {
               <Donut itens={m.porCanal} total={m.faturamento} />
             </Tile>
 
-            <Tile className="col-span-12 lg:col-span-4" titulo="Concentração (Pareto)" tip="Mostra quantos itens concentram o faturamento: a linha acumulada mostra que poucos produtos respondem pela maior parte das vendas." onDetalhes={() => setDetalhe(detRank(m.porProduto, 'Concentração por produto', 'Vendas - Concentracao.xlsx', 'Produto'))}>
+            <Tile className="col-span-12 lg:col-span-4" titulo="Concentração (Pareto)" sub={conc80} tip="Mostra quantos itens concentram o faturamento: a linha acumulada mostra que poucos produtos respondem pela maior parte das vendas." onDetalhes={() => setDetalhe(detRank(m.porProduto, 'Concentração por produto', 'Vendas - Concentracao.xlsx', 'Produto'))}>
               <Pareto itens={m.porProduto} total={m.faturamento} />
             </Tile>
           </div>
@@ -536,12 +543,14 @@ function MultiSelect({ label, opcoes, value, onChange }: { label: string; opcoes
 }
 
 /* -------------------------------- tiles -------------------------------- */
-function Tile({ titulo, tip, className, onDetalhes, acao, children }: { titulo: string; tip: string; className?: string; onDetalhes?: () => void; acao?: ReactNode; children: ReactNode }) {
+function Tile({ titulo, tip, sub, className, onDetalhes, acao, children }: { titulo: string; tip: string; sub?: string; className?: string; onDetalhes?: () => void; acao?: ReactNode; children: ReactNode }) {
   return (
     <div className={`flex min-h-0 flex-col rounded-xl border border-line bg-surface p-2.5 shadow-card ${className ?? ''}`}>
-      <div className="mb-1.5 flex flex-none items-center gap-2">
-        <h3 className="text-[13px] font-bold text-ink">{titulo}</h3>
-        <Info tip={tip} />
+      <div className="mb-1.5 flex flex-none items-start gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1"><h3 className="text-[13px] font-bold text-ink">{titulo}</h3><Info tip={tip} /></div>
+          {sub && <p className="text-[10px] leading-tight text-muted">{sub}</p>}
+        </div>
         <div className="ml-auto flex items-center gap-1.5">
           {acao}
           {onDetalhes && (
@@ -779,11 +788,9 @@ function Pareto({ itens, total }: { itens: { nome: string; valor: number }[]; to
   const cum = top.map((it) => { acc += it.valor; return acc / total })
   const cx = (i: number) => padL + bw * i + bw / 2
   const cyLine = (p: number) => padT + innerH * (1 - p)
-  const marca = cum.findIndex((p) => p >= 0.8)
   return (
-    <div className="flex h-full flex-col">
-      <div ref={ref} className="min-h-0 flex-1">
-        <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }} role="img" aria-label="Concentração de produtos (Pareto)">
+    <div ref={ref} className="h-full w-full">
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }} role="img" aria-label="Concentração de produtos (Pareto)">
         <line x1={padL} y1={cyLine(0.8)} x2={W - padR} y2={cyLine(0.8)} stroke="#CBD5E1" strokeWidth={1} strokeDasharray="4 4" />
         <text x={W - padR} y={cyLine(0.8) - 3} fontSize={10} textAnchor="end" fill="#94A3B8">80%</text>
         {top.map((it, i) => {
@@ -796,11 +803,7 @@ function Pareto({ itens, total }: { itens: { nome: string; valor: number }[]; to
         })}
         <polyline points={cum.map((p, i) => `${cx(i)},${cyLine(p)}`).join(' ')} fill="none" stroke="#8A3F1C" strokeWidth={2} />
         {cum.map((p, i) => <circle key={i} cx={cx(i)} cy={cyLine(p)} r={2.2} fill="#8A3F1C" />)}
-        </svg>
-      </div>
-      <div className="flex-none pt-1 text-center text-[10px] text-muted">
-        {marca >= 0 ? `${marca + 1} de ${itens.length} produtos = 80% do faturamento` : `${itens.length} produtos no filtro`}
-      </div>
+      </svg>
     </div>
   )
 }
