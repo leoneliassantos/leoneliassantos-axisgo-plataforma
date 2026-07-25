@@ -3,6 +3,7 @@ import { EmConstrucao } from '../components/EmConstrucao'
 import { Rentabilidade } from '../pages/financeiro/Rentabilidade'
 import { Indicadores } from '../pages/financeiro/Indicadores'
 import { FluxoCaixa } from '../pages/financeiro/FluxoCaixa'
+import { Vendas } from '../pages/financeiro/Vendas'
 
 /**
  * ============================================================
@@ -23,6 +24,12 @@ export interface Modulo {
   slug: string
   label: string
   element: ReactNode
+  /**
+   * true = módulo "sob demanda": só aparece na instância que o pedir
+   * explicitamente via VITE_MODULES. Assim um módulo específico de um
+   * cliente (ex.: Vendas da MC) não vaza para os outros que usam o mesmo Core.
+   */
+  optIn?: boolean
 }
 
 export interface Frente {
@@ -103,6 +110,8 @@ const TODAS_FRENTES: Frente[] = [
     disponivel: true,
     icon: iconFinanceiro,
     modulos: [
+      // Módulo sob demanda (optIn): aparece só onde VITE_MODULES incluir "vendas".
+      { slug: 'vendas', label: 'Vendas', element: <Vendas />, optIn: true },
       {
         slug: 'dre',
         label: 'DRE',
@@ -132,5 +141,28 @@ const ativos = (import.meta.env.VITE_FRONTS as string | undefined)
   .map((s) => s.trim().toLowerCase())
   .filter(Boolean)
 
-export const FRENTES: Frente[] =
-  ativos && ativos.length ? TODAS_FRENTES.filter((f) => ativos.includes(f.slug)) : TODAS_FRENTES
+/**
+ * Módulos ATIVOS nesta instância (opcional).
+ * VITE_MODULES = lista de slugs separados por vírgula.
+ *   • Se definido → mostra SÓ esses módulos (ex.: MC → VITE_MODULES="vendas").
+ *   • Se vazio    → mostra todos, EXCETO os `optIn` (que só entram quando pedidos).
+ */
+const modulosAtivos = (import.meta.env.VITE_MODULES as string | undefined)
+  ?.split(',')
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean)
+
+function aplicaModulos(f: Frente): Frente {
+  const mods =
+    modulosAtivos && modulosAtivos.length
+      ? f.modulos.filter((m) => modulosAtivos.includes(m.slug))
+      : f.modulos.filter((m) => !m.optIn)
+  return { ...f, modulos: mods }
+}
+
+export const FRENTES: Frente[] = (ativos && ativos.length
+  ? TODAS_FRENTES.filter((f) => ativos.includes(f.slug))
+  : TODAS_FRENTES
+)
+  .map(aplicaModulos)
+  .filter((f) => f.modulos.length > 0)
