@@ -781,8 +781,9 @@ function Pareto({ itens, total }: { itens: { nome: string; valor: number }[]; to
   const cyLine = (p: number) => padT + innerH * (1 - p)
   const marca = cum.findIndex((p) => p >= 0.8)
   return (
-    <div ref={ref} className="h-full w-full">
-      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }} role="img" aria-label="Concentração de produtos (Pareto)">
+    <div className="flex h-full flex-col">
+      <div ref={ref} className="min-h-0 flex-1">
+        <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }} role="img" aria-label="Concentração de produtos (Pareto)">
         <line x1={padL} y1={cyLine(0.8)} x2={W - padR} y2={cyLine(0.8)} stroke="#CBD5E1" strokeWidth={1} strokeDasharray="4 4" />
         <text x={W - padR} y={cyLine(0.8) - 3} fontSize={10} textAnchor="end" fill="#94A3B8">80%</text>
         {top.map((it, i) => {
@@ -795,8 +796,9 @@ function Pareto({ itens, total }: { itens: { nome: string; valor: number }[]; to
         })}
         <polyline points={cum.map((p, i) => `${cx(i)},${cyLine(p)}`).join(' ')} fill="none" stroke="#8A3F1C" strokeWidth={2} />
         {cum.map((p, i) => <circle key={i} cx={cx(i)} cy={cyLine(p)} r={2.2} fill="#8A3F1C" />)}
-      </svg>
-      <div className="-mt-4 text-center text-[10px] text-muted">
+        </svg>
+      </div>
+      <div className="flex-none pt-1 text-center text-[10px] text-muted">
         {marca >= 0 ? `${marca + 1} de ${itens.length} produtos = 80% do faturamento` : `${itens.length} produtos no filtro`}
       </div>
     </div>
