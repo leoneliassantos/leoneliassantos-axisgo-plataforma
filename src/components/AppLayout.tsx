@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { CLIENT } from '../config/client'
@@ -5,6 +6,11 @@ import { CLIENT } from '../config/client'
 export function AppLayout() {
   const { user, mode, signOut } = useAuth()
   const navigate = useNavigate()
+
+  // Altura do logo do cliente conforme a proporção da imagem: logos largos
+  // (wordmark, ex.: Batux) ficam no tamanho padrão; logos quadrados/altos
+  // (ex.: MC Distribuidora) ganham mais altura para o texto ficar legível.
+  const [logoH, setLogoH] = useState(32)
 
   async function handleSair() {
     await signOut()
@@ -22,7 +28,16 @@ export function AppLayout() {
         <div className="mx-auto flex h-16 w-full max-w-content items-center gap-5 px-5">
           <Link to="/" className="flex items-center">
             {CLIENT.logo ? (
-              <img src={CLIENT.logo} alt={CLIENT.nome} className="h-8 w-auto" />
+              <img
+                src={CLIENT.logo}
+                alt={CLIENT.nome}
+                className="w-auto"
+                style={{ height: logoH }}
+                onLoad={(e) => {
+                  const { naturalWidth: w, naturalHeight: h } = e.currentTarget
+                  if (h > 0) setLogoH(w / h < 1.6 ? 52 : 32)
+                }}
+              />
             ) : (
               <span className="font-serif text-lg font-semibold text-ink">{CLIENT.nome}</span>
             )}
