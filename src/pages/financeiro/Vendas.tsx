@@ -688,6 +688,14 @@ function AreaFat({ serie }: { serie: { label: string; fat: number }[] }) {
             </g>
           )
         })}
+        {serie.map((b, i) => {
+          const hw = n > 1 ? innerW / (n - 1) : innerW
+          return (
+            <rect key={`h${i}`} x={Math.max(padL, xs(i) - hw / 2)} y={padT} width={hw} height={innerH} fill="transparent">
+              <title>{`${b.label}: R$ ${fmt0(b.fat)}`}</title>
+            </rect>
+          )
+        })}
       </svg>
     </div>
   )
@@ -700,7 +708,7 @@ function BarrasH({ itens, total }: { itens: { nome: string; valor: number }[]; t
       {itens.map((it, i) => (
         <div key={it.nome} className="flex min-h-0 flex-1 items-center gap-1.5 text-[11px]">
           <div className="w-[38%] shrink-0 truncate text-ink" title={it.nome}>{it.nome}</div>
-          <div className="h-3.5 flex-1 overflow-hidden rounded bg-paper">
+          <div className="h-3.5 flex-1 overflow-hidden rounded bg-paper" title={`${it.nome}: R$ ${fmt0(it.valor)}${total ? ` · ${Math.round((it.valor / total) * 100)}% do total` : ''}`}>
             <div className="h-full rounded" style={{ width: `${(it.valor / max) * 100}%`, background: gradAt(i), minWidth: 2 }} />
           </div>
           <div className="w-[56px] shrink-0 text-right font-semibold tnum text-ink">{fmtCompacto(it.valor)}</div>
@@ -718,7 +726,11 @@ function Donut({ itens, total }: { itens: { nome: string; valor: number }[]; tot
   let off = 0
   const segs = vis.map((it, i) => {
     const len = (it.valor / total) * C
-    const el = <circle key={it.nome} cx={c} cy={c} r={r} fill="none" stroke={GRAD[i % GRAD.length]} strokeWidth={stroke} strokeDasharray={`${len} ${C - len}`} strokeDashoffset={-off} transform={`rotate(-90 ${c} ${c})`} />
+    const el = (
+      <circle key={it.nome} cx={c} cy={c} r={r} fill="none" stroke={GRAD[i % GRAD.length]} strokeWidth={stroke} strokeDasharray={`${len} ${C - len}`} strokeDashoffset={-off} transform={`rotate(-90 ${c} ${c})`}>
+        <title>{`${it.nome}: R$ ${fmt0(it.valor)} (${Math.round((it.valor / total) * 100)}%)`}</title>
+      </circle>
+    )
     off += len
     return el
   })
@@ -775,7 +787,11 @@ function Pareto({ itens, total }: { itens: { nome: string; valor: number }[]; to
         <text x={W - padR} y={cyLine(0.8) - 3} fontSize={10} textAnchor="end" fill="#94A3B8">80%</text>
         {top.map((it, i) => {
           const bh = (it.valor / maxv) * innerH
-          return <rect key={i} x={padL + bw * i + 2} y={padT + innerH - bh} width={Math.max(1, bw - 4)} height={bh} rx={1.5} style={{ fill: gradAt(i) }} />
+          return (
+            <rect key={i} x={padL + bw * i + 2} y={padT + innerH - bh} width={Math.max(1, bw - 4)} height={bh} rx={1.5} style={{ fill: gradAt(i) }}>
+              <title>{`${it.nome}: R$ ${fmt0(it.valor)} · ${Math.round(cum[i] * 100)}% acumulado`}</title>
+            </rect>
+          )
         })}
         <polyline points={cum.map((p, i) => `${cx(i)},${cyLine(p)}`).join(' ')} fill="none" stroke="#8A3F1C" strokeWidth={2} />
         {cum.map((p, i) => <circle key={i} cx={cx(i)} cy={cyLine(p)} r={2.2} fill="#8A3F1C" />)}
@@ -900,15 +916,16 @@ function Comparativo({ rows }: { rows: Venda[] }) {
       </div>
 
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-        <CardC titulo="Evolução mês a mês" sub="Faturamento por mês (canal filtrado)">
+        <CardC titulo="Evolução mês a mês" sub="Faturamento por mês (canal filtrado)" tip="Faturamento total de cada mês da base (respeitando o filtro de canal). As barras dos períodos A e B ficam destacadas para situar a comparação. Passe o mouse na barra para ver o valor.">
           <BarrasMes itens={evol} mesA={modo === 'mes' ? mesA : ''} mesB={modo === 'mes' ? mesB : ''} />
         </CardC>
-        <CardC titulo="Por canal (Origem)" sub={`${rotA} × ${rotB}`} onDet={() => setDetalhe({ titulo: 'Comparativo por canal', arquivo: 'Vendas - Comparativo canal.xlsx', colunas: colsCmp('Canal'), linhas: linhasDet(canalCmp) })}>
+        <CardC titulo="Por canal (Origem)" sub={`${rotA} × ${rotB}`} tip="Faturamento de cada canal de venda no período A e no B, com a variação % (verde subiu, vermelho caiu). Hoje só Olist; quando entrarem outros canais, aparecem aqui." onDet={() => setDetalhe({ titulo: 'Comparativo por canal', arquivo: 'Vendas - Comparativo canal.xlsx', colunas: colsCmp('Canal'), linhas: linhasDet(canalCmp) })}>
           <ListaCmp itens={canalCmp} rotA={rotA} rotB={rotB} />
         </CardC>
       </div>
 
       <CardC titulo={`Por ${rankPor === 'produto' ? 'produto' : 'SKU'} — quem cresceu e quem caiu`} sub={`${rotA} × ${rotB}`}
+        tip="Ranking dos itens comparando os dois períodos. Δ mostra a variação em R$ e Δ% em percentual (verde = cresceu, vermelho = caiu). Alterne entre Produto e SKU."
         acao={<Toggle valor={rankPor} set={setRankPor} ops={[['produto', 'Produto'], ['sku', 'SKU']]} />}
         onDet={() => setDetalhe({ titulo: `Comparativo por ${rankPor}`, arquivo: `Vendas - Comparativo ${rankPor}.xlsx`, colunas: colsCmp(rankPor === 'produto' ? 'Produto' : 'SKU'), linhas: linhasDet(rankCmp) })}>
         <TabelaCmp itens={rankCmp.slice(0, 10)} rotA={rotA} rotB={rotB} rot={rankPor === 'produto' ? 'Produto' : 'SKU'} />
@@ -944,11 +961,14 @@ function KpiCmp({ lbl, a, b, money, dec, rotA, rotB }: { lbl: string; a: number;
     </div>
   )
 }
-function CardC({ titulo, sub, acao, onDet, children }: { titulo: string; sub?: string; acao?: ReactNode; onDet?: () => void; children: ReactNode }) {
+function CardC({ titulo, sub, tip, acao, onDet, children }: { titulo: string; sub?: string; tip?: string; acao?: ReactNode; onDet?: () => void; children: ReactNode }) {
   return (
     <div className="rounded-xl border border-line bg-surface p-3 shadow-card">
       <div className="mb-2 flex items-center gap-2">
-        <div><h3 className="text-[13px] font-bold text-ink">{titulo}</h3>{sub && <p className="text-[11px] text-muted">{sub}</p>}</div>
+        <div>
+          <div className="flex items-center gap-0.5"><h3 className="text-[13px] font-bold text-ink">{titulo}</h3>{tip && <Info tip={tip} />}</div>
+          {sub && <p className="text-[11px] text-muted">{sub}</p>}
+        </div>
         <div className="ml-auto flex items-center gap-1.5">
           {acao}
           {onDet && (
@@ -1004,7 +1024,7 @@ function BarraAB({ rot, v, max, cor }: { rot: string; v: number; max: number; co
   return (
     <div className="flex items-center gap-1.5 text-[10px]">
       <span className="w-16 shrink-0 truncate text-muted" title={rot}>{rot}</span>
-      <div className="h-2.5 flex-1 overflow-hidden rounded bg-paper">
+      <div className="h-2.5 flex-1 overflow-hidden rounded bg-paper" title={`${rot}: R$ ${fmt0(v)}`}>
         <div className="h-full rounded" style={{ width: `${(v / max) * 100}%`, background: cor, minWidth: 2 }} />
       </div>
       <span className="w-16 shrink-0 text-right tnum font-semibold text-ink">R$ {fmtCompacto(v)}</span>
@@ -1107,11 +1127,12 @@ function AbcCurva({ rows }: { rows: Venda[] }) {
         {abc.resumo.map((c) => <AbcResumo key={c.classe} classe={c.classe} n={c.n} nTot={abc.n} fat={c.fat} total={abc.total} />)}
       </div>
 
-      <CardC titulo="Curva ABC" sub="Participação acumulada no faturamento (A ≤ 80% · B ≤ 95% · C o restante)">
+      <CardC titulo="Curva ABC" sub="Participação acumulada no faturamento (A ≤ 80% · B ≤ 95% · C o restante)"
+        tip="A Curva ABC classifica os itens pela importância no faturamento. Classe A = os poucos itens que somam até ~80% do total (os que mais pesam — priorize estoque e negociação); Classe B = os próximos, até ~95%; Classe C = a cauda longa, que soma o restante. As barras são a participação de cada item e a linha é o acumulado; as linhas tracejadas marcam os cortes de 80% e 95%.">
         <AbcChart itens={abc.itens} />
       </CardC>
 
-      <CardC titulo={`${rot}s classificados`} sub="Ordenados por faturamento" onDet={() => setDetalhe(det())}>
+      <CardC titulo={`${rot}s classificados`} sub="Ordenados por faturamento" tip="Lista do maior para o menor faturamento, com a classe (A/B/C), o % individual e o % acumulado. Passe o mouse nas barras do gráfico acima para ver os valores; use Detalhes para exportar a lista completa." onDet={() => setDetalhe(det())}>
         <AbcTabela itens={abc.itens} rot={rot} />
       </CardC>
 
@@ -1145,7 +1166,7 @@ function AbcResumo({ classe, n, nTot, fat, total }: { classe: 'A' | 'B' | 'C'; n
   )
 }
 
-function AbcChart({ itens }: { itens: { nome: string; pct: number; cumPct: number; classe: 'A' | 'B' | 'C' }[] }) {
+function AbcChart({ itens }: { itens: { nome: string; fat: number; pct: number; cumPct: number; classe: 'A' | 'B' | 'C' }[] }) {
   const ref = useRef<HTMLDivElement>(null)
   const [sz, setSz] = useState({ w: 700, h: 208 })
   useLayoutEffect(() => {
@@ -1173,7 +1194,11 @@ function AbcChart({ itens }: { itens: { nome: string; pct: number; cumPct: numbe
         ))}
         {itens.map((it, i) => {
           const bh = (it.pct / maxPct) * innerH
-          return <rect key={i} x={padL + bw * i + (bw > 4 ? 1 : 0)} y={padT + innerH - bh} width={Math.max(0.6, bw - (bw > 4 ? 2 : 0))} height={bh} style={{ fill: ABC_COR[it.classe] }} />
+          return (
+            <rect key={i} x={padL + bw * i + (bw > 4 ? 1 : 0)} y={padT + innerH - bh} width={Math.max(0.6, bw - (bw > 4 ? 2 : 0))} height={bh} style={{ fill: ABC_COR[it.classe] }}>
+              <title>{`${it.nome} — Classe ${it.classe}: R$ ${fmt0(it.fat)} (${it.pct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% ind · ${it.cumPct.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% acum)`}</title>
+            </rect>
+          )
         })}
         <polyline points={itens.map((it, i) => `${cx(i)},${yCum(it.cumPct)}`).join(' ')} fill="none" stroke="#8A3F1C" strokeWidth={2} />
         {n <= 40 && itens.map((it, i) => <circle key={i} cx={cx(i)} cy={yCum(it.cumPct)} r={2} fill="#8A3F1C" />)}
