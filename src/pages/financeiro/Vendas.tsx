@@ -25,8 +25,10 @@ interface Venda {
 type Gran = 'dia' | 'semana' | 'mes'
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 
-/* Paleta quente (família laranja da MC) para canais / donut. */
-const PAL = ['#FB5403', '#F97A1F', '#FDA31B', '#E8480A', '#F6B24C', '#C43D06', '#FBCE86', '#9C3204']
+/* Degradê quente da marca MC (vermelho-laranja → âmbar), ordenado do mais forte
+ * ao mais claro. Dá variação de cor aos gráficos sem fugir da identidade. */
+const GRAD = ['#E8420A', '#FB6407', '#FB7D12', '#FB960E', '#FDAD1E', '#FDBE45', '#FCD07A']
+const gradAt = (i: number) => GRAD[Math.min(i, GRAD.length - 1)]
 
 /* ------------------------------- utils ------------------------------- */
 const pad2 = (n: number) => `${n < 10 ? '0' : ''}${n}`
@@ -415,11 +417,11 @@ export function Vendas() {
 
           {/* KPIs */}
           <div className="grid flex-none grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-            <Kpi lbl="Faturamento" valor={`R$ ${fmt0(m.faturamento)}`} foot="Total no período/canal" tip="Soma de Quantidade × Valor unitário de todas as vendas do filtro." />
-            <Kpi lbl="Pedidos" valor={fmt0(m.pedidos)} foot="Notas distintas" tip="Número de notas fiscais distintas (cada pedido pode ter vários itens)." />
-            <Kpi lbl="Itens vendidos" valor={fmt0(m.itens)} foot="Soma das quantidades" tip="Soma das quantidades de todos os itens vendidos no filtro." />
-            <Kpi lbl="Ticket médio" valor={`R$ ${fmt2(m.ticket)}`} foot="Faturamento ÷ pedidos" tip="Valor médio por pedido = faturamento dividido pelo número de notas." />
-            <Kpi lbl="SKUs ativos" valor={fmt0(m.skusAtivos)} foot="Códigos com venda" tip="Quantidade de SKUs diferentes que tiveram venda no período/canal filtrado." />
+            <Kpi cor={GRAD[0]} lbl="Faturamento" valor={`R$ ${fmt0(m.faturamento)}`} foot="Total no período/canal" tip="Soma de Quantidade × Valor unitário de todas as vendas do filtro." />
+            <Kpi cor={GRAD[1]} lbl="Pedidos" valor={fmt0(m.pedidos)} foot="Notas distintas" tip="Número de notas fiscais distintas (cada pedido pode ter vários itens)." />
+            <Kpi cor={GRAD[2]} lbl="Itens vendidos" valor={fmt0(m.itens)} foot="Soma das quantidades" tip="Soma das quantidades de todos os itens vendidos no filtro." />
+            <Kpi cor={GRAD[3]} lbl="Ticket médio" valor={`R$ ${fmt2(m.ticket)}`} foot="Faturamento ÷ pedidos" tip="Valor médio por pedido = faturamento dividido pelo número de notas." />
+            <Kpi cor={GRAD[4]} lbl="SKUs ativos" valor={fmt0(m.skusAtivos)} foot="Códigos com venda" tip="Quantidade de SKUs diferentes que tiveram venda no período/canal filtrado." />
           </div>
 
           {/* Gráficos — 2 linhas que preenchem a altura */}
@@ -602,12 +604,12 @@ function ModalDetalhe({ dados, onClose }: { dados: Detalhe; onClose: () => void 
     document.body,
   )
 }
-function Kpi({ lbl, valor, foot, tip }: { lbl: string; valor: string; foot: string; tip: string }) {
+function Kpi({ lbl, valor, foot, tip, cor }: { lbl: string; valor: string; foot: string; tip: string; cor?: string }) {
   return (
     <div className="relative overflow-hidden rounded-xl border border-line bg-surface px-3 py-2">
-      <span className="absolute inset-y-0 left-0 w-1" style={{ background: 'rgb(var(--brand))' }} />
+      <span className="absolute inset-y-0 left-0 w-1" style={{ background: cor ?? 'rgb(var(--brand))' }} />
       <div className="flex items-center"><span className="text-[10px] font-bold uppercase tracking-wider text-muted">{lbl}</span><Info tip={tip} /></div>
-      <div className="mt-0.5 text-[18px] font-extrabold leading-tight tnum text-ink">{valor}</div>
+      <div className="mt-0.5 text-[19px] font-medium leading-tight tnum text-ink">{valor}</div>
       <div className="text-[10px] text-muted">{foot}</div>
     </div>
   )
@@ -653,15 +655,26 @@ function AreaFat({ serie }: { serie: { label: string; fat: number }[] }) {
   return (
     <div ref={ref} className="h-full w-full">
       <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }} role="img" aria-label="Faturamento no tempo">
+        <defs>
+          <linearGradient id="fatFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="#FB6407" stopOpacity="0.32" />
+            <stop offset="1" stopColor="#FDBE45" stopOpacity="0.03" />
+          </linearGradient>
+          <linearGradient id="fatLine" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stopColor="#FDAD1E" />
+            <stop offset="0.55" stopColor="#FB6407" />
+            <stop offset="1" stopColor="#E8360A" />
+          </linearGradient>
+        </defs>
         <line x1={padL} y1={base} x2={W - padR} y2={base} stroke="#E2E1DE" strokeWidth={1} />
-        <path d={area} style={{ fill: 'rgb(var(--brand))', fillOpacity: 0.12 }} />
-        <polyline points={pts} fill="none" style={{ stroke: 'rgb(var(--brand))' }} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+        <path d={area} fill="url(#fatFill)" />
+        <polyline points={pts} fill="none" stroke="url(#fatLine)" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
         {serie.map((b, i) => {
           const anchor = i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'
           const lx = i === 0 ? xs(i) + 2 : i === n - 1 ? xs(i) - 2 : xs(i)
           return (
             <g key={i}>
-              <circle cx={xs(i)} cy={ys(b.fat)} r={n <= 30 ? 3 : 0} style={{ fill: 'rgb(var(--brand))' }} />
+              <circle cx={xs(i)} cy={ys(b.fat)} r={n <= 30 ? 3 : 0} fill={gradAt(Math.floor((i / Math.max(1, n - 1)) * (GRAD.length - 1)))} />
               {showVal && <text x={lx} y={ys(b.fat) - 8} fontSize={11} fontWeight={600} textAnchor={anchor} fill="#6B7280">{fmtCompacto(b.fat)}</text>}
               {i % stepX === 0 && <text x={xs(i)} y={H - 8} fontSize={11} textAnchor={anchor} fill="#64748B">{b.label}</text>}
             </g>
@@ -676,11 +689,11 @@ function BarrasH({ itens, total }: { itens: { nome: string; valor: number }[]; t
   const max = itens[0].valor || 1
   return (
     <div className="flex h-full flex-col">
-      {itens.map((it) => (
+      {itens.map((it, i) => (
         <div key={it.nome} className="flex min-h-0 flex-1 items-center gap-1.5 text-[11px]">
           <div className="w-[38%] shrink-0 truncate text-ink" title={it.nome}>{it.nome}</div>
           <div className="h-3.5 flex-1 overflow-hidden rounded bg-paper">
-            <div className="h-full rounded" style={{ width: `${(it.valor / max) * 100}%`, background: 'rgb(var(--brand))', minWidth: 2 }} />
+            <div className="h-full rounded" style={{ width: `${(it.valor / max) * 100}%`, background: gradAt(i), minWidth: 2 }} />
           </div>
           <div className="w-[56px] shrink-0 text-right font-semibold tnum text-ink">{fmtCompacto(it.valor)}</div>
           <div className="w-[34px] shrink-0 text-right tnum text-muted">{total ? Math.round((it.valor / total) * 100) : 0}%</div>
@@ -697,7 +710,7 @@ function Donut({ itens, total }: { itens: { nome: string; valor: number }[]; tot
   let off = 0
   const segs = vis.map((it, i) => {
     const len = (it.valor / total) * C
-    const el = <circle key={it.nome} cx={c} cy={c} r={r} fill="none" stroke={PAL[i % PAL.length]} strokeWidth={stroke} strokeDasharray={`${len} ${C - len}`} strokeDashoffset={-off} transform={`rotate(-90 ${c} ${c})`} />
+    const el = <circle key={it.nome} cx={c} cy={c} r={r} fill="none" stroke={GRAD[i % GRAD.length]} strokeWidth={stroke} strokeDasharray={`${len} ${C - len}`} strokeDashoffset={-off} transform={`rotate(-90 ${c} ${c})`} />
     off += len
     return el
   })
@@ -713,7 +726,7 @@ function Donut({ itens, total }: { itens: { nome: string; valor: number }[]; tot
       <div className="flex min-h-0 w-full flex-1 flex-col gap-0.5 overflow-auto">
         {vis.map((it, i) => (
           <div key={it.nome} className="flex items-center gap-1.5 text-[11px]">
-            <span className="inline-block h-2.5 w-2.5 flex-none rounded-sm" style={{ background: PAL[i % PAL.length] }} />
+            <span className="inline-block h-2.5 w-2.5 flex-none rounded-sm" style={{ background: GRAD[i % GRAD.length] }} />
             <span className="min-w-0 flex-1 truncate text-ink" title={it.nome}>{it.nome}</span>
             <span className="flex-none font-semibold tnum text-ink">{Math.round((it.valor / total) * 100)}%</span>
           </div>
@@ -754,7 +767,7 @@ function Pareto({ itens, total }: { itens: { nome: string; valor: number }[]; to
         <text x={W - padR} y={cyLine(0.8) - 3} fontSize={10} textAnchor="end" fill="#94A3B8">80%</text>
         {top.map((it, i) => {
           const bh = (it.valor / maxv) * innerH
-          return <rect key={i} x={padL + bw * i + 2} y={padT + innerH - bh} width={Math.max(1, bw - 4)} height={bh} rx={1.5} style={{ fill: 'rgb(var(--brand))', fillOpacity: 0.85 }} />
+          return <rect key={i} x={padL + bw * i + 2} y={padT + innerH - bh} width={Math.max(1, bw - 4)} height={bh} rx={1.5} style={{ fill: gradAt(i) }} />
         })}
         <polyline points={cum.map((p, i) => `${cx(i)},${cyLine(p)}`).join(' ')} fill="none" stroke="#8A3F1C" strokeWidth={2} />
         {cum.map((p, i) => <circle key={i} cx={cx(i)} cy={cyLine(p)} r={2.2} fill="#8A3F1C" />)}
