@@ -1,0 +1,424 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { supabase } from '../../lib/supabase'
+import { useAuth } from '../../auth/AuthContext'
+import { readFirstSheetAOA } from '../../lib/xls'
+import {
+  apelidoEmpresa,
+  buildDRE,
+  MESES,
+  parseRazaoAOA,
+  type ContaLinha,
+  type LinhaDRE,
+  type LinhaGrupo,
+} from './razaoDre'
+
+/* ================================================================== *
+ *  DRE — Demonstração do Resultado do Exercício (multiempresa)
+ *  Fonte: RAZÃO CONTÁBIL. O admin sobe o Razão (.xls/.xlsx) de cada
+ *  empresa; o módulo detecta a empresa pelo CNPJ e guarda os movimentos
+ *  das contas de resultado (classes 3/4/5) no Supabase, agregados por
+ *  conta e mês. O DRE é montado a partir do plano de contas.
+ *  Leitura: todo autenticado · Escrita (upload): admin.
+ * ================================================================== */
+
+interface Lanc {
+  empresa: string
+  codigo: string
+  nome: string
+  ano: number
+  mes: number // 1..12
+  debito: number
+  credito: number
+}
+const CONSOLIDADO = '__consolidado__'
+
+/* ------------------------------- utils ------------------------------- */
+function fmt(v: number): string {
+  if (Math.abs(v) < 0.5) return '—'
+  const s = Math.round(Math.abs(v)).toLocaleString('pt-BR')
+  return v < 0 ? `(${s})` : s
+}
+const clsNum = (v: number) => (Math.abs(v) < 0.5 ? 'zero' : v < 0 ? 'neg' : '')
+
+/* ============================ Componente ============================ */
+export function Dre() {
+  const { user, mode } = useAuth()
+  const isAdmin = user?.role === 'admin'
+
+  const [rows, setRows] = useState<Lanc[]>([])
+  const [empresaSel, setEmpresaSel] = useState<string>(CONSOLIDADO)
+  const [view, setView] = useState<'anual' | 'mensal'>('anual')
+  const [open, setOpen] = useState<Record<string, boolean>>({})
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+  const [aviso, setAviso] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  /* ---------- carregar do Supabase ---------- */
+  const carregar = useCallback(async () => {
+    setLoading(true)
+    setErro(null)
+    if (mode !== 'supabase' || !supabase) {
+      setLoading(false)
+      return
+    }
+    const { data, error } = await supabase
+      .from('dre_lancamentos')
+      .select('empresa, codigo, nome, ano, mes, debito, credito')
+      .order('empresa')
+    if (error) {
+      setErro('Não foi possível carregar a base. Verifique se a tabela dre_lancamentos foi criada no Supabase.')
+      setLoading(false)
+      return
+    }
+    setRows(
+      (data ?? []).map((r) => ({
+        empresa: (r.empresa ?? '').toString(),
+        codigo: (r.codigo ?? '').toString(),
+        nome: (r.nome ?? '').toString(),
+        ano: Number(r.ano) || 0,
+        mes: Number(r.mes) || 0,
+        debito: Number(r.debito) || 0,
+        credito: Number(r.credito) || 0,
+      })),
+    )
+    setLoading(false)
+  }, [mode])
+
+  useEffect(() => {
+    carregar()
+  }, [carregar])
+
+  /* ---------- empresas disponíveis ---------- */
+  const empresas = useMemo(() => {
+    const map = new Map<string, string>() // empresa -> apelido
+    for (const r of rows) if (!map.has(r.empresa)) map.set(r.empresa, apelidoEmpresa(r.empresa))
+    return [...map.entries()].map(([empresa, apelido]) => ({ empresa, apelido })).sort((a, b) => a.apelido.localeCompare(b.apelido))
+  }, [rows])
+
+  // se a empresa selecionada sumir (base recarregada), volta pro consolidado
+  useEffect(() => {
+    if (empresaSel !== CONSOLIDADO && !empresas.some((e) => e.empresa === empresaSel)) setEmpresaSel(CONSOLIDADO)
+  }, [empresas, empresaSel])
+
+  /* ---------- DRE do recorte selecionado ---------- */
+  const filtro = useMemo(() => (empresaSel === CONSOLIDADO ? rows : rows.filter((r) => r.empresa === empresaSel)), [rows, empresaSel])
+  const { linhas } = useMemo(() => buildDRE(filtro), [filtro])
+  const mesesComDados = useMemo(() => {
+    const set = new Set<number>()
+    for (const r of filtro) set.add(r.mes)
+    return [...set].sort((a, b) => a - b)
+  }, [filtro])
+  const anos = useMemo(() => [...new Set(filtro.map((r) => r.ano))].filter(Boolean).sort(), [filtro])
+
+  /* ---------- KPIs ---------- */
+  const byKey = (k: string) => linhas.find((l) => l.key === k)
+  const recBruta = byKey('rec_bruta')?.total ?? 0
+  const recLiq = byKey('recliq')?.total ?? 0
+  const ebit = byKey('ebit')?.total ?? 0
+  const liquido = byKey('liquido')?.total ?? 0
+  const margem = recBruta > 0 ? (liquido / recBruta) * 100 : null
+
+  const vazio = rows.length === 0
+
+  /* ---------- upload ---------- */
+  async function handleFile(file: File) {
+    setErro(null)
+    setAviso(null)
+    setBusy(true)
+    try {
+      const XLSX = await import('xlsx')
+      const buf = await file.arrayBuffer()
+      const aoa = readFirstSheetAOA(XLSX, buf)
+      if (!aoa.length) throw new Error('não consegui ler a planilha (arquivo vazio ou formato não suportado).')
+      const parsed = parseRazaoAOA(aoa)
+      if (!parsed.empresa) throw new Error('não encontrei a empresa no cabeçalho do Razão (linha "Empresa:").')
+      if (!parsed.rows.length) throw new Error('não encontrei lançamentos de contas de resultado (classes 3, 4 e 5) no Razão.')
+
+      if (mode === 'supabase' && supabase) {
+        const payload = parsed.rows.map((r) => ({ codigo: r.codigo, nome: r.nome, ano: r.ano, mes: r.mes, debito: r.debito, credito: r.credito }))
+        const { error } = await supabase.rpc('dre_upload', { p_empresa: parsed.empresa, p_cnpj: parsed.cnpj, p_rows: payload })
+        if (error) throw new Error(error.message)
+        await carregar()
+      } else {
+        // modo demo: substitui em memória os meses da empresa
+        const meses = new Set(parsed.rows.map((r) => `${r.ano}-${r.mes}`))
+        setRows((prev) => [
+          ...prev.filter((r) => !(r.empresa === parsed.empresa && meses.has(`${r.ano}-${r.mes}`))),
+          ...parsed.rows.map((r) => ({ empresa: parsed.empresa, ...r })),
+        ])
+      }
+      setEmpresaSel(parsed.empresa)
+      setOpen({})
+      const nomeMeses = parsed.meses.map((m) => MESES[m - 1]).join(', ')
+      setAviso(`${apelidoEmpresa(parsed.empresa)}: base atualizada — ${parsed.rows.length} contas·mês (${nomeMeses}).`)
+    } catch (e) {
+      setErro(`Não consegui importar o Razão: ${(e as Error).message}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function baixarBase() {
+    try {
+      setBusy(true)
+      const XLSX = await import('xlsx')
+      const head = ['EMPRESA', 'CÓDIGO', 'CONTA', 'ANO', 'MÊS', 'DÉBITO', 'CRÉDITO']
+      const aoa: unknown[][] = [head]
+      for (const r of rows) aoa.push([apelidoEmpresa(r.empresa), r.codigo, r.nome, r.ano, r.mes, r.debito, r.credito])
+      const ws = XLSX.utils.aoa_to_sheet(aoa)
+      ws['!cols'] = [{ wch: 12 }, { wch: 18 }, { wch: 40 }, { wch: 7 }, { wch: 6 }, { wch: 14 }, { wch: 14 }]
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, 'DRE')
+      const h = new Date()
+      const z = (n: number) => `${n < 10 ? '0' : ''}${n}`
+      XLSX.writeFile(wb, `Base DRE - ${h.getFullYear()}${z(h.getMonth() + 1)}${z(h.getDate())}.xlsx`)
+    } catch (e) {
+      setErro(`Erro ao baixar a base: ${(e as Error).message}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const toggle = (k: string) => setOpen((o) => ({ ...o, [k]: !o[k] }))
+
+  /* ---------- render ---------- */
+  return (
+    <div
+      className="dre-mod flex flex-col gap-4"
+      style={{ width: 'min(1400px, 95vw)', position: 'relative', left: '50%', transform: 'translateX(-50%)' }}
+    >
+      <ScopedStyle />
+
+      {/* Cabeçalho do módulo */}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h2 className="font-serif text-xl font-semibold text-ink">DRE — Demonstração do Resultado</h2>
+          <p className="text-[13px] text-muted">
+            Regime de competência · a partir do Razão Contábil{anos.length ? ` · ${anos.join('/')}` : ''} · negativos entre parênteses
+          </p>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <button
+            className="inline-flex items-center gap-2 rounded-lg border border-brand/30 bg-brand/10 px-4 py-2.5 text-[13px] font-bold text-brand transition hover:bg-brand/20 disabled:opacity-50"
+            onClick={baixarBase}
+            disabled={busy || vazio}
+            title="Baixar a base atual em Excel"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></svg>
+            Baixar base
+          </button>
+          {isAdmin && (
+            <button
+              className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-[13px] font-bold text-white shadow-brand transition hover:opacity-90 disabled:opacity-50"
+              onClick={() => fileRef.current?.click()}
+              disabled={busy}
+              title="Enviar o Razão Contábil (.xls/.xlsx) de uma empresa"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21V9" /><path d="m7 14 5-5 5 5" /><path d="M5 3h14" /></svg>
+              {busy ? 'Processando…' : 'Subir Razão'}
+            </button>
+          )}
+          <input ref={fileRef} type="file" accept=".xls,.xlsx" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
+        </div>
+      </div>
+
+      {erro && <Alerta tipo="erro" texto={erro} onClose={() => setErro(null)} />}
+      {aviso && <Alerta tipo="ok" texto={aviso} onClose={() => setAviso(null)} />}
+
+      {/* KPIs */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Kpi lbl="Receita Líquida" val={recLiq} accent="band" foot="após deduções" />
+        <Kpi lbl="Resultado Operacional" val={ebit} accent={ebit >= 0 ? 'pos' : 'neg'} foot="EBIT" signed />
+        <Kpi lbl="Resultado Líquido" val={liquido} accent={liquido >= 0 ? 'pos' : 'neg'} foot="após IR/CSLL" signed />
+        <Kpi lbl="Margem Líquida" val={margem} isPct foot="resultado ÷ receita bruta" signed accent={margem !== null && margem < 0 ? 'neg' : 'pos'} />
+      </div>
+
+      {/* Tabela do DRE */}
+      <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
+          {/* seletor de empresa */}
+          <div className="seg flex-wrap">
+            <button className={empresaSel === CONSOLIDADO ? 'on' : ''} onClick={() => setEmpresaSel(CONSOLIDADO)} title="Soma de todas as empresas">
+              Consolidado
+            </button>
+            {empresas.map((e) => (
+              <button key={e.empresa} className={empresaSel === e.empresa ? 'on' : ''} onClick={() => setEmpresaSel(e.empresa)} title={e.empresa}>
+                {e.apelido}
+              </button>
+            ))}
+          </div>
+          <div className="seg">
+            <button className={view === 'anual' ? 'on' : ''} onClick={() => setView('anual')}>Acumulado</button>
+            <button className={view === 'mensal' ? 'on' : ''} onClick={() => setView('mensal')}>Mensal</button>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="grid place-items-center py-16 text-sm text-muted">Carregando base…</div>
+        ) : vazio ? (
+          <div className="grid place-items-center gap-2 px-6 py-16 text-center">
+            <p className="font-serif text-lg text-ink">A base ainda não foi carregada.</p>
+            <p className="max-w-md text-sm text-muted">
+              {isAdmin
+                ? 'Clique em “Subir Razão” e envie o Razão Contábil de cada empresa (.xls do sistema contábil). O DRE é gerado automaticamente.'
+                : 'Assim que um administrador enviar o Razão, o DRE aparecerá aqui.'}
+            </p>
+          </div>
+        ) : (
+          <div className="dre-scroller">
+            <table className={`dre tnum${view === 'mensal' ? ' mensal' : ''}`}>
+              <thead>
+                <tr>
+                  <th className="rowlabel">Conta</th>
+                  {view === 'mensal' && MESES.map((m) => <th key={m}>{m}</th>)}
+                  <th className="col-total">{view === 'mensal' ? 'Acum.' : 'Valor'}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {linhas.map((l) =>
+                  l.tipo === 'grupo' ? (
+                    <Grupo key={l.key} l={l} view={view} open={!!open[l.key]} onToggle={() => toggle(l.key)} />
+                  ) : (
+                    <LinhaSubtotal key={l.key} l={l} view={view} />
+                  ),
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Rodapé de dicas */}
+      <div className="flex flex-wrap items-center gap-2 text-[12px] text-muted">
+        <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">💡 Clique numa conta para ver o detalhamento</span>
+        {mesesComDados.length > 0 && (
+          <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">Período: {mesesComDados.map((m) => MESES[m - 1]).join(', ')}</span>
+        )}
+        <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">Contas de Balanço (1 e 2) e Apuração (5.8) não entram no DRE</span>
+        {!isAdmin && <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">Somente administradores atualizam a base</span>}
+        {mode !== 'supabase' && <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 font-medium text-amber-700">Modo demonstração (dados não persistem)</span>}
+      </div>
+    </div>
+  )
+}
+
+/* --------------------------- subcomponentes --------------------------- */
+function Cells({ mes, total, view }: { mes: number[]; total: number; view: 'anual' | 'mensal' }) {
+  return (
+    <>
+      {view === 'mensal' && mes.map((v, i) => <td key={i} className={`num ${clsNum(v)}`}>{fmt(v)}</td>)}
+      <td className={`num col-total ${clsNum(total)}`}>{fmt(total)}</td>
+    </>
+  )
+}
+function Grupo({ l, view, open, onToggle }: { l: LinhaGrupo; view: 'anual' | 'mensal'; open: boolean; onToggle: () => void }) {
+  const temDet = l.contas.length > 0
+  return (
+    <>
+      <tr className={`grupo${open ? ' open' : ''}${temDet ? '' : ' semdet'}`} onClick={temDet ? onToggle : undefined}>
+        <td className="rowlabel">
+          {temDet && <span className="caret">▶</span>}
+          <span className={`op ${l.sinal === '+' ? 'pos' : ''}`}>({l.sinal})</span> {l.label}
+        </td>
+        <Cells mes={l.mes} total={l.total} view={view} />
+      </tr>
+      {open &&
+        l.contas.map((c: ContaLinha) => (
+          <tr className="detail" key={c.codigo}>
+            <td className="rowlabel">
+              <span className="cod">{c.codigo}</span> {c.nome}
+            </td>
+            <Cells mes={c.mes} total={c.total} view={view} />
+          </tr>
+        ))}
+    </>
+  )
+}
+function LinhaSubtotal({ l, view }: { l: Exclude<LinhaDRE, LinhaGrupo>; view: 'anual' | 'mensal' }) {
+  const cls = l.tipo === 'final' ? 'result final' : l.tipo === 'result' ? 'result' : 'sub'
+  return (
+    <tr className={cls}>
+      <td className="rowlabel">{l.label}</td>
+      <Cells mes={l.mes} total={l.total} view={view} />
+    </tr>
+  )
+}
+function Kpi({
+  lbl, val, accent, foot, signed, isPct,
+}: {
+  lbl: string
+  val: number | null
+  accent: 'pos' | 'neg' | 'band'
+  foot: string
+  signed?: boolean
+  isPct?: boolean
+}) {
+  const cor = val === null ? 'text-ink' : signed ? (val < 0 ? 'text-neg' : accent === 'band' ? 'text-ink' : 'text-pos') : accent === 'pos' ? 'text-pos' : accent === 'neg' ? 'text-neg' : 'text-ink'
+  const bar = accent === 'pos' ? 'bg-pos' : accent === 'neg' ? 'bg-neg' : 'bg-band'
+  const texto = val === null ? '—' : isPct ? `${val.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%` : `R$ ${fmt(val)}`
+  return (
+    <div className="relative overflow-hidden rounded-xl border border-line bg-surface px-4 py-3">
+      <span className={`absolute inset-y-0 left-0 w-1 ${bar}`} />
+      <div className="text-[10px] font-bold uppercase tracking-wider text-muted">{lbl}</div>
+      <div className={`mt-1 text-[20px] font-extrabold tnum ${cor}`}>{texto}</div>
+      <div className="mt-0.5 text-[11px] text-muted">{foot}</div>
+    </div>
+  )
+}
+function Alerta({ tipo, texto, onClose }: { tipo: 'erro' | 'ok'; texto: string; onClose: () => void }) {
+  const c = tipo === 'erro' ? 'border-neg/30 bg-red-50 text-neg' : 'border-pos/30 bg-emerald-50 text-pos'
+  return (
+    <div className={`flex items-center justify-between gap-3 rounded-lg border px-4 py-2.5 text-[13px] font-medium ${c}`}>
+      <span>{texto}</span>
+      <button onClick={onClose} className="opacity-60 hover:opacity-100" aria-label="Fechar">✕</button>
+    </div>
+  )
+}
+
+/* --------------------------- estilos da tabela --------------------------- */
+function ScopedStyle() {
+  return (
+    <style>{`
+.dre-mod .dre-scroller{overflow-x:auto}
+.dre-mod table.dre{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed}
+.dre-mod table.dre.mensal{min-width:1100px}
+.dre-mod table.dre th,.dre-mod table.dre td{padding:7px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid #F0EEEC;font-size:clamp(10px,0.9vw,13px);overflow:hidden}
+.dre-mod table.dre thead th{position:sticky;top:0;z-index:3;background:#fff;color:#4B5563;font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;border-bottom:2px solid #E7E3DF}
+.dre-mod table.dre th.rowlabel,.dre-mod table.dre td.rowlabel{text-align:left;position:sticky;left:0;z-index:2;background:#fff;width:38%;white-space:normal;word-break:break-word;line-height:1.2;font-weight:600;box-shadow:1px 0 0 #E7E3DF}
+.dre-mod table.dre.mensal th.rowlabel,.dre-mod table.dre.mensal td.rowlabel{width:24%}
+.dre-mod table.dre thead th.rowlabel{z-index:4}
+.dre-mod table.dre th.col-total,.dre-mod table.dre td.col-total{background:rgb(var(--brand)/0.06);font-weight:800;border-left:1px solid rgb(var(--brand)/0.18)}
+.dre-mod table.dre thead th.col-total{background:rgb(var(--brand)/0.14);color:rgb(var(--brand))}
+.dre-mod td.num{color:#1F2937}.dre-mod td.num.neg{color:#C0392B}.dre-mod td.num.zero{color:#C7C2BC}
+.dre-mod .op{display:inline-block;width:28px;color:#9aa0a6;font-weight:700}
+.dre-mod .op.pos{color:#15734F}
+/* Grupos de conta (clicáveis) */
+.dre-mod tr.grupo{cursor:pointer}
+.dre-mod tr.grupo.semdet{cursor:default}
+.dre-mod tr.grupo td{font-weight:600}
+.dre-mod tr.grupo:hover:not(.semdet) td{background:#FCFBFA}
+.dre-mod tr.grupo td.rowlabel .caret{display:inline-block;width:14px;color:rgb(var(--brand));font-size:10px;transition:transform .15s}
+.dre-mod tr.grupo.open td.rowlabel .caret{transform:rotate(90deg)}
+.dre-mod tr.detail td{background:#FBFAF9;color:#4B5563;font-size:clamp(9px,0.8vw,12px);border-bottom:1px solid #F3F1EF}
+.dre-mod tr.detail td.rowlabel{background:#FBFAF9;padding-left:22px;font-weight:500;white-space:normal}
+.dre-mod tr.detail td.rowlabel .cod{color:#9aa0a6;font-variant-numeric:tabular-nums;margin-right:6px;font-size:.92em}
+/* Subtotais (Receita líquida, Lucro bruto) */
+.dre-mod tr.sub td{background:#FFF1E8;font-weight:800;color:#9a4a24;border-top:1px solid #F6D9C9;border-bottom:1px solid #F6D9C9}
+.dre-mod tr.sub td.rowlabel{background:#FFF1E8}
+/* Resultados (EBIT, LAIR) e Resultado líquido (final) */
+.dre-mod tr.result td{background:#F3F4F6;color:#0B2545;font-weight:800}
+.dre-mod tr.result td.rowlabel{background:#F3F4F6}
+.dre-mod tr.result.final td{background:#0B2545;color:#fff;font-size:clamp(11px,0.95vw,14px)}
+.dre-mod tr.result.final td.rowlabel{background:#0B2545;color:#fff}
+.dre-mod tr.result td.num.neg{color:#C0392B}
+.dre-mod tr.result.final td.num.neg{color:#FF9B8A}
+.dre-mod tr.result.final td.col-total{background:#0a1f3d;border-left:1px solid #24406a}
+/* Segmented controls */
+.dre-mod .seg{display:inline-flex;background:#EEEAE3;border-radius:9px;padding:3px;gap:2px}
+.dre-mod .seg button{border:0;background:transparent;font:inherit;font-size:12px;font-weight:700;color:#7a756c;padding:5px 13px;border-radius:7px;cursor:pointer;white-space:nowrap}
+.dre-mod .seg button.on{background:#fff;color:#1F2937;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+`}</style>
+  )
+}
