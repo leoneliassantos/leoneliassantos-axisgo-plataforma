@@ -88,12 +88,12 @@ export function AppLayout() {
         </div>
       )}
 
-      <main className="mx-auto w-full max-w-content flex-1 px-5 py-2.5">
+      <main className="mx-auto w-full max-w-content flex-1 px-5 pb-14 pt-2.5">
         <Outlet />
       </main>
 
-      <footer className="bg-band text-paper">
-        <div className="mx-auto flex max-w-content flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 py-3.5 text-xs">
+      <footer className="fixed bottom-0 left-0 right-0 z-20 bg-band text-paper shadow-[0_-2px_10px_rgba(0,0,0,0.08)]">
+        <div className="mx-auto flex max-w-content flex-wrap items-center justify-between gap-x-4 gap-y-1 px-5 py-2.5 text-xs">
           <span className="flex flex-wrap items-center gap-2 text-paper/85">
             {CLIENT.nome} - Ambiente desenvolvido por
             <img src="/axisgo-logo.webp" alt="AxisGo" className="h-5 w-auto" />
