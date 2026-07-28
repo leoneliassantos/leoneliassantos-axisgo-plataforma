@@ -3,13 +3,15 @@ import { createPortal } from 'react-dom'
 import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { MESES, z12, fmt0, fmtCompacto, build, loadFluxo, type Lancamento, type Pivot } from './fluxoData'
+import { CLIENT } from '../../config/client'
 
-// Paleta quente (tons de laranja) — referência do dashboard aprovado pelo cliente
-const COR_REC = '#E9622E' // Receitas / entradas — laranja forte
-const COR_DESP = '#F5A97F' // Despesas / pagamentos — salmão suave
-// Pontos do gráfico "Evolução do Saldo" (dentro da família laranja)
-const SALDO_POS = '#E9622E'
-const SALDO_NEG = '#A8401B' // laranja queimado (saldo negativo)
+// Paleta quente — segue a cor de marca do cliente (white-label); fallback laranja.
+const MARCA = CLIENT.brand || '#FB5403'
+const COR_REC = MARCA // Receitas / entradas — cor da marca
+const COR_DESP = '#F5A97F' // Despesas / pagamentos — salmão suave (complementar)
+// Pontos do gráfico "Evolução do Saldo"
+const SALDO_POS = MARCA
+const SALDO_NEG = '#A8401B' // tom queimado (saldo negativo)
 const sumArr = (a: number[]) => a.reduce((s, v) => s + v, 0)
 
 export function Indicadores() {
