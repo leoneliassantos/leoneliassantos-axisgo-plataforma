@@ -10,6 +10,7 @@ import {
   type ContaLinha,
   type LinhaDRE,
   type LinhaGrupo,
+  type SubgrupoLinha,
 } from './razaoDre'
 
 /* ================================================================== *
@@ -114,9 +115,9 @@ export function Dre() {
 
   /* ---------- KPIs ---------- */
   const byKey = (k: string) => linhas.find((l) => l.key === k)
-  const recBruta = byKey('rec_bruta')?.total ?? 0
+  const recBruta = linhas.find((l) => l.tipo === 'grupo' && l.papel === 'receita_bruta')?.total ?? 0
   const recLiq = byKey('recliq')?.total ?? 0
-  const ebit = byKey('ebit')?.total ?? 0
+  const ebitda = byKey('ebitda')?.total ?? 0
   const liquido = byKey('liquido')?.total ?? 0
   const margem = recBruta > 0 ? (liquido / recBruta) * 100 : null
 
@@ -230,7 +231,7 @@ export function Dre() {
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi lbl="Receita Líquida" val={recLiq} accent="band" foot="após deduções" />
-        <Kpi lbl="Resultado Operacional" val={ebit} accent={ebit >= 0 ? 'pos' : 'neg'} foot="EBIT" signed />
+        <Kpi lbl="EBITDA" val={ebitda} accent={ebitda >= 0 ? 'pos' : 'neg'} foot="antes de deprec. e financeiro" signed />
         <Kpi lbl="Resultado Líquido" val={liquido} accent={liquido >= 0 ? 'pos' : 'neg'} foot="após IR/CSLL" signed />
         <Kpi lbl="Margem Líquida" val={margem} isPct foot="resultado ÷ receita bruta" signed accent={margem !== null && margem < 0 ? 'neg' : 'pos'} />
       </div>
@@ -279,7 +280,7 @@ export function Dre() {
               <tbody>
                 {linhas.map((l) =>
                   l.tipo === 'grupo' ? (
-                    <Grupo key={l.key} l={l} view={view} open={!!open[l.key]} onToggle={() => toggle(l.key)} />
+                    <Grupo key={l.key} l={l} view={view} open={open} toggle={toggle} />
                   ) : (
                     <LinhaSubtotal key={l.key} l={l} view={view} />
                   ),
@@ -313,27 +314,54 @@ function Cells({ mes, total, view }: { mes: number[]; total: number; view: 'anua
     </>
   )
 }
-function Grupo({ l, view, open, onToggle }: { l: LinhaGrupo; view: 'anual' | 'mensal'; open: boolean; onToggle: () => void }) {
-  const temDet = l.contas.length > 0
+function Grupo({ l, view, open, toggle }: { l: LinhaGrupo; view: 'anual' | 'mensal'; open: Record<string, boolean>; toggle: (k: string) => void }) {
+  const temFilhos = l.subgrupos.length > 0 || l.contas.length > 0
+  const aberto = !!open[l.key]
   return (
     <>
-      <tr className={`grupo${open ? ' open' : ''}${temDet ? '' : ' semdet'}`} onClick={temDet ? onToggle : undefined}>
+      <tr className={`grupo${aberto ? ' open' : ''}${temFilhos ? '' : ' semdet'}`} onClick={temFilhos ? () => toggle(l.key) : undefined}>
         <td className="rowlabel">
-          {temDet && <span className="caret">▶</span>}
+          {temFilhos && <span className="caret">▶</span>}
           <span className={`op ${l.sinal === '+' ? 'pos' : ''}`}>({l.sinal})</span> {l.label}
         </td>
         <Cells mes={l.mes} total={l.total} view={view} />
       </tr>
-      {open &&
-        l.contas.map((c: ContaLinha) => (
-          <tr className="detail" key={c.codigo}>
-            <td className="rowlabel">
-              <span className="cod">{c.codigo}</span> {c.nome}
-            </td>
-            <Cells mes={c.mes} total={c.total} view={view} />
-          </tr>
-        ))}
+      {aberto && (
+        <>
+          {l.subgrupos.map((s: SubgrupoLinha) => (
+            <Subgrupo key={s.nome} gkey={l.key} s={s} view={view} open={open} toggle={toggle} />
+          ))}
+          {l.contas.map((c: ContaLinha) => (
+            <ContaRow key={c.codigo} c={c} view={view} nivel={1} />
+          ))}
+        </>
+      )}
     </>
+  )
+}
+function Subgrupo({ gkey, s, view, open, toggle }: { gkey: string; s: SubgrupoLinha; view: 'anual' | 'mensal'; open: Record<string, boolean>; toggle: (k: string) => void }) {
+  const k = `sub:${gkey}|${s.nome}`
+  const aberto = !!open[k]
+  return (
+    <>
+      <tr className={`subgrupo${aberto ? ' open' : ''}`} onClick={() => toggle(k)}>
+        <td className="rowlabel">
+          <span className="caret">▶</span> {s.nome}
+        </td>
+        <Cells mes={s.mes} total={s.total} view={view} />
+      </tr>
+      {aberto && s.contas.map((c: ContaLinha) => <ContaRow key={c.codigo} c={c} view={view} nivel={2} />)}
+    </>
+  )
+}
+function ContaRow({ c, view, nivel }: { c: ContaLinha; view: 'anual' | 'mensal'; nivel: 1 | 2 }) {
+  return (
+    <tr className={`detail n${nivel}`}>
+      <td className="rowlabel">
+        <span className="cod">{c.codigo}</span> {c.nome}
+      </td>
+      <Cells mes={c.mes} total={c.total} view={view} />
+    </tr>
   )
 }
 function LinhaSubtotal({ l, view }: { l: Exclude<LinhaDRE, LinhaGrupo>; view: 'anual' | 'mensal' }) {
@@ -401,8 +429,16 @@ function ScopedStyle() {
 .dre-mod tr.grupo:hover:not(.semdet) td{background:#FCFBFA}
 .dre-mod tr.grupo td.rowlabel .caret{display:inline-block;width:14px;color:rgb(var(--brand));font-size:10px;transition:transform .15s}
 .dre-mod tr.grupo.open td.rowlabel .caret{transform:rotate(90deg)}
+/* Subgrupos (nível 2) */
+.dre-mod tr.subgrupo{cursor:pointer}
+.dre-mod tr.subgrupo td{background:#FFF8F3;font-weight:700;color:#8a5a3c;border-bottom:1px solid #F3E7DE}
+.dre-mod tr.subgrupo td.rowlabel{background:#FFF8F3;padding-left:24px}
+.dre-mod tr.subgrupo:hover td{background:#FEEFE4}
+.dre-mod tr.subgrupo td.rowlabel .caret{display:inline-block;width:14px;color:rgb(var(--brand));font-size:10px;transition:transform .15s}
+.dre-mod tr.subgrupo.open td.rowlabel .caret{transform:rotate(90deg)}
 .dre-mod tr.detail td{background:#FBFAF9;color:#4B5563;font-size:clamp(9px,0.8vw,12px);border-bottom:1px solid #F3F1EF}
-.dre-mod tr.detail td.rowlabel{background:#FBFAF9;padding-left:22px;font-weight:500;white-space:normal}
+.dre-mod tr.detail td.rowlabel{background:#FBFAF9;padding-left:24px;font-weight:500;white-space:normal}
+.dre-mod tr.detail.n2 td.rowlabel{padding-left:44px}
 .dre-mod tr.detail td.rowlabel .cod{color:#9aa0a6;font-variant-numeric:tabular-nums;margin-right:6px;font-size:.92em}
 /* Subtotais (Receita líquida, Lucro bruto) */
 .dre-mod tr.sub td{background:#FFF1E8;font-weight:800;color:#9a4a24;border-top:1px solid #F6D9C9;border-bottom:1px solid #F6D9C9}

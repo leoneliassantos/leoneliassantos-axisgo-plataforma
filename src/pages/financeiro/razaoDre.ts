@@ -140,50 +140,75 @@ export const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'S
 const z12 = () => new Array(12).fill(0) as number[]
 export const sum12 = (a: number[]) => a.reduce((s, v) => s + v, 0)
 
-type Papel = 'receita' | 'deducao' | 'custo' | 'despesa' | 'imposto'
-interface GrupoDef {
-  key: string
-  label: string
-  papel: Papel
-  prefixos: string[]
-}
-// Estrutura do DRE a partir do plano de contas (classes 3/4/5).
-const GRUPOS: GrupoDef[] = [
-  { key: 'rec_bruta', label: 'Receita Operacional Bruta', papel: 'receita', prefixos: ['3.1.10'] },
-  { key: 'deducoes', label: 'Deduções da Receita Bruta', papel: 'deducao', prefixos: ['3.1.20'] },
-  { key: 'custos', label: 'Custos dos Serviços Prestados', papel: 'custo', prefixos: ['4'] },
-  { key: 'desp_op', label: 'Despesas Operacionais', papel: 'despesa', prefixos: ['5.1.11'] },
-  { key: 'out_rec', label: 'Outras Receitas Operacionais', papel: 'receita', prefixos: ['5.1.10.400'] },
-  { key: 'rec_fin', label: 'Receitas Financeiras', papel: 'receita', prefixos: ['5.1.10.300'] },
-  { key: 'desp_fin', label: 'Despesas Financeiras', papel: 'despesa', prefixos: ['5.1.12'] },
-  { key: 'impostos', label: 'IR / CSLL sobre o Lucro', papel: 'imposto', prefixos: ['5.7'] },
-]
-const sinalReceita = (p: Papel) => p === 'receita'
-// contribuição no resultado: receita soma (+), demais subtraem (–)
-const fator = (p: Papel) => (p === 'receita' ? 1 : -1)
+/**
+ * Papel de um grupo de nível 1 no DRE — define o sinal (soma/subtrai) e a
+ * posição relativa aos subtotais. Grupos de mesmo papel ficam juntos.
+ */
+export type Papel =
+  | 'receita_bruta'
+  | 'deducao'
+  | 'custo'
+  | 'despesa_op'
+  | 'outra_desp_op'
+  | 'outra_rec_op'
+  | 'outras'
+  | 'depreciacao'
+  | 'rec_fin'
+  | 'desp_fin'
+  | 'equiv'
+  | 'imposto'
 
-function prefixMatch(codigo: string, pref: string): boolean {
-  return codigo === pref || codigo.startsWith(pref + '.')
+export interface GrupoDef {
+  nome: string
+  papel: Papel
 }
-function achaGrupo(codigo: string): GrupoDef | null {
-  let best: GrupoDef | null = null
-  let bestLen = -1
-  for (const g of GRUPOS) {
-    for (const pr of g.prefixos) {
-      if (prefixMatch(codigo, pr) && pr.length > bestLen) {
-        best = g
-        bestLen = pr.length
-      }
-    }
-  }
-  return best
+
+// Catálogo PADRÃO dos grupos de nível 1 (ordem + papel). A parte 2
+// (ambiente de reclassificação) poderá substituir/estender este catálogo.
+export const CATALOGO_PADRAO: GrupoDef[] = [
+  { nome: 'Receita Operacional Bruta', papel: 'receita_bruta' },
+  { nome: 'Deduções da Receita Bruta', papel: 'deducao' },
+  { nome: 'Custos dos Serviços Prestados', papel: 'custo' },
+  { nome: 'Despesas Operacionais', papel: 'despesa_op' },
+  { nome: 'Outras Despesas Operacionais', papel: 'outra_desp_op' },
+  { nome: 'Outras Receitas Operacionais', papel: 'outra_rec_op' },
+  { nome: 'Outras contas de resultado', papel: 'outras' },
+  { nome: 'Depreciação e Amortização', papel: 'depreciacao' },
+  { nome: 'Receitas Financeiras', papel: 'rec_fin' },
+  { nome: 'Despesas Financeiras', papel: 'desp_fin' },
+  { nome: 'Resultado de Equivalência Patrimonial', papel: 'equiv' },
+  { nome: 'IR / CSLL sobre o Lucro', papel: 'imposto' },
+]
+
+const RECEITA_PAPEIS = new Set<Papel>(['receita_bruta', 'outra_rec_op', 'rec_fin'])
+const ehReceita = (p: Papel) => RECEITA_PAPEIS.has(p)
+
+// Segmentos do DRE: agrupam papéis e definem o subtotal que vem depois.
+interface Segmento {
+  papeis: Papel[]
+  sub?: { key: string; label: string; tipo: 'sub' | 'result' | 'final' }
 }
+const SEGMENTOS: Segmento[] = [
+  { papeis: ['receita_bruta'] },
+  { papeis: ['deducao'], sub: { key: 'recliq', label: '= Receita Operacional Líquida', tipo: 'sub' } },
+  { papeis: ['custo'], sub: { key: 'lucrobruto', label: '= Lucro Bruto', tipo: 'sub' } },
+  { papeis: ['despesa_op', 'outra_desp_op', 'outra_rec_op', 'outras'], sub: { key: 'ebitda', label: '= EBITDA', tipo: 'result' } },
+  { papeis: ['depreciacao'], sub: { key: 'ebit', label: '= EBIT (Resultado Operacional)', tipo: 'result' } },
+  { papeis: ['rec_fin', 'desp_fin', 'equiv'], sub: { key: 'lair', label: '= Resultado antes do IR/CSLL', tipo: 'result' } },
+  { papeis: ['imposto'], sub: { key: 'liquido', label: '= Resultado Líquido do Exercício', tipo: 'final' } },
+]
 
 export interface ContaLinha {
   codigo: string
   nome: string
   mes: number[]
   total: number
+}
+export interface SubgrupoLinha {
+  nome: string
+  mes: number[]
+  total: number
+  contas: ContaLinha[]
 }
 export interface LinhaGrupo {
   tipo: 'grupo'
@@ -193,7 +218,8 @@ export interface LinhaGrupo {
   sinal: '+' | '–'
   mes: number[]
   total: number
-  contas: ContaLinha[]
+  subgrupos: SubgrupoLinha[]
+  contas: ContaLinha[] // contas sem subgrupo (direto no grupo)
 }
 export interface LinhaSub {
   tipo: 'sub' | 'result' | 'final'
@@ -211,89 +237,124 @@ interface RowLike {
   debito: number
   credito: number
 }
+export type Classificador = (codigo: string, nome: string) => { grupo: string; subgrupo: string }
 
-export function buildDRE(rows: RowLike[]): { linhas: LinhaDRE[]; grupos: Record<string, number[]> } {
-  // agrega por grupo (mês) e por conta (mês)
-  const grupoMes: Record<string, number[]> = {}
-  const contas: Record<string, Record<string, ContaLinha>> = {} // grupoKey -> codigo -> conta
-  const outras: Record<string, ContaLinha> = {}
-  const outrasMes = z12()
+/**
+ * Classificação PADRÃO (código → grupo nível 1 + subgrupo nível 2), reproduzindo
+ * a estrutura montada com o cliente. A parte 2 poderá sobrepor por conta.
+ */
+export function classificarPadrao(codigo: string, nome: string): { grupo: string; subgrupo: string } {
+  const N = (nome || '').toUpperCase()
+  const has = (p: string) => codigo === p || codigo.startsWith(p + '.')
+  const g = (grupo: string, subgrupo = '') => ({ grupo, subgrupo })
+  if (has('3.1.10')) return g('Receita Operacional Bruta')
+  if (has('3.1.20')) return g('Deduções da Receita Bruta')
+  if (/DEPRECIA|AMORTIZA/.test(N)) return g('Depreciação e Amortização')
+  if (has('4')) return g('Custos dos Serviços Prestados')
+  if (has('5.1.10.400')) return g('Outras Receitas Operacionais')
+  if (has('5.1.10.300')) return g('Receitas Financeiras')
+  if (has('5.1.12')) return g('Despesas Financeiras')
+  if (has('5.7')) return g('IR / CSLL sobre o Lucro')
+  if (has('5.1.11.100')) return g('Despesas Operacionais', 'Pessoal e Encargos')
+  if (has('5.1.11.400')) return g('Despesas Operacionais', 'Utilidades e Serviços')
+  if (has('5.1.11.500')) return g('Despesas Operacionais', 'Serviços de Terceiros (PJ)')
+  if (has('5.1.11.700')) return g('Despesas Operacionais', 'Despesas Gerais')
+  if (has('5.1.11.800')) return g('Despesas Operacionais', 'Impostos e Taxas')
+  if (has('5.1.11')) return g('Despesas Operacionais', 'Outras')
+  return g('Outras contas de resultado')
+}
 
-  for (const g of GRUPOS) {
-    grupoMes[g.key] = z12()
-    contas[g.key] = {}
+export interface BuildOpts {
+  classificar?: Classificador
+  catalogo?: GrupoDef[]
+}
+
+export function buildDRE(rows: RowLike[], opts: BuildOpts = {}): { linhas: LinhaDRE[] } {
+  const classificar = opts.classificar || classificarPadrao
+  const catalogo = opts.catalogo && opts.catalogo.length ? opts.catalogo : CATALOGO_PADRAO
+  const papelDe = new Map<string, Papel>(catalogo.map((c) => [c.nome, c.papel]))
+
+  interface Acc {
+    mes: number[]
+    subs: Map<string, { mes: number[]; contas: Map<string, ContaLinha> }>
+    diretas: Map<string, ContaLinha>
   }
+  const G = new Map<string, Acc>()
+  const getG = (nome: string): Acc => {
+    let a = G.get(nome)
+    if (!a) {
+      a = { mes: z12(), subs: new Map(), diretas: new Map() }
+      G.set(nome, a)
+    }
+    return a
+  }
+
   for (const r of rows) {
     const m = r.mes - 1
     if (m < 0 || m > 11) continue
-    const g = achaGrupo(r.codigo)
-    if (g) {
-      const val = sinalReceita(g.papel) ? r.credito - r.debito : r.debito - r.credito
-      grupoMes[g.key][m] += val
-      const c = (contas[g.key][r.codigo] ||= { codigo: r.codigo, nome: r.nome, mes: z12(), total: 0 })
+    const { grupo, subgrupo } = classificar(r.codigo, r.nome)
+    const papel = papelDe.get(grupo) || 'outras'
+    const val = ehReceita(papel) ? r.credito - r.debito : r.debito - r.credito
+    const a = getG(grupo)
+    a.mes[m] += val
+    if (subgrupo) {
+      let s = a.subs.get(subgrupo)
+      if (!s) {
+        s = { mes: z12(), contas: new Map() }
+        a.subs.set(subgrupo, s)
+      }
+      s.mes[m] += val
+      let c = s.contas.get(r.codigo)
+      if (!c) {
+        c = { codigo: r.codigo, nome: r.nome, mes: z12(), total: 0 }
+        s.contas.set(r.codigo, c)
+      }
       c.mes[m] += val
       c.total += val
     } else {
-      // conta de resultado não mapeada — não some do DRE
-      const val = r.codigo.startsWith('3') ? r.credito - r.debito : -(r.debito - r.credito)
-      outrasMes[m] += val
-      const c = (outras[r.codigo] ||= { codigo: r.codigo, nome: r.nome, mes: z12(), total: 0 })
+      let c = a.diretas.get(r.codigo)
+      if (!c) {
+        c = { codigo: r.codigo, nome: r.nome, mes: z12(), total: 0 }
+        a.diretas.set(r.codigo, c)
+      }
       c.mes[m] += val
       c.total += val
     }
   }
 
-  const G = (k: string) => grupoMes[k] || z12()
-  const combine = (...parts: Array<{ arr: number[]; s: number }>): number[] => {
-    const out = z12()
-    for (const { arr, s } of parts) for (let i = 0; i < 12; i++) out[i] += s * arr[i]
-    return out
-  }
-  const recliq = combine({ arr: G('rec_bruta'), s: 1 }, { arr: G('deducoes'), s: -1 })
-  const lucroBruto = combine({ arr: recliq, s: 1 }, { arr: G('custos'), s: -1 })
-  const ebit = combine({ arr: lucroBruto, s: 1 }, { arr: G('desp_op'), s: -1 }, { arr: G('out_rec'), s: 1 })
-  const lair = combine({ arr: ebit, s: 1 }, { arr: G('rec_fin'), s: 1 }, { arr: G('desp_fin'), s: -1 })
-  const liquido = combine({ arr: lair, s: 1 }, { arr: G('impostos'), s: -1 }, { arr: outrasMes, s: 1 })
-
-  const grupoLinha = (key: string): LinhaGrupo | null => {
-    const g = GRUPOS.find((x) => x.key === key)!
-    const mes = G(key)
-    const lista = Object.values(contas[key]).sort((a, b) => b.total - a.total)
-    if (Math.abs(sum12(mes)) < 0.005 && lista.length === 0) return null
+  const mkGrupo = (def: GrupoDef): LinhaGrupo | null => {
+    const a = G.get(def.nome)
+    if (!a) return null
+    const subgrupos: SubgrupoLinha[] = [...a.subs.entries()]
+      .map(([nome, s]) => ({ nome, mes: s.mes, total: sum12(s.mes), contas: [...s.contas.values()].sort((x, y) => y.total - x.total) }))
+      .sort((x, y) => y.total - x.total)
+    const contas = [...a.diretas.values()].sort((x, y) => y.total - x.total)
+    if (Math.abs(sum12(a.mes)) < 0.005 && !subgrupos.length && !contas.length) return null
     return {
       tipo: 'grupo',
-      key,
-      label: g.label,
-      papel: g.papel,
-      sinal: sinalReceita(g.papel) ? '+' : '–',
-      mes,
-      total: sum12(mes),
-      contas: lista,
+      key: 'g:' + def.nome,
+      label: def.nome,
+      papel: def.papel,
+      sinal: ehReceita(def.papel) ? '+' : '–',
+      mes: a.mes,
+      total: sum12(a.mes),
+      subgrupos,
+      contas,
     }
   }
-  const sub = (tipo: LinhaSub['tipo'], key: string, label: string, mes: number[]): LinhaSub => ({ tipo, key, label, mes, total: sum12(mes) })
 
   const linhas: LinhaDRE[] = []
-  const push = (l: LinhaGrupo | null) => { if (l) linhas.push(l) }
-  push(grupoLinha('rec_bruta'))
-  push(grupoLinha('deducoes'))
-  linhas.push(sub('sub', 'recliq', '= Receita Operacional Líquida', recliq))
-  push(grupoLinha('custos'))
-  linhas.push(sub('sub', 'lucrobruto', '= Lucro Bruto', lucroBruto))
-  push(grupoLinha('desp_op'))
-  push(grupoLinha('out_rec'))
-  linhas.push(sub('result', 'ebit', '= Resultado Operacional (EBIT)', ebit))
-  push(grupoLinha('rec_fin'))
-  push(grupoLinha('desp_fin'))
-  linhas.push(sub('result', 'lair', '= Resultado antes do IR/CSLL', lair))
-  push(grupoLinha('impostos'))
-  // outras contas não mapeadas (se houver)
-  const outrasLista = Object.values(outras).sort((a, b) => Math.abs(b.total) - Math.abs(a.total))
-  if (outrasLista.length) {
-    linhas.push({ tipo: 'grupo', key: 'outras', label: 'Outras contas de resultado', papel: 'receita', sinal: '+', mes: outrasMes, total: sum12(outrasMes), contas: outrasLista })
+  const running = z12()
+  for (const seg of SEGMENTOS) {
+    for (const def of catalogo) {
+      if (!seg.papeis.includes(def.papel)) continue
+      const l = mkGrupo(def)
+      if (!l) continue
+      linhas.push(l)
+      const f = ehReceita(def.papel) ? 1 : -1
+      for (let i = 0; i < 12; i++) running[i] += f * l.mes[i]
+    }
+    if (seg.sub) linhas.push({ tipo: seg.sub.tipo, key: seg.sub.key, label: seg.sub.label, mes: running.slice(), total: sum12(running) })
   }
-  linhas.push(sub('final', 'liquido', '= Resultado Líquido do Exercício', liquido))
-  return { linhas, grupos: grupoMes }
+  return { linhas }
 }
-
-export { fator }
