@@ -36,6 +36,10 @@ interface Lanc {
   credito: number
 }
 const CONSOLIDADO = '__consolidado__'
+// Equivalência patrimonial: participação de uma empresa do grupo em outra. No
+// consolidado ela duplica o resultado (a empresa "espelha" o resultado da outra),
+// então oferecemos o flag para excluí-la. Identificada pelo nome da conta.
+const ehEquiv = (nome: string) => /EQUIVAL/i.test(nome || '')
 
 /* ------------------------------- utils ------------------------------- */
 function fmt(v: number): string {
@@ -56,6 +60,7 @@ export function Dre() {
   const [empresaSel, setEmpresaSel] = useState<string>(CONSOLIDADO)
   const [mesDe, setMesDe] = useState(0)
   const [mesAte, setMesAte] = useState(11)
+  const [semEquiv, setSemEquiv] = useState(false)
   const [view, setView] = useState<'anual' | 'mensal'>('anual')
   const [modo, setModo] = useState<'dre' | 'classificar'>('dre')
   const [salvandoCls, setSalvandoCls] = useState(false)
@@ -142,7 +147,11 @@ export function Dre() {
     setMesAte((a) => (a < min || a > max ? max : a))
   }, [mesesDisponiveis])
 
-  const filtro = useMemo(() => rowsEmpresa.filter((r) => r.mes - 1 >= mesDe && r.mes - 1 <= mesAte), [rowsEmpresa, mesDe, mesAte])
+  const temEquiv = useMemo(() => rowsEmpresa.some((r) => ehEquiv(r.nome)), [rowsEmpresa])
+  const filtro = useMemo(
+    () => rowsEmpresa.filter((r) => r.mes - 1 >= mesDe && r.mes - 1 <= mesAte && !(semEquiv && ehEquiv(r.nome))),
+    [rowsEmpresa, mesDe, mesAte, semEquiv],
+  )
   const { linhas } = useMemo(() => buildDRE(filtro, { classificar, catalogo }), [filtro, classificar, catalogo])
   const mesesVis = useMemo(() => {
     const a: number[] = []
@@ -365,6 +374,15 @@ export function Dre() {
                 {mesesDisponiveis.map((m) => <option key={m} value={m}>{MESES[m]}</option>)}
               </select>
             </div>
+            {temEquiv && (
+              <label
+                className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[12px] font-semibold text-muted transition hover:border-brand"
+                title="A equivalência patrimonial (participação societária entre empresas do grupo) duplica o resultado no consolidado. Marque para excluí-la do DRE."
+              >
+                <input type="checkbox" checked={semEquiv} onChange={(e) => setSemEquiv(e.target.checked)} style={{ accentColor: 'rgb(var(--brand))', width: 15, height: 15 }} />
+                Sem equivalência patrimonial
+              </label>
+            )}
             <div className="seg">
               <button className={view === 'anual' ? 'on' : ''} onClick={() => setView('anual')}>Acumulado</button>
               <button className={view === 'mensal' ? 'on' : ''} onClick={() => setView('mensal')}>Mensal</button>
@@ -415,6 +433,7 @@ export function Dre() {
             Período: {umMes ? MESES[mesDe] : `${MESES[mesDe]} a ${MESES[mesAte]}`}{anos.length ? ` / ${anos.join(', ')}` : ''}
           </span>
         )}
+        {semEquiv && <span className="rounded-full border border-brand/40 bg-brand/10 px-2.5 py-1 font-bold text-brand">Equivalência patrimonial excluída do resultado</span>}
         <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">Contas de Balanço (1 e 2) e Apuração (5.8) não entram no DRE</span>
         {isAdmin && <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">Admin: use “Reclassificar contas” para ajustar grupos e subgrupos</span>}
         {!isAdmin && <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">Somente administradores atualizam a base</span>}
