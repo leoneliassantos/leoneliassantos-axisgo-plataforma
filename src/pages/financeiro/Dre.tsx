@@ -6,12 +6,16 @@ import {
   apelidoEmpresa,
   buildDRE,
   MESES,
+  montarCatalogo,
+  montarClassificador,
   parseRazaoAOA,
   type ContaLinha,
+  type GrupoDef,
   type LinhaDRE,
   type LinhaGrupo,
   type SubgrupoLinha,
 } from './razaoDre'
+import { ClassificacaoContas, type ContaUniverso } from './ClassificacaoContas'
 
 /* ================================================================== *
  *  DRE — Demonstração do Resultado do Exercício (multiempresa)
@@ -47,8 +51,12 @@ export function Dre() {
   const isAdmin = user?.role === 'admin'
 
   const [rows, setRows] = useState<Lanc[]>([])
+  const [overrides, setOverrides] = useState<Record<string, { grupo: string; subgrupo: string }>>({})
+  const [customGrupos, setCustomGrupos] = useState<GrupoDef[]>([])
   const [empresaSel, setEmpresaSel] = useState<string>(CONSOLIDADO)
   const [view, setView] = useState<'anual' | 'mensal'>('anual')
+  const [modo, setModo] = useState<'dre' | 'classificar'>('dre')
+  const [salvandoCls, setSalvandoCls] = useState(false)
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -84,6 +92,15 @@ export function Dre() {
         credito: Number(r.credito) || 0,
       })),
     )
+    // classificação + grupos customizados (tolera tabelas ausentes = usa padrão)
+    const [cls, grp] = await Promise.all([
+      supabase.from('dre_classificacao').select('codigo, grupo, subgrupo'),
+      supabase.from('dre_grupos').select('nome, papel, ordem').order('ordem'),
+    ])
+    const ov: Record<string, { grupo: string; subgrupo: string }> = {}
+    for (const c of cls.data ?? []) ov[(c.codigo ?? '').toString()] = { grupo: (c.grupo ?? '').toString(), subgrupo: (c.subgrupo ?? '').toString() }
+    setOverrides(ov)
+    setCustomGrupos((grp.data ?? []).map((g) => ({ nome: (g.nome ?? '').toString(), papel: (g.papel ?? 'despesa_op') as GrupoDef['papel'] })))
     setLoading(false)
   }, [mode])
 
@@ -103,9 +120,54 @@ export function Dre() {
     if (empresaSel !== CONSOLIDADO && !empresas.some((e) => e.empresa === empresaSel)) setEmpresaSel(CONSOLIDADO)
   }, [empresas, empresaSel])
 
+  /* ---------- classificação efetiva ---------- */
+  const classificar = useMemo(() => montarClassificador(overrides), [overrides])
+  const catalogo = useMemo(() => montarCatalogo(customGrupos), [customGrupos])
+
   /* ---------- DRE do recorte selecionado ---------- */
   const filtro = useMemo(() => (empresaSel === CONSOLIDADO ? rows : rows.filter((r) => r.empresa === empresaSel)), [rows, empresaSel])
-  const { linhas } = useMemo(() => buildDRE(filtro), [filtro])
+  const { linhas } = useMemo(() => buildDRE(filtro, { classificar, catalogo }), [filtro, classificar, catalogo])
+
+  /* ---------- universo de contas (para o editor de classificação) ---------- */
+  const universo = useMemo<ContaUniverso[]>(() => {
+    const m = new Map<string, { codigo: string; nome: string; cred: number; deb: number }>()
+    for (const r of rows) {
+      const e = m.get(r.codigo) ?? { codigo: r.codigo, nome: r.nome, cred: 0, deb: 0 }
+      e.cred += r.credito
+      e.deb += r.debito
+      if (!e.nome && r.nome) e.nome = r.nome
+      m.set(r.codigo, e)
+    }
+    return [...m.values()].map((e) => ({ codigo: e.codigo, nome: e.nome, valor: Math.abs(e.cred - e.deb) }))
+  }, [rows])
+
+  async function salvarClassificacao(mapa: Record<string, { grupo: string; subgrupo: string }>, custom: GrupoDef[]) {
+    setSalvandoCls(true)
+    setErro(null)
+    try {
+      if (mode === 'supabase' && supabase) {
+        const agora = new Date().toISOString()
+        const clsRows = Object.entries(mapa).map(([codigo, v]) => ({ codigo, grupo: v.grupo, subgrupo: v.subgrupo, updated_at: agora }))
+        const { error: e1 } = await supabase.from('dre_classificacao').upsert(clsRows)
+        if (e1) throw new Error(e1.message)
+        if (custom.length) {
+          const grpRows = custom.map((g, i) => ({ nome: g.nome, papel: g.papel, ordem: i, updated_at: agora }))
+          const { error: e2 } = await supabase.from('dre_grupos').upsert(grpRows)
+          if (e2) throw new Error(e2.message)
+        }
+        await carregar()
+      } else {
+        setOverrides(mapa)
+        setCustomGrupos(custom)
+      }
+      setModo('dre')
+      setAviso('Classificação salva. O DRE foi reorganizado.')
+    } catch (e) {
+      setErro(`Não consegui salvar a classificação: ${(e as Error).message}. Rode o SQL de classificação no Supabase (setup/dre-classificacao-sql.html).`)
+    } finally {
+      setSalvandoCls(false)
+    }
+  }
   const mesesComDados = useMemo(() => {
     const set = new Set<number>()
     for (const r of filtro) set.add(r.mes)
@@ -200,34 +262,58 @@ export function Dre() {
             Regime de competência · a partir do Razão Contábil{anos.length ? ` · ${anos.join('/')}` : ''} · negativos entre parênteses
           </p>
         </div>
-        <div className="flex flex-wrap items-end gap-2">
-          <button
-            className="inline-flex items-center gap-2 rounded-lg border border-brand/30 bg-brand/10 px-4 py-2.5 text-[13px] font-bold text-brand transition hover:bg-brand/20 disabled:opacity-50"
-            onClick={baixarBase}
-            disabled={busy || vazio}
-            title="Baixar a base atual em Excel"
-          >
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></svg>
-            Baixar base
-          </button>
-          {isAdmin && (
+        {modo === 'dre' && (
+          <div className="flex flex-wrap items-end gap-2">
+            {isAdmin && (
+              <button
+                className="inline-flex items-center gap-2 rounded-lg border border-brand/30 bg-brand/10 px-4 py-2.5 text-[13px] font-bold text-brand transition hover:bg-brand/20 disabled:opacity-50"
+                onClick={() => setModo('classificar')}
+                disabled={busy || vazio}
+                title="Definir grupos e subgrupos do DRE por conta"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M3 12h18M3 18h18" /><circle cx="8" cy="6" r="1.6" fill="currentColor" stroke="none" /><circle cx="16" cy="12" r="1.6" fill="currentColor" stroke="none" /><circle cx="10" cy="18" r="1.6" fill="currentColor" stroke="none" /></svg>
+                Reclassificar contas
+              </button>
+            )}
             <button
-              className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-[13px] font-bold text-white shadow-brand transition hover:opacity-90 disabled:opacity-50"
-              onClick={() => fileRef.current?.click()}
-              disabled={busy}
-              title="Enviar o Razão Contábil (.xls/.xlsx) de uma empresa"
+              className="inline-flex items-center gap-2 rounded-lg border border-brand/30 bg-brand/10 px-4 py-2.5 text-[13px] font-bold text-brand transition hover:bg-brand/20 disabled:opacity-50"
+              onClick={baixarBase}
+              disabled={busy || vazio}
+              title="Baixar a base atual em Excel"
             >
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21V9" /><path d="m7 14 5-5 5 5" /><path d="M5 3h14" /></svg>
-              {busy ? 'Processando…' : 'Subir Razão'}
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></svg>
+              Baixar base
             </button>
-          )}
-          <input ref={fileRef} type="file" accept=".xls,.xlsx" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
-        </div>
+            {isAdmin && (
+              <button
+                className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-[13px] font-bold text-white shadow-brand transition hover:opacity-90 disabled:opacity-50"
+                onClick={() => fileRef.current?.click()}
+                disabled={busy}
+                title="Enviar o Razão Contábil (.xls/.xlsx) de uma empresa"
+              >
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21V9" /><path d="m7 14 5-5 5 5" /><path d="M5 3h14" /></svg>
+                {busy ? 'Processando…' : 'Subir Razão'}
+              </button>
+            )}
+            <input ref={fileRef} type="file" accept=".xls,.xlsx" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
+          </div>
+        )}
       </div>
 
       {erro && <Alerta tipo="erro" texto={erro} onClose={() => setErro(null)} />}
       {aviso && <Alerta tipo="ok" texto={aviso} onClose={() => setAviso(null)} />}
 
+      {modo === 'classificar' ? (
+        <ClassificacaoContas
+          contas={universo}
+          classificarInicial={classificar}
+          customIniciais={customGrupos}
+          onSalvar={salvarClassificacao}
+          onFechar={() => setModo('dre')}
+          salvando={salvandoCls}
+        />
+      ) : (
+        <>
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi lbl="Receita Líquida" val={recLiq} accent="band" foot="após deduções" />
@@ -298,9 +384,12 @@ export function Dre() {
           <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">Período: {mesesComDados.map((m) => MESES[m - 1]).join(', ')}</span>
         )}
         <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">Contas de Balanço (1 e 2) e Apuração (5.8) não entram no DRE</span>
+        {isAdmin && <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">Admin: use “Reclassificar contas” para ajustar grupos e subgrupos</span>}
         {!isAdmin && <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">Somente administradores atualizam a base</span>}
         {mode !== 'supabase' && <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 font-medium text-amber-700">Modo demonstração (dados não persistem)</span>}
       </div>
+        </>
+      )}
     </div>
   )
 }

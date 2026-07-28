@@ -358,3 +358,42 @@ export function buildDRE(rows: RowLike[], opts: BuildOpts = {}): { linhas: Linha
   }
   return { linhas }
 }
+
+/* ================== Suporte ao ambiente de reclassificação ================== */
+export interface PapelInfo {
+  papel: Papel
+  label: string // rótulo amigável (o que faz no DRE)
+}
+// Tipos de grupo (nível 1) na ordem em que aparecem no DRE.
+export const PAPEIS: PapelInfo[] = [
+  { papel: 'receita_bruta', label: 'Receita bruta (soma)' },
+  { papel: 'deducao', label: 'Dedução da receita (subtrai)' },
+  { papel: 'custo', label: 'Custo dos serviços (subtrai)' },
+  { papel: 'despesa_op', label: 'Despesa operacional (subtrai)' },
+  { papel: 'outra_desp_op', label: 'Outra despesa operacional (subtrai)' },
+  { papel: 'outra_rec_op', label: 'Outra receita operacional (soma)' },
+  { papel: 'depreciacao', label: 'Depreciação / Amortização (subtrai, após EBITDA)' },
+  { papel: 'rec_fin', label: 'Receita financeira (soma)' },
+  { papel: 'desp_fin', label: 'Despesa financeira (subtrai)' },
+  { papel: 'equiv', label: 'Equivalência patrimonial (subtrai)' },
+  { papel: 'imposto', label: 'IR / CSLL sobre o lucro (subtrai)' },
+]
+export const papelLabel = (p: string): string => PAPEIS.find((x) => x.papel === p)?.label ?? p
+
+// Classificador com overrides por conta (sobrepõe a classificação padrão).
+export function montarClassificador(overrides: Record<string, { grupo: string; subgrupo: string }>): Classificador {
+  return (codigo, nome) => overrides[codigo] ?? classificarPadrao(codigo, nome)
+}
+
+// Catálogo = grupos padrão + grupos customizados (sem duplicar nome).
+export function montarCatalogo(custom: GrupoDef[]): GrupoDef[] {
+  const nomes = new Set(CATALOGO_PADRAO.map((g) => g.nome))
+  const extras = custom.filter((g) => g.nome && !nomes.has(g.nome))
+  return [...CATALOGO_PADRAO, ...extras]
+}
+
+// Ordem canônica dos grupos (nível 1) para exibir no editor: por segmento do DRE.
+export function ordemGrupos(catalogo: GrupoDef[]): GrupoDef[] {
+  const ordemPapel = PAPEIS.map((p) => p.papel)
+  return [...catalogo].sort((a, b) => ordemPapel.indexOf(a.papel) - ordemPapel.indexOf(b.papel))
+}

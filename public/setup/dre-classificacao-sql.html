@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ativar a reclassificação do DRE (Supabase)</title>
+<style>
+  body{margin:0;background:#f4f2eb;color:#16211d;font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.5}
+  .wrap{max-width:820px;margin:0 auto;padding:28px 20px 60px}
+  h1{font-family:Georgia,serif;font-size:23px;margin:0 0 4px}
+  p{color:#4a4a42;margin:6px 0}
+  .card{background:#fff;border:1px solid #e2ddd1;border-radius:14px;padding:20px;box-shadow:0 8px 24px rgba(22,33,29,.06);margin-top:16px}
+  .btn{display:inline-flex;align-items:center;gap:8px;background:#E9622E;color:#fff;border:0;border-radius:10px;padding:13px 20px;font-size:16px;font-weight:700;cursor:pointer;transition:.15s}
+  .btn:hover{background:#c94f20}.btn.ok{background:#15734f}
+  textarea{width:100%;height:220px;margin-top:12px;border:1px solid #e2ddd1;border-radius:10px;padding:11px;font-family:ui-monospace,Consolas,monospace;font-size:12px;color:#16211d;background:#fbfaf6;resize:vertical}
+  .status{margin-left:12px;font-weight:600;color:#15734f}
+  code{background:#eef0e9;padding:1px 6px;border-radius:5px;font-size:13px}
+  a{color:#c94f20;font-weight:600}
+  ol{padding-left:20px}li{margin:8px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Ativar a reclassificação de contas do DRE</h1>
+  <p>Cria as tabelas onde ficam guardadas a classificação das contas (grupo/subgrupo) e os grupos que você criar. Faz uma vez só, depois do SQL principal do DRE.</p>
+
+  <div class="card">
+    <button class="btn" id="copiar" type="button">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="9" y="9" width="12" height="12" rx="2"></rect><path d="M5 15V5a2 2 0 012-2h10"></path></svg>
+      Copiar o código SQL
+    </button>
+    <span class="status" id="status"></span>
+    <textarea id="sql" readonly spellcheck="false">-- AxisGo · DRE · Classificacao de contas (parte 2)
+-- leitura = autenticado ; escrita = admin (public.is_admin())
+
+create table if not exists public.dre_classificacao (
+  codigo     text primary key,
+  grupo      text not null,
+  subgrupo   text not null default '',
+  updated_at timestamptz not null default now()
+);
+
+alter table public.dre_classificacao enable row level security;
+
+drop policy if exists "drecl_leitura_autenticado" on public.dre_classificacao;
+create policy "drecl_leitura_autenticado"
+  on public.dre_classificacao for select to authenticated using (true);
+
+drop policy if exists "drecl_escrita_admin" on public.dre_classificacao;
+create policy "drecl_escrita_admin"
+  on public.dre_classificacao for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+
+create table if not exists public.dre_grupos (
+  nome       text primary key,
+  papel      text not null,
+  ordem      integer not null default 0,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.dre_grupos enable row level security;
+
+drop policy if exists "dregr_leitura_autenticado" on public.dre_grupos;
+create policy "dregr_leitura_autenticado"
+  on public.dre_grupos for select to authenticated using (true);
+
+drop policy if exists "dregr_escrita_admin" on public.dre_grupos;
+create policy "dregr_escrita_admin"
+  on public.dre_grupos for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+</textarea>
+  </div>
+
+  <div class="card">
+    <p style="font-weight:700;margin-top:0">Passo a passo:</p>
+    <ol>
+      <li>Abra o Supabase: <a href="https://supabase.com/dashboard/project/kfbmiasyqfpskxezzvvj/sql/new" target="_blank">SQL Editor da Batux</a>.</li>
+      <li>Clique em <b>Copiar o código SQL</b> aqui em cima.</li>
+      <li>Cole na área branca do editor (<b>Ctrl+V</b>).</li>
+      <li>Clique em <b>Run</b> (ou <b>Ctrl+Enter</b>).</li>
+      <li>Deve aparecer <code>Success. No rows returned</code>. Pronto! ✅</li>
+    </ol>
+    <p class="status" style="color:#4a4a42">Depois disso, no DRE aparece o botão <b>“Reclassificar contas”</b> (para admin).</p>
+  </div>
+</div>
+<script>
+const area=document.getElementById('sql'),btn=document.getElementById('copiar'),status=document.getElementById('status');
+btn.addEventListener('click',async()=>{
+  try{await navigator.clipboard.writeText(area.value)}catch{area.focus();area.select();document.execCommand('copy')}
+  status.textContent='✓ Copiado!';btn.classList.add('ok');btn.lastChild.textContent=' Copiado!';
+  setTimeout(()=>{status.textContent='';btn.classList.remove('ok');btn.lastChild.textContent=' Copiar o código SQL'},2500);
+});
+</script>
+</body>
+</html>
