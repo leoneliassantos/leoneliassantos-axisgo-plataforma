@@ -14,9 +14,9 @@ type Aba = 'demonstrativo' | 'indicadores'
 export function FluxoCaixaHub() {
   const [aba, setAba] = useState<Aba>('demonstrativo')
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-2">
       <div className="mx-auto w-full" style={{ maxWidth: 'min(1400px, 95vw)' }}>
-        <div className="inline-flex items-center gap-1 rounded-xl border border-line bg-surface p-1 shadow-card">
+        <div className="inline-flex items-center gap-1 rounded-xl border border-line bg-surface p-0.5 shadow-card">
           <SubTab ativo={aba === 'demonstrativo'} onClick={() => setAba('demonstrativo')}>
             <IconFluxo />
             Demonstrativo
@@ -39,7 +39,7 @@ function SubTab({ ativo, onClick, children }: { ativo: boolean; onClick: () => v
       type="button"
       onClick={onClick}
       aria-pressed={ativo}
-      className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-bold transition ${
+      className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-[13px] font-bold transition ${
         ativo ? 'bg-brand text-white shadow-brand' : 'text-muted hover:bg-brand/10 hover:text-brand'
       }`}
     >

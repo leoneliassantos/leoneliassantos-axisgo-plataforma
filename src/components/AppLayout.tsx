@@ -25,7 +25,7 @@ export function AppLayout() {
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-20 border-b border-line bg-surface">
-        <div className="mx-auto flex h-16 w-full max-w-content items-center gap-5 px-5">
+        <div className="mx-auto flex h-14 w-full max-w-content items-center gap-5 px-5">
           <Link to="/" className="flex items-center">
             {CLIENT.logo ? (
               <img
@@ -88,7 +88,7 @@ export function AppLayout() {
         </div>
       )}
 
-      <main className="mx-auto w-full max-w-content flex-1 px-5 py-4">
+      <main className="mx-auto w-full max-w-content flex-1 px-5 py-2.5">
         <Outlet />
       </main>
 

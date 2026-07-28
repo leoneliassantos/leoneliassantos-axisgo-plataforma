@@ -387,7 +387,7 @@ export function FluxoCaixa() {
 
   return (
     <div
-      className="fcx flex flex-col gap-4"
+      className="fcx flex flex-col gap-3"
       style={{ width: 'min(1400px, 95vw)', position: 'relative', left: '50%', transform: 'translateX(-50%)' }}
     >
       <ScopedStyle />
@@ -395,7 +395,7 @@ export function FluxoCaixa() {
       {/* Cabeçalho do módulo */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="font-serif text-xl font-semibold text-ink">Fluxo de Caixa</h2>
+          <h2 className="font-serif text-lg font-semibold text-ink">Fluxo de Caixa</h2>
           <p className="text-[13px] text-muted">
             Regime de caixa{anos ? ` · exercício ${anos}` : ''} · recebimentos e pagamentos efetivados
           </p>
@@ -590,7 +590,7 @@ function Categoria({
 function Kpi({ lbl, val, accent, foot, signed }: { lbl: string; val: number; accent: 'pos' | 'neg' | 'band'; foot: string; signed?: boolean }) {
   const cor = signed ? (val < 0 ? 'text-neg' : accent === 'band' ? 'text-ink' : 'text-pos') : accent === 'pos' ? 'text-pos' : accent === 'neg' ? 'text-neg' : 'text-ink'
   return (
-    <div className="relative overflow-hidden rounded-xl border border-line bg-surface px-4 py-3">
+    <div className="relative flex min-h-[74px] flex-col justify-center overflow-hidden rounded-xl border border-line bg-surface px-4 py-2.5">
       <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: 'linear-gradient(180deg, #FE9F2E 0%, #FB5403 55%, #F5390A 100%)' }} />
       <div className="text-[10px] font-bold uppercase tracking-wider text-muted">{lbl}</div>
       <div className={`mt-1 text-[20px] font-extrabold tnum ${cor}`}>R$ {fmt(val)}</div>

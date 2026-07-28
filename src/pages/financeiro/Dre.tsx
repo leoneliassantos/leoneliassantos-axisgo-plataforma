@@ -278,7 +278,7 @@ export function Dre() {
   /* ---------- render ---------- */
   return (
     <div
-      className="dre-mod flex flex-col gap-4"
+      className="dre-mod flex flex-col gap-3"
       style={{ width: 'min(1400px, 95vw)', position: 'relative', left: '50%', transform: 'translateX(-50%)' }}
     >
       <ScopedStyle />
@@ -286,7 +286,7 @@ export function Dre() {
       {/* Cabeçalho do módulo */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="font-serif text-xl font-semibold text-ink">DRE — Demonstração do Resultado</h2>
+          <h2 className="font-serif text-lg font-semibold text-ink">DRE — Demonstração do Resultado</h2>
           <p className="text-[13px] text-muted">
             Regime de competência · a partir do Razão Contábil{anos.length ? ` · ${anos.join('/')}` : ''} · negativos entre parênteses
           </p>
@@ -528,7 +528,7 @@ function Kpi({
   const cor = val === null ? 'text-ink' : signed ? (val < 0 ? 'text-neg' : accent === 'band' ? 'text-ink' : 'text-pos') : accent === 'pos' ? 'text-pos' : accent === 'neg' ? 'text-neg' : 'text-ink'
   const texto = val === null ? '—' : isPct ? `${val.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%` : `R$ ${fmt(val)}`
   return (
-    <div className="relative overflow-hidden rounded-xl border border-line bg-surface px-4 py-3">
+    <div className="relative flex min-h-[74px] flex-col justify-center overflow-hidden rounded-xl border border-line bg-surface px-4 py-2.5">
       <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: GRAD_KPI }} />
       <div className="text-[10px] font-bold uppercase tracking-wider text-muted">{lbl}</div>
       <div className={`mt-1 text-[20px] font-extrabold tnum ${cor}`}>{texto}</div>
