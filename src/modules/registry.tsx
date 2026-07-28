@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react'
 import { EmConstrucao } from '../components/EmConstrucao'
 import { Rentabilidade } from '../pages/financeiro/Rentabilidade'
-import { Indicadores } from '../pages/financeiro/Indicadores'
-import { FluxoCaixa } from '../pages/financeiro/FluxoCaixa'
+import { FluxoCaixaHub } from '../pages/financeiro/FluxoCaixaHub'
 import { Dre } from '../pages/financeiro/Dre'
 import { Vendas } from '../pages/financeiro/Vendas'
 
@@ -114,9 +113,8 @@ const TODAS_FRENTES: Frente[] = [
       // Módulo sob demanda (optIn): aparece só onde VITE_MODULES incluir "vendas".
       { slug: 'vendas', label: 'Vendas', element: <Vendas />, optIn: true },
       { slug: 'dre', label: 'DRE', element: <Dre /> },
-      { slug: 'fluxo-caixa', label: 'Fluxo de Caixa', element: <FluxoCaixa /> },
+      { slug: 'fluxo-caixa', label: 'Fluxo de Caixa', element: <FluxoCaixaHub /> },
       { slug: 'rentabilidade', label: 'Rentabilidade de Projetos', element: <Rentabilidade /> },
-      { slug: 'indicadores', label: 'Indicadores', element: <Indicadores /> },
     ],
   },
 ]
