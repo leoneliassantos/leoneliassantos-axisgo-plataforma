@@ -62,7 +62,7 @@ export function Dre() {
   const [empresaSel, setEmpresaSel] = useState<string>(CONSOLIDADO)
   const [mesDe, setMesDe] = useState(0)
   const [mesAte, setMesAte] = useState(11)
-  const [semEquiv, setSemEquiv] = useState(false)
+  const [semEquiv, setSemEquiv] = useState(true)
   const [view, setView] = useState<'anual' | 'mensal'>('mensal')
   const [modo, setModo] = useState<'dre' | 'classificar'>('dre')
   const [salvandoCls, setSalvandoCls] = useState(false)
@@ -128,16 +128,6 @@ export function Dre() {
   useEffect(() => {
     if (empresaSel !== CONSOLIDADO && !empresas.some((e) => e.empresa === empresaSel)) setEmpresaSel(CONSOLIDADO)
   }, [empresas, empresaSel])
-
-  // ao carregar a base pela 1ª vez, abrir na PRIMEIRA empresa (não no consolidado)
-  const initEmpresaFeito = useRef(false)
-  useEffect(() => {
-    if (initEmpresaFeito.current) return
-    if (empresas.length) {
-      initEmpresaFeito.current = true
-      setEmpresaSel(empresas[0].empresa)
-    }
-  }, [empresas])
 
   /* ---------- classificação efetiva ---------- */
   const classificar = useMemo(() => montarClassificador(overrides), [overrides])
