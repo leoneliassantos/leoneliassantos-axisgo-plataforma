@@ -54,6 +54,8 @@ export function Dre() {
   const [overrides, setOverrides] = useState<Record<string, { grupo: string; subgrupo: string }>>({})
   const [customGrupos, setCustomGrupos] = useState<GrupoDef[]>([])
   const [empresaSel, setEmpresaSel] = useState<string>(CONSOLIDADO)
+  const [mesDe, setMesDe] = useState(0)
+  const [mesAte, setMesAte] = useState(11)
   const [view, setView] = useState<'anual' | 'mensal'>('anual')
   const [modo, setModo] = useState<'dre' | 'classificar'>('dre')
   const [salvandoCls, setSalvandoCls] = useState(false)
@@ -124,9 +126,30 @@ export function Dre() {
   const classificar = useMemo(() => montarClassificador(overrides), [overrides])
   const catalogo = useMemo(() => montarCatalogo(customGrupos), [customGrupos])
 
-  /* ---------- DRE do recorte selecionado ---------- */
-  const filtro = useMemo(() => (empresaSel === CONSOLIDADO ? rows : rows.filter((r) => r.empresa === empresaSel)), [rows, empresaSel])
+  /* ---------- recorte por empresa + período (mês De/Até) ---------- */
+  const rowsEmpresa = useMemo(() => (empresaSel === CONSOLIDADO ? rows : rows.filter((r) => r.empresa === empresaSel)), [rows, empresaSel])
+  const mesesDisponiveis = useMemo(() => {
+    const set = new Set<number>()
+    for (const r of rowsEmpresa) if (r.mes >= 1 && r.mes <= 12) set.add(r.mes - 1)
+    return [...set].sort((a, b) => a - b)
+  }, [rowsEmpresa])
+  // ajusta o período para a faixa disponível quando a base/empresa muda
+  useEffect(() => {
+    if (!mesesDisponiveis.length) return
+    const min = mesesDisponiveis[0]
+    const max = mesesDisponiveis[mesesDisponiveis.length - 1]
+    setMesDe((d) => (d < min || d > max ? min : d))
+    setMesAte((a) => (a < min || a > max ? max : a))
+  }, [mesesDisponiveis])
+
+  const filtro = useMemo(() => rowsEmpresa.filter((r) => r.mes - 1 >= mesDe && r.mes - 1 <= mesAte), [rowsEmpresa, mesDe, mesAte])
   const { linhas } = useMemo(() => buildDRE(filtro, { classificar, catalogo }), [filtro, classificar, catalogo])
+  const mesesVis = useMemo(() => {
+    const a: number[] = []
+    for (let m = mesDe; m <= mesAte; m++) a.push(m)
+    return a
+  }, [mesDe, mesAte])
+  const umMes = mesDe === mesAte
 
   /* ---------- universo de contas (para o editor de classificação) ---------- */
   const universo = useMemo<ContaUniverso[]>(() => {
@@ -168,11 +191,6 @@ export function Dre() {
       setSalvandoCls(false)
     }
   }
-  const mesesComDados = useMemo(() => {
-    const set = new Set<number>()
-    for (const r of filtro) set.add(r.mes)
-    return [...set].sort((a, b) => a - b)
-  }, [filtro])
   const anos = useMemo(() => [...new Set(filtro.map((r) => r.ano))].filter(Boolean).sort(), [filtro])
 
   /* ---------- KPIs ---------- */
@@ -336,9 +354,21 @@ export function Dre() {
               </button>
             ))}
           </div>
-          <div className="seg">
-            <button className={view === 'anual' ? 'on' : ''} onClick={() => setView('anual')}>Acumulado</button>
-            <button className={view === 'mensal' ? 'on' : ''} onClick={() => setView('mensal')}>Mensal</button>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1.5 text-[12px] text-muted">
+              <span className="text-[10px] font-bold uppercase tracking-wider">Período</span>
+              <select className="periodo-sel" value={mesDe} onChange={(e) => { const v = +e.target.value; setMesDe(v); if (v > mesAte) setMesAte(v) }} title="Mês inicial">
+                {mesesDisponiveis.map((m) => <option key={m} value={m}>{MESES[m]}</option>)}
+              </select>
+              <span>a</span>
+              <select className="periodo-sel" value={mesAte} onChange={(e) => { const v = +e.target.value; setMesAte(v); if (v < mesDe) setMesDe(v) }} title="Mês final">
+                {mesesDisponiveis.map((m) => <option key={m} value={m}>{MESES[m]}</option>)}
+              </select>
+            </div>
+            <div className="seg">
+              <button className={view === 'anual' ? 'on' : ''} onClick={() => setView('anual')}>Acumulado</button>
+              <button className={view === 'mensal' ? 'on' : ''} onClick={() => setView('mensal')}>Mensal</button>
+            </div>
           </div>
         </div>
 
@@ -359,16 +389,16 @@ export function Dre() {
               <thead>
                 <tr>
                   <th className="rowlabel">Conta</th>
-                  {view === 'mensal' && MESES.map((m) => <th key={m}>{m}</th>)}
-                  <th className="col-total">{view === 'mensal' ? 'Acum.' : 'Valor'}</th>
+                  {view === 'mensal' && mesesVis.map((i) => <th key={i}>{MESES[i]}</th>)}
+                  <th className="col-total">{view === 'mensal' ? (umMes ? 'Mês' : 'Período') : umMes ? MESES[mesDe] : 'Período'}</th>
                 </tr>
               </thead>
               <tbody>
                 {linhas.map((l) =>
                   l.tipo === 'grupo' ? (
-                    <Grupo key={l.key} l={l} view={view} open={open} toggle={toggle} />
+                    <Grupo key={l.key} l={l} view={view} mesesVis={mesesVis} open={open} toggle={toggle} />
                   ) : (
-                    <LinhaSubtotal key={l.key} l={l} view={view} />
+                    <LinhaSubtotal key={l.key} l={l} view={view} mesesVis={mesesVis} />
                   ),
                 )}
               </tbody>
@@ -380,8 +410,10 @@ export function Dre() {
       {/* Rodapé de dicas */}
       <div className="flex flex-wrap items-center gap-2 text-[12px] text-muted">
         <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">💡 Clique numa conta para ver o detalhamento</span>
-        {mesesComDados.length > 0 && (
-          <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">Período: {mesesComDados.map((m) => MESES[m - 1]).join(', ')}</span>
+        {!vazio && (
+          <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">
+            Período: {umMes ? MESES[mesDe] : `${MESES[mesDe]} a ${MESES[mesAte]}`}{anos.length ? ` / ${anos.join(', ')}` : ''}
+          </span>
         )}
         <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">Contas de Balanço (1 e 2) e Apuração (5.8) não entram no DRE</span>
         {isAdmin && <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">Admin: use “Reclassificar contas” para ajustar grupos e subgrupos</span>}
@@ -395,15 +427,15 @@ export function Dre() {
 }
 
 /* --------------------------- subcomponentes --------------------------- */
-function Cells({ mes, total, view }: { mes: number[]; total: number; view: 'anual' | 'mensal' }) {
+function Cells({ mes, total, view, mesesVis }: { mes: number[]; total: number; view: 'anual' | 'mensal'; mesesVis: number[] }) {
   return (
     <>
-      {view === 'mensal' && mes.map((v, i) => <td key={i} className={`num ${clsNum(v)}`}>{fmt(v)}</td>)}
+      {view === 'mensal' && mesesVis.map((i) => <td key={i} className={`num ${clsNum(mes[i])}`}>{fmt(mes[i])}</td>)}
       <td className={`num col-total ${clsNum(total)}`}>{fmt(total)}</td>
     </>
   )
 }
-function Grupo({ l, view, open, toggle }: { l: LinhaGrupo; view: 'anual' | 'mensal'; open: Record<string, boolean>; toggle: (k: string) => void }) {
+function Grupo({ l, view, mesesVis, open, toggle }: { l: LinhaGrupo; view: 'anual' | 'mensal'; mesesVis: number[]; open: Record<string, boolean>; toggle: (k: string) => void }) {
   const temFilhos = l.subgrupos.length > 0 || l.contas.length > 0
   const aberto = !!open[l.key]
   return (
@@ -413,22 +445,22 @@ function Grupo({ l, view, open, toggle }: { l: LinhaGrupo; view: 'anual' | 'mens
           {temFilhos && <span className="caret">▶</span>}
           <span className={`op ${l.sinal === '+' ? 'pos' : ''}`}>({l.sinal})</span> {l.label}
         </td>
-        <Cells mes={l.mes} total={l.total} view={view} />
+        <Cells mes={l.mes} total={l.total} view={view} mesesVis={mesesVis} />
       </tr>
       {aberto && (
         <>
           {l.subgrupos.map((s: SubgrupoLinha) => (
-            <Subgrupo key={s.nome} gkey={l.key} s={s} view={view} open={open} toggle={toggle} />
+            <Subgrupo key={s.nome} gkey={l.key} s={s} view={view} mesesVis={mesesVis} open={open} toggle={toggle} />
           ))}
           {l.contas.map((c: ContaLinha) => (
-            <ContaRow key={c.codigo} c={c} view={view} nivel={1} />
+            <ContaRow key={c.codigo} c={c} view={view} mesesVis={mesesVis} nivel={1} />
           ))}
         </>
       )}
     </>
   )
 }
-function Subgrupo({ gkey, s, view, open, toggle }: { gkey: string; s: SubgrupoLinha; view: 'anual' | 'mensal'; open: Record<string, boolean>; toggle: (k: string) => void }) {
+function Subgrupo({ gkey, s, view, mesesVis, open, toggle }: { gkey: string; s: SubgrupoLinha; view: 'anual' | 'mensal'; mesesVis: number[]; open: Record<string, boolean>; toggle: (k: string) => void }) {
   const k = `sub:${gkey}|${s.nome}`
   const aberto = !!open[k]
   return (
@@ -437,28 +469,28 @@ function Subgrupo({ gkey, s, view, open, toggle }: { gkey: string; s: SubgrupoLi
         <td className="rowlabel">
           <span className="caret">▶</span> {s.nome}
         </td>
-        <Cells mes={s.mes} total={s.total} view={view} />
+        <Cells mes={s.mes} total={s.total} view={view} mesesVis={mesesVis} />
       </tr>
-      {aberto && s.contas.map((c: ContaLinha) => <ContaRow key={c.codigo} c={c} view={view} nivel={2} />)}
+      {aberto && s.contas.map((c: ContaLinha) => <ContaRow key={c.codigo} c={c} view={view} mesesVis={mesesVis} nivel={2} />)}
     </>
   )
 }
-function ContaRow({ c, view, nivel }: { c: ContaLinha; view: 'anual' | 'mensal'; nivel: 1 | 2 }) {
+function ContaRow({ c, view, mesesVis, nivel }: { c: ContaLinha; view: 'anual' | 'mensal'; mesesVis: number[]; nivel: 1 | 2 }) {
   return (
     <tr className={`detail n${nivel}`}>
       <td className="rowlabel">
         <span className="cod">{c.codigo}</span> {c.nome}
       </td>
-      <Cells mes={c.mes} total={c.total} view={view} />
+      <Cells mes={c.mes} total={c.total} view={view} mesesVis={mesesVis} />
     </tr>
   )
 }
-function LinhaSubtotal({ l, view }: { l: Exclude<LinhaDRE, LinhaGrupo>; view: 'anual' | 'mensal' }) {
+function LinhaSubtotal({ l, view, mesesVis }: { l: Exclude<LinhaDRE, LinhaGrupo>; view: 'anual' | 'mensal'; mesesVis: number[] }) {
   const cls = l.tipo === 'final' ? 'result final' : l.tipo === 'result' ? 'result' : 'sub'
   return (
     <tr className={cls}>
       <td className="rowlabel">{l.label}</td>
-      <Cells mes={l.mes} total={l.total} view={view} />
+      <Cells mes={l.mes} total={l.total} view={view} mesesVis={mesesVis} />
     </tr>
   )
 }
@@ -544,6 +576,8 @@ function ScopedStyle() {
 .dre-mod .seg{display:inline-flex;background:#EEEAE3;border-radius:9px;padding:3px;gap:2px}
 .dre-mod .seg button{border:0;background:transparent;font:inherit;font-size:12px;font-weight:700;color:#7a756c;padding:5px 13px;border-radius:7px;cursor:pointer;white-space:nowrap}
 .dre-mod .seg button.on{background:#fff;color:#1F2937;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.dre-mod .periodo-sel{font:inherit;font-size:12px;font-weight:700;color:#1F2937;background:#fff;border:1px solid #E7E3DF;border-radius:7px;padding:4px 6px;cursor:pointer}
+.dre-mod .periodo-sel:focus{outline:2px solid rgb(var(--brand));border-color:rgb(var(--brand))}
 `}</style>
   )
 }
