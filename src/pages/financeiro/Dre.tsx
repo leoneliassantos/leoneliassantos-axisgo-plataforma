@@ -48,6 +48,8 @@ function fmt(v: number): string {
   return v < 0 ? `(${s})` : s
 }
 const clsNum = (v: number) => (Math.abs(v) < 0.5 ? 'zero' : v < 0 ? 'neg' : '')
+// Degradê quente (âmbar → laranja → vermelho-laranja) — barrinha dos KPIs, estilo MC
+const GRAD_KPI = 'linear-gradient(180deg, #FE9F2E 0%, #FB5403 55%, #F5390A 100%)'
 
 /* ============================ Componente ============================ */
 export function Dre() {
@@ -534,11 +536,10 @@ function Kpi({
   isPct?: boolean
 }) {
   const cor = val === null ? 'text-ink' : signed ? (val < 0 ? 'text-neg' : accent === 'band' ? 'text-ink' : 'text-pos') : accent === 'pos' ? 'text-pos' : accent === 'neg' ? 'text-neg' : 'text-ink'
-  const bar = accent === 'pos' ? 'bg-pos' : accent === 'neg' ? 'bg-neg' : 'bg-band'
   const texto = val === null ? '—' : isPct ? `${val.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%` : `R$ ${fmt(val)}`
   return (
     <div className="relative overflow-hidden rounded-xl border border-line bg-surface px-4 py-3">
-      <span className={`absolute inset-y-0 left-0 w-1 ${bar}`} />
+      <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: GRAD_KPI }} />
       <div className="text-[10px] font-bold uppercase tracking-wider text-muted">{lbl}</div>
       <div className={`mt-1 text-[20px] font-extrabold tnum ${cor}`}>{texto}</div>
       <div className="mt-0.5 text-[11px] text-muted">{foot}</div>

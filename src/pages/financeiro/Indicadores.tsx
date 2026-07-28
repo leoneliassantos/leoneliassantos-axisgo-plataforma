@@ -8,10 +8,13 @@ import { CLIENT } from '../../config/client'
 // Paleta quente — segue a cor de marca do cliente (white-label); fallback laranja.
 const MARCA = CLIENT.brand || '#FB5403'
 const COR_REC = MARCA // Receitas / entradas — cor da marca
-const COR_DESP = '#F5A97F' // Despesas / pagamentos — salmão suave (complementar)
+const COR_DESP = '#FBBE6B' // Despesas / pagamentos — âmbar suave (complementar quente)
 // Pontos do gráfico "Evolução do Saldo"
 const SALDO_POS = MARCA
 const SALDO_NEG = '#A8401B' // tom queimado (saldo negativo)
+// Degradê QUENTE (laranja → amarelo) estilo MC — donut, barras e KPIs
+const PAL_QUENTE = ['#F5390A', '#FB5403', '#FD7E14', '#FE9F2E', '#FFBF4D', '#FFD466', '#FFE38C']
+const GRAD_KPI = 'linear-gradient(180deg, #FE9F2E 0%, #FB5403 55%, #F5390A 100%)'
 const sumArr = (a: number[]) => a.reduce((s, v) => s + v, 0)
 
 export function Indicadores() {
@@ -223,7 +226,7 @@ export function Indicadores() {
           <DonutDespesas itens={cap(m.compDesp, 6)} total={m.totP} />
         </Tile>
         <Tile className="col-span-12 lg:col-span-4" titulo="Top Clientes" tip="Maiores fontes de recebimento (por descrição) no período. Clique em Detalhes para a lista completa." onDetalhes={() => setDetalhe(detalheClientes())}>
-          <BarrasHorizontais itens={m.topCli.slice(0, 5)} cor={COR_REC} total={m.totR} />
+          <BarrasHorizontais itens={m.topCli.slice(0, 5)} cor={COR_REC} total={m.totR} pal={PAL_QUENTE} />
         </Tile>
       </div>
 
@@ -431,7 +434,7 @@ function ModalDetalhe({ dados, onClose }: { dados: Detalhe; onClose: () => void 
 function Kpi({ lbl, val, foot, tip }: { lbl: string; val: number; foot: string; tip: string }) {
   return (
     <div className="relative overflow-hidden rounded-xl border border-line bg-surface px-3 py-2">
-      <span className="absolute inset-y-0 left-0 w-1" style={{ background: COR_REC }} />
+      <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: GRAD_KPI }} />
       <div className="flex items-center">
         <span className="text-[10px] font-bold uppercase tracking-wider text-muted">{lbl}</span>
         <Info tip={tip} />
@@ -444,7 +447,7 @@ function Kpi({ lbl, val, foot, tip }: { lbl: string; val: number; foot: string; 
 function KpiTexto({ lbl, valor, foot, tip }: { lbl: string; valor: string; foot: string; tip: string }) {
   return (
     <div className="relative overflow-hidden rounded-xl border border-line bg-surface px-3 py-2">
-      <span className="absolute inset-y-0 left-0 w-1" style={{ background: COR_REC }} />
+      <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: GRAD_KPI }} />
       <div className="flex items-center">
         <span className="text-[10px] font-bold uppercase tracking-wider text-muted">{lbl}</span>
         <Info tip={tip} />
@@ -538,8 +541,8 @@ function BarrasMensais({ receb, pag, labels }: { receb: number[]; pag: number[];
     </div>
   )
 }
-// Degradê de laranja (do queimado ao pêssego) para as fatias do donut
-const PAL_DESP = ['#C33C16', '#E0531F', '#EC6B34', '#F2854E', '#F5A177', '#F8BE9E', '#FBD9C6']
+// Degradê QUENTE (laranja → amarelo) para as fatias do donut — estilo MC
+const PAL_DESP = PAL_QUENTE
 
 function DonutDespesas({ itens, total }: { itens: { nome: string; valor: number }[]; total: number }) {
   if (!itens.length || total <= 0) return <div className="flex h-full items-center text-[12px] text-muted">Sem dados no filtro.</div>
@@ -590,17 +593,17 @@ function DonutDespesas({ itens, total }: { itens: { nome: string; valor: number 
   )
 }
 
-function BarrasHorizontais({ itens, cor, total }: { itens: { nome: string; valor: number }[]; cor: string; total: number }) {
+function BarrasHorizontais({ itens, cor, total, pal }: { itens: { nome: string; valor: number }[]; cor: string; total: number; pal?: string[] }) {
   if (!itens.length) return <div className="flex h-full items-center text-[12px] text-muted">Sem dados no filtro.</div>
   const max = itens[0].valor || 1
   return (
     // cada linha é flexível (flex-1) → todas dividem a altura e SEMPRE cabem, sem corte
     <div className="flex h-full flex-col">
-      {itens.map((it) => (
+      {itens.map((it, i) => (
         <div key={it.nome} className="flex min-h-0 flex-1 items-center gap-1.5 text-[11px]">
           <div className="w-[32%] shrink-0 truncate text-ink" title={it.nome}>{it.nome}</div>
           <div className="h-3.5 flex-1 overflow-hidden rounded bg-paper">
-            <div className="h-full rounded" style={{ width: `${(it.valor / max) * 100}%`, background: cor, minWidth: 2 }} />
+            <div className="h-full rounded" style={{ width: `${(it.valor / max) * 100}%`, background: pal ? pal[i % pal.length] : cor, minWidth: 2 }} />
           </div>
           <div className="w-[58px] shrink-0 text-right font-semibold tnum text-ink">{fmtCompacto(it.valor)}</div>
           <div className="w-[34px] shrink-0 text-right tnum text-muted">{total ? Math.round((it.valor / total) * 100) : 0}%</div>
