@@ -5,6 +5,7 @@ import { readFirstSheetAOA } from '../../lib/xls'
 import {
   apelidoEmpresa,
   buildDRE,
+  ddlParaRows,
   MESES,
   montarCatalogo,
   montarClassificador,
@@ -16,6 +17,7 @@ import {
   type SubgrupoLinha,
 } from './razaoDre'
 import { ClassificacaoContas, type ContaUniverso } from './ClassificacaoContas'
+import { Ddl, type DdlEntry } from './Ddl'
 
 /* ================================================================== *
  *  DRE — Demonstração do Resultado do Exercício (multiempresa)
@@ -57,6 +59,7 @@ export function Dre() {
   const isAdmin = user?.role === 'admin'
 
   const [rows, setRows] = useState<Lanc[]>([])
+  const [ddl, setDdl] = useState<DdlEntry[]>([])
   const [overrides, setOverrides] = useState<Record<string, { grupo: string; subgrupo: string }>>({})
   const [customGrupos, setCustomGrupos] = useState<GrupoDef[]>([])
   const [empresaSel, setEmpresaSel] = useState<string>(CONSOLIDADO)
@@ -64,8 +67,9 @@ export function Dre() {
   const [mesAte, setMesAte] = useState(11)
   const [semEquiv, setSemEquiv] = useState(true)
   const [view, setView] = useState<'anual' | 'mensal'>('mensal')
-  const [modo, setModo] = useState<'dre' | 'classificar'>('dre')
+  const [modo, setModo] = useState<'dre' | 'classificar' | 'ddl'>('dre')
   const [salvandoCls, setSalvandoCls] = useState(false)
+  const [salvandoDdl, setSalvandoDdl] = useState(false)
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -101,15 +105,23 @@ export function Dre() {
         credito: Number(r.credito) || 0,
       })),
     )
-    // classificação + grupos customizados (tolera tabelas ausentes = usa padrão)
-    const [cls, grp] = await Promise.all([
+    // classificação + grupos customizados + DDL (tolera tabelas ausentes = usa padrão)
+    const [cls, grp, ddlRes] = await Promise.all([
       supabase.from('dre_classificacao').select('codigo, grupo, subgrupo'),
       supabase.from('dre_grupos').select('nome, papel, ordem').order('ordem'),
+      supabase.from('dre_ddl').select('empresa, socio, ano, mes, valor'),
     ])
     const ov: Record<string, { grupo: string; subgrupo: string }> = {}
     for (const c of cls.data ?? []) ov[(c.codigo ?? '').toString()] = { grupo: (c.grupo ?? '').toString(), subgrupo: (c.subgrupo ?? '').toString() }
     setOverrides(ov)
     setCustomGrupos((grp.data ?? []).map((g) => ({ nome: (g.nome ?? '').toString(), papel: (g.papel ?? 'despesa_op') as GrupoDef['papel'] })))
+    setDdl((ddlRes.data ?? []).map((d) => ({
+      empresa: (d.empresa ?? '').toString(),
+      socio: (d.socio ?? '').toString(),
+      ano: Number(d.ano) || 0,
+      mes: Number(d.mes) || 0,
+      valor: Number(d.valor) || 0,
+    })))
     setLoading(false)
   }, [mode])
 
@@ -133,8 +145,17 @@ export function Dre() {
   const classificar = useMemo(() => montarClassificador(overrides), [overrides])
   const catalogo = useMemo(() => montarCatalogo(customGrupos), [customGrupos])
 
+  /* ---------- DDL: linha sintética por empresa/mês (Pessoal e Encargos) ---------- */
+  const ddlLancs = useMemo<Lanc[]>(
+    () => ddlParaRows(ddl).map((r) => ({ empresa: r.empresa, codigo: r.codigo, nome: r.nome, ano: r.ano, mes: r.mes, debito: r.debito, credito: r.credito })),
+    [ddl],
+  )
+
   /* ---------- recorte por empresa + período (mês De/Até) ---------- */
-  const rowsEmpresa = useMemo(() => (empresaSel === CONSOLIDADO ? rows : rows.filter((r) => r.empresa === empresaSel)), [rows, empresaSel])
+  // rows reais + DDL sintético (o DDL entra no cálculo do DRE, mas fica fora do
+  // universo de reclassificação e do download da base).
+  const baseRows = useMemo(() => [...rows, ...ddlLancs], [rows, ddlLancs])
+  const rowsEmpresa = useMemo(() => (empresaSel === CONSOLIDADO ? baseRows : baseRows.filter((r) => r.empresa === empresaSel)), [baseRows, empresaSel])
   const mesesDisponiveis = useMemo(() => {
     const set = new Set<number>()
     for (const r of rowsEmpresa) if (r.mes >= 1 && r.mes <= 12) set.add(r.mes - 1)
@@ -203,6 +224,35 @@ export function Dre() {
     }
   }
   const anos = useMemo(() => [...new Set(filtro.map((r) => r.ano))].filter(Boolean).sort(), [filtro])
+  // anos para o editor de DDL: todos os anos com base + os já lançados em DDL
+  const anosDisponiveis = useMemo(
+    () => [...new Set<number>([...rows.map((r) => r.ano), ...ddl.map((d) => d.ano)])].filter(Boolean).sort((a, b) => a - b),
+    [rows, ddl],
+  )
+
+  async function salvarDdl(empresa: string, ano: number, ddlRows: { socio: string; mes: number; valor: number }[]) {
+    setSalvandoDdl(true)
+    setErro(null)
+    try {
+      if (mode === 'supabase' && supabase) {
+        const { error } = await supabase.rpc('dre_ddl_replace', { p_empresa: empresa, p_ano: ano, p_rows: ddlRows })
+        if (error) throw new Error(error.message)
+        await carregar()
+      } else {
+        // modo demo: substitui em memória os lançamentos da empresa+ano
+        setDdl((prev) => [
+          ...prev.filter((d) => !(d.empresa === empresa && d.ano === ano)),
+          ...ddlRows.map((r) => ({ empresa, socio: r.socio, ano, mes: r.mes, valor: r.valor })),
+        ])
+      }
+      setModo('dre')
+      setAviso('DDL salvo. A linha DDL do DRE foi atualizada.')
+    } catch (e) {
+      setErro(`Não consegui salvar o DDL: ${(e as Error).message}. Rode o SQL do DDL no Supabase (setup/dre-ddl-sql.html).`)
+    } finally {
+      setSalvandoDdl(false)
+    }
+  }
 
   /* ---------- KPIs ---------- */
   const byKey = (k: string) => linhas.find((l) => l.key === k)
@@ -306,6 +356,15 @@ export function Dre() {
             )}
             <button
               className="inline-flex items-center gap-2 rounded-lg border border-brand/30 bg-brand/10 px-4 py-2.5 text-[13px] font-bold text-brand transition hover:bg-brand/20 disabled:opacity-50"
+              onClick={() => setModo('ddl')}
+              disabled={busy || vazio}
+              title="Antecipação de lucros dos sócios (DDL) — lançar/consultar por sócio"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3" /><path d="M2 20c0-3.3 3.1-5 7-5s7 1.7 7 5" /><path d="M17 8h5M19.5 5.5v5" /></svg>
+              DDL
+            </button>
+            <button
+              className="inline-flex items-center gap-2 rounded-lg border border-brand/30 bg-brand/10 px-4 py-2.5 text-[13px] font-bold text-brand transition hover:bg-brand/20 disabled:opacity-50"
               onClick={baixarBase}
               disabled={busy || vazio}
               title="Baixar a base atual em Excel"
@@ -340,6 +399,16 @@ export function Dre() {
           onSalvar={salvarClassificacao}
           onFechar={() => setModo('dre')}
           salvando={salvandoCls}
+        />
+      ) : modo === 'ddl' ? (
+        <Ddl
+          entries={ddl}
+          empresas={empresas}
+          anos={anosDisponiveis}
+          onSalvar={salvarDdl}
+          onFechar={() => setModo('dre')}
+          salvando={salvandoDdl}
+          somenteLeitura={!isAdmin}
         />
       ) : (
         <>

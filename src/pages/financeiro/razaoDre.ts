@@ -183,6 +183,42 @@ export const CATALOGO_PADRAO: GrupoDef[] = [
 const RECEITA_PAPEIS = new Set<Papel>(['receita_bruta', 'outra_rec_op', 'rec_fin'])
 const ehReceita = (p: Papel) => RECEITA_PAPEIS.has(p)
 
+/* ------------------------------- DDL ------------------------------- */
+// DDL = Distribuição Desproporcional de Lucros (antecipação de lucros dos
+// sócios, lançada manualmente). Entra no DRE como UMA linha "DDL" dentro do
+// subgrupo Pessoal e Encargos (Despesas Operacionais). O detalhe por sócio
+// vive no ambiente analítico — aqui os valores já vêm somados por empresa/mês.
+export const DDL_CODIGO = '__ddl__'
+export const DDL_NOME = 'DDL — Distribuição Desproporcional de Lucros'
+export const DDL_GRUPO = 'Despesas Operacionais'
+export const DDL_SUBGRUPO = 'Pessoal e Encargos'
+
+export interface DdlLanc {
+  empresa: string
+  ano: number
+  mes: number // 1..12
+  valor: number
+}
+/**
+ * Soma os lançamentos de DDL por (empresa, ano, mês) numa única "conta"
+ * sintética por empresa/mês (código DDL_CODIGO), pronta para o buildDRE.
+ * É tratada como despesa: debito = valor (subtrai do resultado).
+ */
+export function ddlParaRows(lancs: DdlLanc[]): (RowLike & { empresa: string; ano: number })[] {
+  const agg = new Map<string, RowLike & { empresa: string; ano: number }>()
+  for (const l of lancs) {
+    if (!l.valor || l.mes < 1 || l.mes > 12) continue
+    const key = `${l.empresa}|${l.ano}|${l.mes}`
+    let r = agg.get(key)
+    if (!r) {
+      r = { empresa: l.empresa, ano: l.ano, codigo: DDL_CODIGO, nome: DDL_NOME, mes: l.mes, debito: 0, credito: 0 }
+      agg.set(key, r)
+    }
+    r.debito += l.valor
+  }
+  return [...agg.values()]
+}
+
 // Segmentos do DRE: agrupam papéis e definem o subtotal que vem depois.
 interface Segmento {
   papeis: Papel[]
@@ -247,6 +283,7 @@ export function classificarPadrao(codigo: string, nome: string): { grupo: string
   const N = (nome || '').toUpperCase()
   const has = (p: string) => codigo === p || codigo.startsWith(p + '.')
   const g = (grupo: string, subgrupo = '') => ({ grupo, subgrupo })
+  if (codigo === DDL_CODIGO) return g(DDL_GRUPO, DDL_SUBGRUPO)
   if (has('3.1.10')) return g('Receita Operacional Bruta')
   if (has('3.1.20')) return g('Deduções da Receita Bruta')
   if (/DEPRECIA|AMORTIZA/.test(N)) return g('Depreciação e Amortização')
