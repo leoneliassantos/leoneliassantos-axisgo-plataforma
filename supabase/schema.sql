@@ -62,10 +62,25 @@ create policy "perfil_leitura_proprio"
   using (auth.uid() = id or public.is_admin());
 
 --    - Cada usuário atualiza o próprio nome; admin atualiza qualquer um.
+--      SEGURANÇA: sem restringir colunas + sem WITH CHECK, um usuário comum
+--      conseguiria fazer `update profiles set role='admin'` no próprio id e se
+--      auto-promover. Fechamos em DUAS camadas:
+--      (1) privilégio por coluna: authenticated só altera `nome`;
+--      (2) RLS with check: a nova linha de um não-admin não pode virar admin
+--          nem se desbloquear. Alterar role/bloqueado é exclusivo do servidor
+--          (service_role, via Edge Function admin-update-user).
+revoke update on public.profiles from authenticated;
+grant  update (nome) on public.profiles to authenticated;
+
 drop policy if exists "perfil_update" on public.profiles;
 create policy "perfil_update"
   on public.profiles for update
-  using (auth.uid() = id or public.is_admin());
+  to authenticated
+  using (auth.uid() = id or public.is_admin())
+  with check (
+    public.is_admin()
+    or (auth.uid() = id and role = 'user' and bloqueado = false)
+  );
 
 -- Observação: a CRIAÇÃO de usuários por um admin (definindo e-mail/senha de
 -- outra pessoa) deve ser feita por uma Edge Function usando a service_role key,
