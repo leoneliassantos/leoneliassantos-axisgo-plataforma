@@ -181,7 +181,8 @@ export const CATALOGO_PADRAO: GrupoDef[] = [
 ]
 
 const RECEITA_PAPEIS = new Set<Papel>(['receita_bruta', 'outra_rec_op', 'rec_fin'])
-const ehReceita = (p: Papel) => RECEITA_PAPEIS.has(p)
+export const ehReceitaPapel = (p: Papel) => RECEITA_PAPEIS.has(p)
+const ehReceita = ehReceitaPapel
 
 /* ------------------------------- DDL ------------------------------- */
 // DDL = Distribuição Desproporcional de Lucros (antecipação de lucros dos
@@ -217,6 +218,95 @@ export function ddlParaRows(lancs: DdlLanc[]): (RowLike & { empresa: string; ano
     r.debito += l.valor
   }
   return [...agg.values()]
+}
+
+/* ------------------- Reclassificação gerencial (de-para) ------------------- */
+// Ajuste gerencial de VALORES: move parte do valor de uma CONTA de origem
+// para outro grupo/subgrupo do DRE (destino), por empresa/ano/mês, SEM tocar
+// na base contábil. Entra no DRE como duas linhas sintéticas por ajuste:
+//   • CONTRA na conta de origem — reduz a conta na sua classificação original;
+//   • LANÇAMENTO no destino — código sintético mapeado ao grupo/subgrupo escolhido.
+// Auditável (o de-para fica explícito) e reversível. Core reutilizável.
+export const RECLASS_PREFIXO = '__reclass__'
+
+export interface ReclassLanc {
+  empresa: string
+  ano: number
+  mes: number // 1..12
+  origem: string // código da conta contábil de onde o valor sai
+  origemNome?: string // nome da conta de origem (rótulo)
+  grupo: string // destino: grupo (nível 1)
+  subgrupo: string // destino: subgrupo (nível 2, livre)
+  valor: number // > 0 (valor transferido)
+}
+
+const slugReclass = (s: string) => (s || '').replace(/[^a-z0-9]+/gi, '-').toLowerCase()
+
+/** Código sintético estável da linha de destino (por destino + origem, para
+ *  preservar a rastreabilidade da reclassificação dentro do próprio DRE). */
+export function reclassDestinoCodigo(grupo: string, subgrupo: string, origem: string): string {
+  return `${RECLASS_PREFIXO}${slugReclass(grupo)}|${slugReclass(subgrupo)}|${slugReclass(origem)}`
+}
+
+export interface ReclassResultado {
+  rows: (RowLike & { empresa: string; ano: number })[]
+  overrides: Record<string, { grupo: string; subgrupo: string }>
+}
+
+/**
+ * Converte os ajustes de reclassificação em linhas sintéticas para o buildDRE,
+ * mais os overrides que posicionam cada linha de destino no grupo/subgrupo certo.
+ * `papelDeGrupo` decide o lado do lançamento (grupo de receita usa crédito;
+ * de despesa/custo usa débito), tanto na contra da origem quanto no destino.
+ */
+export function reclassParaRows(
+  reclasses: ReclassLanc[],
+  papelDeGrupo: (grupo: string) => Papel,
+  classificar: Classificador,
+): ReclassResultado {
+  const agg = new Map<string, RowLike & { empresa: string; ano: number }>()
+  const overrides: Record<string, { grupo: string; subgrupo: string }> = {}
+  const add = (
+    key: string,
+    base: () => RowLike & { empresa: string; ano: number },
+    deb: number,
+    cred: number,
+  ) => {
+    let r = agg.get(key)
+    if (!r) {
+      r = base()
+      agg.set(key, r)
+    }
+    r.debito += deb
+    r.credito += cred
+  }
+  for (const l of reclasses) {
+    if (!l.valor || l.mes < 1 || l.mes > 12 || !l.origem || !l.grupo) continue
+    const origemGrupo = classificar(l.origem, l.origemNome || '').grupo
+    const origemReceita = ehReceitaPapel(papelDeGrupo(origemGrupo))
+    const destinoReceita = ehReceitaPapel(papelDeGrupo(l.grupo))
+
+    // 1) contra na origem — reduz a conta na classificação original dela.
+    const kO = `O|${l.empresa}|${l.ano}|${l.origem}|${l.mes}`
+    add(
+      kO,
+      () => ({ empresa: l.empresa, ano: l.ano, codigo: l.origem, nome: l.origemNome || l.origem, mes: l.mes, debito: 0, credito: 0 }),
+      origemReceita ? l.valor : 0,
+      origemReceita ? 0 : l.valor,
+    )
+
+    // 2) destino — código sintético mapeado ao grupo/subgrupo escolhido.
+    const codDest = reclassDestinoCodigo(l.grupo, l.subgrupo, l.origem)
+    overrides[codDest] = { grupo: l.grupo, subgrupo: l.subgrupo }
+    const kD = `D|${l.empresa}|${l.ano}|${codDest}|${l.mes}`
+    add(
+      kD,
+      () => ({ empresa: l.empresa, ano: l.ano, codigo: codDest, nome: `Reclass.: ${l.origemNome || l.origem}`, mes: l.mes, debito: 0, credito: 0 }),
+      destinoReceita ? 0 : l.valor,
+      destinoReceita ? l.valor : 0,
+    )
+  }
+  return { rows: [...agg.values()], overrides }
 }
 
 // Segmentos do DRE: agrupam papéis e definem o subtotal que vem depois.

@@ -10,14 +10,18 @@ import {
   montarCatalogo,
   montarClassificador,
   parseRazaoAOA,
+  reclassParaRows,
   type ContaLinha,
   type GrupoDef,
   type LinhaDRE,
   type LinhaGrupo,
+  type Papel,
+  type ReclassLanc,
   type SubgrupoLinha,
 } from './razaoDre'
 import { ClassificacaoContas, type ContaUniverso } from './ClassificacaoContas'
 import { Ddl, type DdlEntry } from './Ddl'
+import { AjustesReclass, type ReclassSaveRow } from './AjustesReclass'
 
 /* ================================================================== *
  *  DRE — Demonstração do Resultado do Exercício (multiempresa)
@@ -60,6 +64,7 @@ export function Dre() {
 
   const [rows, setRows] = useState<Lanc[]>([])
   const [ddl, setDdl] = useState<DdlEntry[]>([])
+  const [reclass, setReclass] = useState<ReclassLanc[]>([])
   const [overrides, setOverrides] = useState<Record<string, { grupo: string; subgrupo: string }>>({})
   const [customGrupos, setCustomGrupos] = useState<GrupoDef[]>([])
   const [empresaSel, setEmpresaSel] = useState<string>(CONSOLIDADO)
@@ -67,9 +72,10 @@ export function Dre() {
   const [mesAte, setMesAte] = useState(11)
   const [semEquiv, setSemEquiv] = useState(true)
   const [view, setView] = useState<'anual' | 'mensal'>('mensal')
-  const [modo, setModo] = useState<'dre' | 'classificar' | 'ddl'>('dre')
+  const [modo, setModo] = useState<'dre' | 'classificar' | 'ddl' | 'reclass'>('dre')
   const [salvandoCls, setSalvandoCls] = useState(false)
   const [salvandoDdl, setSalvandoDdl] = useState(false)
+  const [salvandoRcl, setSalvandoRcl] = useState(false)
   const [open, setOpen] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -106,10 +112,11 @@ export function Dre() {
       })),
     )
     // classificação + grupos customizados + DDL (tolera tabelas ausentes = usa padrão)
-    const [cls, grp, ddlRes] = await Promise.all([
+    const [cls, grp, ddlRes, rclRes] = await Promise.all([
       supabase.from('dre_classificacao').select('codigo, grupo, subgrupo'),
       supabase.from('dre_grupos').select('nome, papel, ordem').order('ordem'),
       supabase.from('dre_ddl').select('empresa, socio, ano, mes, valor'),
+      supabase.from('dre_reclass').select('empresa, ano, mes, origem, origem_nome, grupo, subgrupo, valor'),
     ])
     const ov: Record<string, { grupo: string; subgrupo: string }> = {}
     for (const c of cls.data ?? []) ov[(c.codigo ?? '').toString()] = { grupo: (c.grupo ?? '').toString(), subgrupo: (c.subgrupo ?? '').toString() }
@@ -121,6 +128,16 @@ export function Dre() {
       ano: Number(d.ano) || 0,
       mes: Number(d.mes) || 0,
       valor: Number(d.valor) || 0,
+    })))
+    setReclass((rclRes.data ?? []).map((r) => ({
+      empresa: (r.empresa ?? '').toString(),
+      ano: Number(r.ano) || 0,
+      mes: Number(r.mes) || 0,
+      origem: (r.origem ?? '').toString(),
+      origemNome: (r.origem_nome ?? '').toString(),
+      grupo: (r.grupo ?? '').toString(),
+      subgrupo: (r.subgrupo ?? '').toString(),
+      valor: Number(r.valor) || 0,
     })))
     setLoading(false)
   }, [mode])
@@ -144,6 +161,10 @@ export function Dre() {
   /* ---------- classificação efetiva ---------- */
   const classificar = useMemo(() => montarClassificador(overrides), [overrides])
   const catalogo = useMemo(() => montarCatalogo(customGrupos), [customGrupos])
+  const papelDeGrupo = useMemo(() => {
+    const m = new Map(catalogo.map((g) => [g.nome, g.papel]))
+    return (grupo: string): Papel => m.get(grupo) ?? 'outras'
+  }, [catalogo])
 
   /* ---------- DDL: linha sintética por empresa/mês (Pessoal e Encargos) ---------- */
   const ddlLancs = useMemo<Lanc[]>(
@@ -151,10 +172,19 @@ export function Dre() {
     [ddl],
   )
 
+  /* ---------- Ajustes gerenciais: linhas sintéticas (contra na origem + destino) ---------- */
+  const reclassData = useMemo(() => reclassParaRows(reclass, papelDeGrupo, classificar), [reclass, papelDeGrupo, classificar])
+  const reclassLancs = useMemo<Lanc[]>(
+    () => reclassData.rows.map((r) => ({ empresa: r.empresa, codigo: r.codigo, nome: r.nome, ano: r.ano, mes: r.mes, debito: r.debito, credito: r.credito })),
+    [reclassData],
+  )
+  // classificador do DRE = overrides de conta + destinos sintéticos da reclassificação
+  const classificarDRE = useMemo(() => montarClassificador({ ...overrides, ...reclassData.overrides }), [overrides, reclassData])
+
   /* ---------- recorte por empresa + período (mês De/Até) ---------- */
-  // rows reais + DDL sintético (o DDL entra no cálculo do DRE, mas fica fora do
-  // universo de reclassificação e do download da base).
-  const baseRows = useMemo(() => [...rows, ...ddlLancs], [rows, ddlLancs])
+  // rows reais + DDL + ajustes gerenciais (sintéticos entram no cálculo do DRE,
+  // mas ficam fora do universo de reclassificação e do download da base).
+  const baseRows = useMemo(() => [...rows, ...ddlLancs, ...reclassLancs], [rows, ddlLancs, reclassLancs])
   const rowsEmpresa = useMemo(() => (empresaSel === CONSOLIDADO ? baseRows : baseRows.filter((r) => r.empresa === empresaSel)), [baseRows, empresaSel])
   const mesesDisponiveis = useMemo(() => {
     const set = new Set<number>()
@@ -175,7 +205,7 @@ export function Dre() {
     () => rowsEmpresa.filter((r) => r.mes - 1 >= mesDe && r.mes - 1 <= mesAte && !(semEquiv && ehEquiv(r.nome))),
     [rowsEmpresa, mesDe, mesAte, semEquiv],
   )
-  const { linhas } = useMemo(() => buildDRE(filtro, { classificar, catalogo }), [filtro, classificar, catalogo])
+  const { linhas } = useMemo(() => buildDRE(filtro, { classificar: classificarDRE, catalogo }), [filtro, classificarDRE, catalogo])
   const mesesVis = useMemo(() => {
     const a: number[] = []
     for (let m = mesDe; m <= mesAte; m++) a.push(m)
@@ -226,8 +256,8 @@ export function Dre() {
   const anos = useMemo(() => [...new Set(filtro.map((r) => r.ano))].filter(Boolean).sort(), [filtro])
   // anos para o editor de DDL: todos os anos com base + os já lançados em DDL
   const anosDisponiveis = useMemo(
-    () => [...new Set<number>([...rows.map((r) => r.ano), ...ddl.map((d) => d.ano)])].filter(Boolean).sort((a, b) => a - b),
-    [rows, ddl],
+    () => [...new Set<number>([...rows.map((r) => r.ano), ...ddl.map((d) => d.ano), ...reclass.map((r) => r.ano)])].filter(Boolean).sort((a, b) => a - b),
+    [rows, ddl, reclass],
   )
 
   async function salvarDdl(empresa: string, ano: number, ddlRows: { socio: string; mes: number; valor: number }[]) {
@@ -251,6 +281,30 @@ export function Dre() {
       setErro(`Não consegui salvar o DDL: ${(e as Error).message}. Rode o SQL do DDL no Supabase (setup/dre-ddl-sql.html).`)
     } finally {
       setSalvandoDdl(false)
+    }
+  }
+
+  async function salvarReclass(empresa: string, ano: number, rclRows: ReclassSaveRow[]) {
+    setSalvandoRcl(true)
+    setErro(null)
+    try {
+      if (mode === 'supabase' && supabase) {
+        const { error } = await supabase.rpc('dre_reclass_replace', { p_empresa: empresa, p_ano: ano, p_rows: rclRows })
+        if (error) throw new Error(error.message)
+        await carregar()
+      } else {
+        // modo demo: substitui em memória os ajustes da empresa+ano
+        setReclass((prev) => [
+          ...prev.filter((r) => !(r.empresa === empresa && r.ano === ano)),
+          ...rclRows.map((r) => ({ empresa, ano, mes: r.mes, origem: r.origem, origemNome: r.origem_nome, grupo: r.grupo, subgrupo: r.subgrupo, valor: r.valor })),
+        ])
+      }
+      setModo('dre')
+      setAviso('Ajustes gerenciais salvos. O DRE foi recalculado.')
+    } catch (e) {
+      setErro(`Não consegui salvar os ajustes: ${(e as Error).message}. Rode o SQL no Supabase (setup/dre-reclass-sql.html).`)
+    } finally {
+      setSalvandoRcl(false)
     }
   }
 
@@ -365,6 +419,15 @@ export function Dre() {
             </button>
             <button
               className="inline-flex items-center gap-2 rounded-lg border border-brand/30 bg-brand/10 px-4 py-2.5 text-[13px] font-bold text-brand transition hover:bg-brand/20 disabled:opacity-50"
+              onClick={() => setModo('reclass')}
+              disabled={busy || vazio}
+              title="Ajustes gerenciais — reclassificar valores entre contas/grupos (de-para)"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7h11" /><path d="m12 4 3 3-3 3" /><path d="M20 17H9" /><path d="m12 20-3-3 3-3" /></svg>
+              Ajustes
+            </button>
+            <button
+              className="inline-flex items-center gap-2 rounded-lg border border-brand/30 bg-brand/10 px-4 py-2.5 text-[13px] font-bold text-brand transition hover:bg-brand/20 disabled:opacity-50"
               onClick={baixarBase}
               disabled={busy || vazio}
               title="Baixar a base atual em Excel"
@@ -408,6 +471,18 @@ export function Dre() {
           onSalvar={salvarDdl}
           onFechar={() => setModo('dre')}
           salvando={salvandoDdl}
+          somenteLeitura={!isAdmin}
+        />
+      ) : modo === 'reclass' ? (
+        <AjustesReclass
+          entries={reclass}
+          contas={universo}
+          catalogo={catalogo}
+          empresas={empresas}
+          anos={anosDisponiveis}
+          onSalvar={salvarReclass}
+          onFechar={() => setModo('dre')}
+          salvando={salvandoRcl}
           somenteLeitura={!isAdmin}
         />
       ) : (
