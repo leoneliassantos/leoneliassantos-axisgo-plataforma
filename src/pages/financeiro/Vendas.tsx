@@ -196,16 +196,33 @@ export function Vendas() {
       setLoading(false)
       return
     }
-    const { data, error } = await supabase
-      .from('vendas')
-      .select('nota, data, tipo, cliente, sku, produto, quantidade, valor_unitario, serie, origem')
-      .order('data')
-    if (error) {
-      setErro('Não foi possível carregar a base. Verifique se a tabela "vendas" foi criada no Supabase.')
-      setLoading(false)
-      return
+    // O PostgREST limita cada requisição (padrão 1.000 linhas). Buscamos em páginas
+    // e juntamos tudo — senão o painel só enxergaria as datas mais antigas e cortaria
+    // o restante (ex.: base grande do Foodpro ficando de fora).
+    type LinhaVenda = {
+      nota: string | null; data: string | null; tipo: string | null; cliente: string | null
+      sku: string | null; produto: string | null; quantidade: number | string | null
+      valor_unitario: number | string | null; serie: string | null; origem: string | null
     }
-    const mapped: Venda[] = (data ?? []).map((r) => ({
+    const PAG = 1000
+    const brutos: LinhaVenda[] = []
+    for (let ini = 0; ; ini += PAG) {
+      const { data, error } = await supabase
+        .from('vendas')
+        .select('nota, data, tipo, cliente, sku, produto, quantidade, valor_unitario, serie, origem')
+        .order('data')
+        .order('id')
+        .range(ini, ini + PAG - 1)
+      if (error) {
+        setErro('Não foi possível carregar a base. Verifique se a tabela "vendas" foi criada no Supabase.')
+        setLoading(false)
+        return
+      }
+      const lote = (data ?? []) as LinhaVenda[]
+      brutos.push(...lote)
+      if (lote.length < PAG) break
+    }
+    const mapped: Venda[] = brutos.map((r) => ({
       nota: (r.nota ?? '').toString(),
       data: (r.data ?? '').toString().slice(0, 10),
       tipo: (r.tipo ?? '').toString(),
