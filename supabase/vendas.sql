@@ -75,6 +75,50 @@ $$;
 revoke all on function public.vendas_replace(jsonb) from public, anon;
 grant execute on function public.vendas_replace(jsonb) to authenticated;
 
+-- 3) Substituição INCREMENTAL da base — por CANAL + PERÍODO (multi-sistema).
+--    Para cada canal (origem) presente no envio, apaga apenas as vendas cujo
+--    período (data) está DENTRO do intervalo coberto pelo arquivo [min..max]
+--    daquele canal, e regrava. Assim:
+--      • subir fevereiro NÃO apaga janeiro (datas fora do intervalo ficam);
+--      • resubir o mesmo período substitui só aquele período;
+--      • cada canal é independente (Olist não mexe no Foodpro e vice-versa).
+create or replace function public.vendas_replace_periodo(p_rows jsonb)
+returns integer
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  n integer;
+begin
+  if not public.is_admin() then
+    raise exception 'Apenas administradores podem atualizar a base.';
+  end if;
+
+  -- apaga, por canal, apenas o intervalo de datas que o envio cobre
+  delete from public.vendas v
+  using (
+    select origem, min(data) as d0, max(data) as d1
+    from jsonb_to_recordset(p_rows) as x(origem text, data date)
+    group by origem
+  ) r
+  where v.origem is not distinct from r.origem
+    and v.data between r.d0 and r.d1;
+
+  insert into public.vendas (nota, data, tipo, cliente, sku, produto, quantidade, valor_unitario, serie, origem)
+  select x.nota, x.data, x.tipo, x.cliente, x.sku, x.produto, x.quantidade, x.valor_unitario, x.serie, x.origem
+  from jsonb_to_recordset(p_rows) as x(
+    nota text, data date, tipo text, cliente text, sku text, produto text,
+    quantidade numeric, valor_unitario numeric, serie text, origem text
+  );
+
+  get diagnostics n = row_count;
+  return n;
+end;
+$$;
+
+revoke all on function public.vendas_replace_periodo(jsonb) from public, anon;
+grant execute on function public.vendas_replace_periodo(jsonb) to authenticated;
+
 -- Pronto. Tabela, RLS e função criadas.
 -- A base é carregada pelo próprio módulo (admin → "Atualizar base"),
 -- para que nenhum dado real precise ficar no repositório.

@@ -73,6 +73,74 @@ function excelDateToISO(v: unknown): string {
   return ''
 }
 const normHeader = (h: unknown) => (h ?? '').toString().toUpperCase().replace(/\s+/g, ' ').trim()
+
+/* ------------------------------------------------------------------ *
+ *  Foodpro — parser do PDF "Relatório de Notas Fiscais Detalhado".
+ *  Normaliza para o MESMO formato do Olist (nota item a item), marcando
+ *  origem = 'Foodpro'. As páginas vêm em paisagem (rotacionadas), então
+ *  reconstruímos as linhas pela coordenada VISUAL (viewport) e lemos a
+ *  nota do cabeçalho + os itens (7 colunas numéricas fixas no fim).
+ * ------------------------------------------------------------------ */
+const FOODPRO_ORIGEM = 'Foodpro'
+async function parseFoodproPDF(file: File): Promise<Venda[]> {
+  const pdfjs = await import('pdfjs-dist')
+  const worker = await import('pdfjs-dist/build/pdf.worker.min.mjs?url')
+  ;(pdfjs as unknown as { GlobalWorkerOptions: { workerSrc: string } }).GlobalWorkerOptions.workerSrc = (worker as { default: string }).default
+
+  const buf = await file.arrayBuffer()
+  const pdf = await pdfjs.getDocument({ data: new Uint8Array(buf) }).promise
+
+  // "Número: 12405 Emissão: 01/07/2026 Cliente: PROJETO FABRICA Valor: 350,00 Status: Enviada"
+  const notaRe = /^Número:\s*(\S+)\s+Emissão:\s*(\d{2}\/\d{2}\/\d{4})\s+Cliente:\s*(.*?)\s+Valor:\s*[\d.,]+\s+Status:\s*(\S+)/
+  const out: Venda[] = []
+  let cur: { nota: string; data: string; cliente: string } | null = null
+
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p)
+    const vp = page.getViewport({ scale: 1 })
+    const tc = await page.getTextContent()
+
+    // agrupa os fragmentos de texto em linhas visuais (mesmo y do viewport), ordenando por x
+    const linhas = new Map<number, { x: number; s: string }[]>()
+    for (const it of tc.items as { str?: string; transform?: number[] }[]) {
+      const s = it.str
+      if (!s || !s.trim() || !it.transform) continue
+      const [vx, vy] = vp.convertToViewportPoint(it.transform[4], it.transform[5])
+      const yk = Math.round(vy)
+      let key: number | null = null
+      for (const k of linhas.keys()) { if (Math.abs(k - yk) <= 3) { key = k; break } }
+      if (key === null) { key = yk; linhas.set(key, []) }
+      linhas.get(key)!.push({ x: vx, s })
+    }
+
+    for (const y of [...linhas.keys()].sort((a, b) => a - b)) {
+      const line = linhas.get(y)!.sort((a, b) => a.x - b.x).map((o) => o.s).join(' ').replace(/\s+/g, ' ').trim()
+      const m = notaRe.exec(line)
+      if (m) {
+        const [dd, mm, yy] = [m[2].slice(0, 2), m[2].slice(3, 5), m[2].slice(6)]
+        cur = { nota: m[1], data: `${yy}-${mm}-${dd}`, cliente: m[3].trim() }
+        continue
+      }
+      if (!cur || line.startsWith('Item Cod')) continue
+      // linha de item: nº do item + cód. produto no início; 7 colunas no fim
+      // (Quant · V.Unit · V.Total · Origem fiscal · CFOP · CST · NCM)
+      const t = line.split(' ')
+      if (t.length < 9 || !/^\d+$/.test(t[0]) || !/^\d+$/.test(t[1])) continue
+      const cfop = t[t.length - 3]
+      const qtd = parseBR(t[t.length - 7])
+      const unit = parseBR(t[t.length - 6])
+      if (!qtd && !unit) continue
+      out.push({
+        nota: cur.nota, data: cur.data,
+        tipo: /^[12]/.test(cfop) ? 'Entrada' : 'Saída', // CFOP 1xxx/2xxx = devolução/entrada; 5xxx/6xxx = venda
+        cliente: cur.cliente, sku: t[1], produto: t.slice(2, t.length - 7).join(' '),
+        qtd, unit, serie: '', origem: FOODPRO_ORIGEM,
+      })
+    }
+  }
+  if (!out.length) throw new Error('não encontrei notas no PDF (esperado o "Relatório de Notas Fiscais Detalhado" do Foodpro).')
+  return out
+}
 /** Chave/rótulo do balde temporal conforme a granularidade. */
 function bucket(iso: string, g: Gran): { key: string; label: string } {
   const [y, mo, d] = iso.split('-').map(Number)
@@ -239,77 +307,104 @@ export function Vendas() {
   async function handleFile(file: File) {
     setErro(null); setAviso(null); setBusy(true)
     try {
-      const XLSX = await import('xlsx')
-      const buf = await file.arrayBuffer()
-      const wb = XLSX.read(new Uint8Array(buf), { type: 'array', cellDates: true })
-      const ws = wb.Sheets[wb.SheetNames[0]]
-      const aoa = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, raw: true, defval: '' })
-      if (!aoa.length) throw new Error('planilha vazia')
-
-      // acha o cabeçalho e mapeia colunas por "contém"
-      const find = (hs: string[], ...terms: string[]) => hs.findIndex((h) => terms.some((t) => h.includes(t)))
-      let hi = -1
-      let col: Record<string, number> = {}
-      for (let i = 0; i < Math.min(aoa.length, 12); i++) {
-        const hs = (aoa[i] as unknown[]).map(normHeader)
-        const data = find(hs, 'DATA')
-        const prod = find(hs, 'PRODUTO')
-        const qtd = find(hs, 'QUANT')
-        const val = find(hs, 'UNIT', 'VALOR')
-        if (data >= 0 && qtd >= 0 && val >= 0 && prod >= 0) {
-          hi = i
-          col = {
-            nota: find(hs, 'NOTA'), data, tipo: find(hs, 'TIPO'),
-            cliente: find(hs, 'CLIENTE', 'FORNECEDOR'), sku: find(hs, 'SKU', 'CÓDIGO', 'CODIGO'),
-            produto: prod, qtd, val, serie: find(hs, 'SÉRIE', 'SERIE'), origem: find(hs, 'ORIGEM', 'CANAL'),
-          }
-          break
-        }
-      }
-      if (hi < 0) throw new Error('não encontrei as colunas (Data, Produto, Quantidade, Valor unitário). Confira o cabeçalho.')
-
-      const get = (row: unknown[], i: number) => (i >= 0 ? row[i] : '')
-      const novo: Venda[] = []
+      const isPdf = /\.pdf$/i.test(file.name)
+      let novo: Venda[] = []
       let ignoradas = 0
-      for (let r = hi + 1; r < aoa.length; r++) {
-        const row = aoa[r] as unknown[]
-        if (!row) continue
-        const data = excelDateToISO(get(row, col.data))
-        const qtdCell = get(row, col.qtd)
-        const qtd = typeof qtdCell === 'number' ? qtdCell : parseBR(qtdCell as string)
-        const unitCell = get(row, col.val)
-        const unit = typeof unitCell === 'number' ? unitCell : parseBR(unitCell as string)
-        if (!data || (!qtd && !unit)) {
-          if (get(row, col.data) || get(row, col.produto)) ignoradas++
-          continue
+
+      if (isPdf) {
+        // Foodpro — PDF "Relatório de NFe Detalhado" (marca origem = 'Foodpro')
+        novo = await parseFoodproPDF(file)
+      } else {
+        // Olist (ou outra planilha item a item) — Excel/CSV
+        const XLSX = await import('xlsx')
+        const buf = await file.arrayBuffer()
+        const wb = XLSX.read(new Uint8Array(buf), { type: 'array', cellDates: true })
+        const ws = wb.Sheets[wb.SheetNames[0]]
+        const aoa = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, raw: true, defval: '' })
+        if (!aoa.length) throw new Error('planilha vazia')
+
+        // acha o cabeçalho e mapeia colunas por "contém"
+        const find = (hs: string[], ...terms: string[]) => hs.findIndex((h) => terms.some((t) => h.includes(t)))
+        let hi = -1
+        let col: Record<string, number> = {}
+        for (let i = 0; i < Math.min(aoa.length, 12); i++) {
+          const hs = (aoa[i] as unknown[]).map(normHeader)
+          const data = find(hs, 'DATA')
+          const prod = find(hs, 'PRODUTO')
+          const qtd = find(hs, 'QUANT')
+          const val = find(hs, 'UNIT', 'VALOR')
+          if (data >= 0 && qtd >= 0 && val >= 0 && prod >= 0) {
+            hi = i
+            col = {
+              nota: find(hs, 'NOTA'), data, tipo: find(hs, 'TIPO'),
+              cliente: find(hs, 'CLIENTE', 'FORNECEDOR'), sku: find(hs, 'SKU', 'CÓDIGO', 'CODIGO'),
+              produto: prod, qtd, val, serie: find(hs, 'SÉRIE', 'SERIE'), origem: find(hs, 'ORIGEM', 'CANAL'),
+            }
+            break
+          }
         }
-        novo.push({
-          nota: (get(row, col.nota) ?? '').toString().trim(),
-          data, tipo: (get(row, col.tipo) ?? '').toString().trim(),
-          cliente: (get(row, col.cliente) ?? '').toString().trim(),
-          sku: (get(row, col.sku) ?? '').toString().trim(),
-          produto: (get(row, col.produto) ?? '').toString().trim(),
-          qtd, unit,
-          serie: (get(row, col.serie) ?? '').toString().trim(),
-          origem: (get(row, col.origem) ?? '').toString().trim(),
-        })
+        if (hi < 0) throw new Error('não encontrei as colunas (Data, Produto, Quantidade, Valor unitário). Confira o cabeçalho.')
+
+        const get = (row: unknown[], i: number) => (i >= 0 ? row[i] : '')
+        for (let r = hi + 1; r < aoa.length; r++) {
+          const row = aoa[r] as unknown[]
+          if (!row) continue
+          const data = excelDateToISO(get(row, col.data))
+          const qtdCell = get(row, col.qtd)
+          const qtd = typeof qtdCell === 'number' ? qtdCell : parseBR(qtdCell as string)
+          const unitCell = get(row, col.val)
+          const unit = typeof unitCell === 'number' ? unitCell : parseBR(unitCell as string)
+          if (!data || (!qtd && !unit)) {
+            if (get(row, col.data) || get(row, col.produto)) ignoradas++
+            continue
+          }
+          novo.push({
+            nota: (get(row, col.nota) ?? '').toString().trim(),
+            data, tipo: (get(row, col.tipo) ?? '').toString().trim(),
+            cliente: (get(row, col.cliente) ?? '').toString().trim(),
+            sku: (get(row, col.sku) ?? '').toString().trim(),
+            produto: (get(row, col.produto) ?? '').toString().trim(),
+            qtd, unit,
+            serie: (get(row, col.serie) ?? '').toString().trim(),
+            origem: ((get(row, col.origem) ?? '').toString().trim()) || 'Olist',
+          })
+        }
+        if (!novo.length) throw new Error('nenhuma venda válida encontrada na planilha.')
       }
-      if (!novo.length) throw new Error('nenhuma venda válida encontrada na planilha.')
+
+      // intervalo de datas coberto POR CANAL → substituição incremental (canal + período):
+      // apaga só as vendas do mesmo canal DENTRO do período do arquivo; o resto é mantido.
+      const janela = new Map<string, { d0: string; d1: string }>()
+      for (const r of novo) {
+        const o = r.origem.trim() || 'Olist'
+        const w = janela.get(o)
+        if (!w) janela.set(o, { d0: r.data, d1: r.data })
+        else { if (r.data < w.d0) w.d0 = r.data; if (r.data > w.d1) w.d1 = r.data }
+      }
 
       if (mode === 'supabase' && supabase) {
         const payload = novo.map((r) => ({
           nota: r.nota, data: r.data, tipo: r.tipo, cliente: r.cliente, sku: r.sku,
           produto: r.produto, quantidade: r.qtd, valor_unitario: r.unit, serie: r.serie, origem: r.origem,
         }))
-        const { error } = await supabase.rpc('vendas_replace', { p_rows: payload })
+        const { error } = await supabase.rpc('vendas_replace_periodo', { p_rows: payload })
         if (error) throw new Error(error.message)
         await carregar()
       } else {
-        setRows(novo)
+        // modo local (sem Supabase): espelha a substituição por canal+período em memória
+        setRows((prev) => [
+          ...prev.filter((r) => {
+            const w = janela.get(r.origem.trim() || 'Olist')
+            return !(w && r.data >= w.d0 && r.data <= w.d1)
+          }),
+          ...novo,
+        ])
       }
-      setAviso(`Base atualizada: ${novo.length} vendas${ignoradas ? ` (${ignoradas} linhas ignoradas)` : ''}.`)
+      const brd = (iso: string) => iso.split('-').reverse().join('/')
+      const resumo = [...janela.entries()].map(([o, w]) => `${o} (${brd(w.d0)}–${brd(w.d1)})`).join(' · ')
+      setAviso(`Base atualizada: ${novo.length} vendas — ${resumo}${ignoradas ? ` · ${ignoradas} linhas ignoradas` : ''}. Só esse período/canal foi substituído; o restante foi mantido.`)
     } catch (e) {
-      setErro(`Não consegui ler a planilha: ${(e as Error).message}`)
+      setErro(`Não consegui ler o arquivo: ${(e as Error).message}`)
     } finally {
       setBusy(false)
     }
@@ -380,13 +475,13 @@ export function Vendas() {
           {isAdmin && (
             <button
               className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-[12px] font-bold text-white shadow-brand transition hover:opacity-90 disabled:opacity-50"
-              onClick={() => fileRef.current?.click()} disabled={busy} title="Enviar a planilha (substitui a base para todos)"
+              onClick={() => fileRef.current?.click()} disabled={busy} title="Enviar Excel do Olist ou PDF do Foodpro. Substitui só o canal e o período do arquivo; as demais datas e canais são mantidos."
             >
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21V9" /><path d="m7 14 5-5 5 5" /><path d="M5 3h14" /></svg>
               {busy ? 'Processando…' : 'Atualizar base'}
             </button>
           )}
-          <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
+          <input ref={fileRef} type="file" accept=".xlsx,.xls,.pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
         </div>
       </div>
 
@@ -398,8 +493,8 @@ export function Vendas() {
           <p className="font-serif text-lg text-ink">A base de vendas ainda não foi carregada.</p>
           <p className="max-w-md text-sm text-muted">
             {isAdmin
-              ? 'Clique em “Atualizar base” e envie a planilha de vendas (colunas Nº nota, Data, Tipo, Cliente, SKU, Produto, Quantidade, Valor unitário, Origem).'
-              : 'Assim que um administrador enviar a planilha, o painel de vendas aparecerá aqui.'}
+              ? 'Clique em “Atualizar base” e envie o Excel do Olist ou o PDF do Foodpro (Relatório de NFe Detalhado). Cada envio atualiza só o seu canal e o período do arquivo (as demais datas ficam), e os dois se consolidam nos mesmos indicadores.'
+              : 'Assim que um administrador enviar a base, o painel de vendas aparecerá aqui.'}
           </p>
         </div>
       ) : view === 'comparativo' ? (
