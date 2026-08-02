@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { fetchAllRows } from '../../lib/supabase'
 
 /* ================================================================== *
  *  Fonte de dados compartilhada do Fluxo de Caixa (Supabase)
@@ -136,7 +137,8 @@ export async function loadFluxo(
   supabase: SupabaseClient,
 ): Promise<{ rows: Lancamento[]; saldoInicial: number; error?: string }> {
   const [lanc, cfg] = await Promise.all([
-    supabase.from('fluxo_caixa').select('tipo, descricao, categoria, valor, data').order('data'),
+    fetchAllRows((from, to) =>
+      supabase.from('fluxo_caixa').select('tipo, descricao, categoria, valor, data').order('data').order('id').range(from, to)),
     supabase.from('fluxo_caixa_config').select('valor').eq('chave', 'saldo_inicial').maybeSingle(),
   ])
   if (lanc.error) return { rows: [], saldoInicial: 0, error: lanc.error.message }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { supabase } from '../../lib/supabase'
+import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { readFirstSheetAOA } from '../../lib/xls'
 import {
@@ -91,10 +91,11 @@ export function Dre() {
       setLoading(false)
       return
     }
-    const { data, error } = await supabase
-      .from('dre_lancamentos')
-      .select('empresa, codigo, nome, ano, mes, debito, credito')
-      .order('empresa')
+    const { data, error } = await fetchAllRows((from, to) =>
+      supabase!
+        .from('dre_lancamentos')
+        .select('empresa, codigo, nome, ano, mes, debito, credito')
+        .order('empresa').order('id').range(from, to))
     if (error) {
       setErro('Não foi possível carregar a base. Verifique se a tabela dre_lancamentos foi criada no Supabase.')
       setLoading(false)

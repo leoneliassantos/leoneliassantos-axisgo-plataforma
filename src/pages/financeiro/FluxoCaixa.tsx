@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { supabase } from '../../lib/supabase'
+import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 
 /* ================================================================== *
@@ -176,7 +176,8 @@ export function FluxoCaixa() {
       return
     }
     const [lanc, cfg] = await Promise.all([
-      supabase.from('fluxo_caixa').select('tipo, descricao, categoria, valor, data').order('data'),
+      fetchAllRows((from, to) =>
+        supabase!.from('fluxo_caixa').select('tipo, descricao, categoria, valor, data').order('data').order('id').range(from, to)),
       supabase.from('fluxo_caixa_config').select('valor').eq('chave', 'saldo_inicial').maybeSingle(),
     ])
     if (lanc.error) {

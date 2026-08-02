@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { supabase } from '../../lib/supabase'
+import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { CLIENT } from '../../config/client'
 
@@ -204,23 +204,15 @@ export function Vendas() {
       sku: string | null; produto: string | null; quantidade: number | string | null
       valor_unitario: number | string | null; serie: string | null; origem: string | null
     }
-    const PAG = 1000
-    const brutos: LinhaVenda[] = []
-    for (let ini = 0; ; ini += PAG) {
-      const { data, error } = await supabase
+    const { data: brutos, error } = await fetchAllRows<LinhaVenda>((from, to) =>
+      supabase!
         .from('vendas')
         .select('nota, data, tipo, cliente, sku, produto, quantidade, valor_unitario, serie, origem')
-        .order('data')
-        .order('id')
-        .range(ini, ini + PAG - 1)
-      if (error) {
-        setErro('Não foi possível carregar a base. Verifique se a tabela "vendas" foi criada no Supabase.')
-        setLoading(false)
-        return
-      }
-      const lote = (data ?? []) as LinhaVenda[]
-      brutos.push(...lote)
-      if (lote.length < PAG) break
+        .order('data').order('id').range(from, to))
+    if (error) {
+      setErro('Não foi possível carregar a base. Verifique se a tabela "vendas" foi criada no Supabase.')
+      setLoading(false)
+      return
     }
     const mapped: Venda[] = brutos.map((r) => ({
       nota: (r.nota ?? '').toString(),
