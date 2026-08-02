@@ -91,9 +91,20 @@ async function parseFoodproPDF(file: File): Promise<Venda[]> {
   const pdf = await pdfjs.getDocument({ data: new Uint8Array(buf) }).promise
 
   // "Número: 12405 Emissão: 01/07/2026 Cliente: PROJETO FABRICA Valor: 350,00 Status: Enviada"
-  const notaRe = /^Número:\s*(\S+)\s+Emissão:\s*(\d{2}\/\d{2}\/\d{4})\s+Cliente:\s*(.*?)\s+Valor:\s*[\d.,]+\s+Status:\s*(\S+)/
+  const notaRe = /^Número:\s*(\S+)\s+Emissão:\s*(\d{2}\/\d{2}\/\d{4})\s+Cliente:\s*(.*?)\s+Valor:\s*([\d.,]+)\s+Status:\s*\S+/
   const out: Venda[] = []
-  let cur: { nota: string; data: string; cliente: string } | null = null
+  let cur: { nota: string; data: string; cliente: string; valor: number } | null = null
+  let curItens: Venda[] = []
+
+  // Rateia o desconto/acréscimo do rodapé da nota entre seus itens, para o total
+  // item a item bater com o "Valor" (líquido) da nota — igual ao total do Foodpro.
+  const fecharNota = () => {
+    if (!cur) return
+    const soma = curItens.reduce((s, it) => s + it.qtd * it.unit, 0)
+    const fator = cur.valor > 0 && soma > 0 && Math.abs(cur.valor - soma) > 0.01 ? cur.valor / soma : 1
+    for (const it of curItens) out.push(fator === 1 ? it : { ...it, unit: it.unit * fator })
+    curItens = []
+  }
 
   for (let p = 1; p <= pdf.numPages; p++) {
     const page = await pdf.getPage(p)
@@ -117,8 +128,9 @@ async function parseFoodproPDF(file: File): Promise<Venda[]> {
       const line = linhas.get(y)!.sort((a, b) => a.x - b.x).map((o) => o.s).join(' ').replace(/\s+/g, ' ').trim()
       const m = notaRe.exec(line)
       if (m) {
+        fecharNota()
         const [dd, mm, yy] = [m[2].slice(0, 2), m[2].slice(3, 5), m[2].slice(6)]
-        cur = { nota: m[1], data: `${yy}-${mm}-${dd}`, cliente: m[3].trim() }
+        cur = { nota: m[1], data: `${yy}-${mm}-${dd}`, cliente: m[3].trim(), valor: parseBR(m[4]) }
         continue
       }
       if (!cur || line.startsWith('Item Cod')) continue
@@ -130,7 +142,7 @@ async function parseFoodproPDF(file: File): Promise<Venda[]> {
       const qtd = parseBR(t[t.length - 7])
       const unit = parseBR(t[t.length - 6])
       if (!qtd && !unit) continue
-      out.push({
+      curItens.push({
         nota: cur.nota, data: cur.data,
         tipo: /^[12]/.test(cfop) ? 'Entrada' : 'Saída', // CFOP 1xxx/2xxx = devolução/entrada; 5xxx/6xxx = venda
         cliente: cur.cliente, sku: t[1], produto: t.slice(2, t.length - 7).join(' '),
@@ -138,6 +150,7 @@ async function parseFoodproPDF(file: File): Promise<Venda[]> {
       })
     }
   }
+  fecharNota() // finaliza a última nota
   if (!out.length) throw new Error('não encontrei notas no PDF (esperado o "Relatório de Notas Fiscais Detalhado" do Foodpro).')
   return out
 }
