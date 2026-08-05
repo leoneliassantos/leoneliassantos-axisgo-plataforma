@@ -462,6 +462,47 @@ export function Dre() {
             <Kpi lbl="Margem Líquida" val={margem} isPct foot="resultado ÷ receita bruta" signed accent={margem !== null && margem < 0 ? 'neg' : 'pos'} />
           </div>
         )}
+
+        {modo === 'dre' && !vazio && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface px-4 py-2.5">
+            {/* seletor de empresa */}
+            <div className="seg flex-wrap">
+              <button className={empresaSel === CONSOLIDADO ? 'on' : ''} onClick={() => setEmpresaSel(CONSOLIDADO)} title="Soma de todas as empresas">
+                Consolidado
+              </button>
+              {empresas.map((e) => (
+                <button key={e.empresa} className={empresaSel === e.empresa ? 'on' : ''} onClick={() => setEmpresaSel(e.empresa)} title={e.empresa}>
+                  {e.apelido}
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-1.5 text-[12px] text-muted">
+                <span className="text-[10px] font-bold uppercase tracking-wider">Período</span>
+                <select className="periodo-sel" value={mesDe} onChange={(e) => { const v = +e.target.value; setMesDe(v); if (v > mesAte) setMesAte(v) }} title="Mês inicial">
+                  {mesesDisponiveis.map((m) => <option key={m} value={m}>{MESES[m]}</option>)}
+                </select>
+                <span>a</span>
+                <select className="periodo-sel" value={mesAte} onChange={(e) => { const v = +e.target.value; setMesAte(v); if (v < mesDe) setMesDe(v) }} title="Mês final">
+                  {mesesDisponiveis.map((m) => <option key={m} value={m}>{MESES[m]}</option>)}
+                </select>
+              </div>
+              {temEquiv && (
+                <label
+                  className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[12px] font-semibold text-muted transition hover:border-brand"
+                  title="A equivalência patrimonial (participação societária entre empresas do grupo) duplica o resultado no consolidado. Marque para excluí-la do DRE."
+                >
+                  <input type="checkbox" checked={semEquiv} onChange={(e) => setSemEquiv(e.target.checked)} style={{ accentColor: 'rgb(var(--brand))', width: 15, height: 15 }} />
+                  Sem equivalência patrimonial
+                </label>
+              )}
+              <div className="seg">
+                <button className={view === 'anual' ? 'on' : ''} onClick={() => setView('anual')}>Acumulado</button>
+                <button className={view === 'mensal' ? 'on' : ''} onClick={() => setView('mensal')}>Mensal</button>
+              </div>
+            </div>
+          </div>
+        )}
       </ModuloTopo>
 
       {erro && <Alerta tipo="erro" texto={erro} onClose={() => setErro(null)} />}
@@ -502,45 +543,6 @@ export function Dre() {
         <>
       {/* Tabela do DRE */}
       <div className="rounded-2xl border border-line bg-surface shadow-card">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
-          {/* seletor de empresa */}
-          <div className="seg flex-wrap">
-            <button className={empresaSel === CONSOLIDADO ? 'on' : ''} onClick={() => setEmpresaSel(CONSOLIDADO)} title="Soma de todas as empresas">
-              Consolidado
-            </button>
-            {empresas.map((e) => (
-              <button key={e.empresa} className={empresaSel === e.empresa ? 'on' : ''} onClick={() => setEmpresaSel(e.empresa)} title={e.empresa}>
-                {e.apelido}
-              </button>
-            ))}
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-1.5 text-[12px] text-muted">
-              <span className="text-[10px] font-bold uppercase tracking-wider">Período</span>
-              <select className="periodo-sel" value={mesDe} onChange={(e) => { const v = +e.target.value; setMesDe(v); if (v > mesAte) setMesAte(v) }} title="Mês inicial">
-                {mesesDisponiveis.map((m) => <option key={m} value={m}>{MESES[m]}</option>)}
-              </select>
-              <span>a</span>
-              <select className="periodo-sel" value={mesAte} onChange={(e) => { const v = +e.target.value; setMesAte(v); if (v < mesDe) setMesDe(v) }} title="Mês final">
-                {mesesDisponiveis.map((m) => <option key={m} value={m}>{MESES[m]}</option>)}
-              </select>
-            </div>
-            {temEquiv && (
-              <label
-                className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[12px] font-semibold text-muted transition hover:border-brand"
-                title="A equivalência patrimonial (participação societária entre empresas do grupo) duplica o resultado no consolidado. Marque para excluí-la do DRE."
-              >
-                <input type="checkbox" checked={semEquiv} onChange={(e) => setSemEquiv(e.target.checked)} style={{ accentColor: 'rgb(var(--brand))', width: 15, height: 15 }} />
-                Sem equivalência patrimonial
-              </label>
-            )}
-            <div className="seg">
-              <button className={view === 'anual' ? 'on' : ''} onClick={() => setView('anual')}>Acumulado</button>
-              <button className={view === 'mensal' ? 'on' : ''} onClick={() => setView('mensal')}>Mensal</button>
-            </div>
-          </div>
-        </div>
-
         {loading ? (
           <div className="grid place-items-center py-16 text-sm text-muted">Carregando base…</div>
         ) : vazio ? (
@@ -705,7 +707,7 @@ function ScopedStyle() {
 .dre-mod table.dre tbody tr:last-child td:first-child{border-bottom-left-radius:15px}
 .dre-mod table.dre tbody tr:last-child td:last-child{border-bottom-right-radius:15px}
 .dre-mod table.dre th,.dre-mod table.dre td{padding:7px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid #F0EEEC;font-size:clamp(10px,0.9vw,13px);overflow:hidden}
-.dre-mod table.dre thead th{position:sticky;top:var(--topo-h,150px);z-index:3;background:#EEF3F9;color:#4B5563;font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;border-bottom:2px solid #E7E3DF}
+.dre-mod table.dre thead th{position:sticky;top:calc(var(--topo-h,150px) - 1px);z-index:3;background:#EEF3F9;color:#4B5563;font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;border-bottom:2px solid #E7E3DF}
 .dre-mod table.dre th.rowlabel,.dre-mod table.dre td.rowlabel{text-align:left;position:sticky;left:0;z-index:2;background:#fff;width:38%;white-space:normal;word-break:break-word;line-height:1.2;font-weight:600;box-shadow:1px 0 0 #E7E3DF}
 .dre-mod table.dre.mensal th.rowlabel,.dre-mod table.dre.mensal td.rowlabel{width:24%}
 .dre-mod table.dre thead th.rowlabel{z-index:4;background:#EEF3F9}
