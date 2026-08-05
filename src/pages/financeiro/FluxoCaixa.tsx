@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
+import { ModuloTopo } from '../../components/ModuloTopo'
 
 /* ================================================================== *
  *  Fluxo de Caixa — módulo do Financeiro
@@ -393,8 +394,9 @@ export function FluxoCaixa() {
     >
       <ScopedStyle />
 
+      <ModuloTopo>
       {/* Cabeçalho do módulo */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex min-h-[64px] flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="font-serif text-lg font-semibold text-ink">Fluxo de Caixa</h2>
           <p className="text-[13px] text-muted">
@@ -439,9 +441,6 @@ export function FluxoCaixa() {
         </div>
       </div>
 
-      {erro && <Alerta tipo="erro" texto={erro} onClose={() => setErro(null)} />}
-      {aviso && <Alerta tipo="ok" texto={aviso} onClose={() => setAviso(null)} />}
-
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi lbl="Recebimentos no ano" val={totR} accent="pos" foot="Total de entradas de caixa" />
@@ -449,9 +448,13 @@ export function FluxoCaixa() {
         <Kpi lbl="Resultado de Caixa" val={res} accent={res >= 0 ? 'pos' : 'neg'} foot="Recebimentos − Pagamentos" signed />
         <Kpi lbl="Saldo Final de Caixa" val={fim} accent="band" foot="Saldo projetado ao fim do período" signed />
       </div>
+      </ModuloTopo>
+
+      {erro && <Alerta tipo="erro" texto={erro} onClose={() => setErro(null)} />}
+      {aviso && <Alerta tipo="ok" texto={aviso} onClose={() => setAviso(null)} />}
 
       {/* Tabela */}
-      <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
+      <div className="rounded-2xl border border-line bg-surface shadow-card">
         <div className="flex items-center gap-2 border-b border-line px-4 py-3">
           <h3 className="text-[15px] font-bold text-ink">Demonstrativo do Fluxo de Caixa</h3>
           <span className="text-[11px] text-muted">
@@ -613,12 +616,14 @@ function Alerta({ tipo, texto, onClose }: { tipo: 'erro' | 'ok'; texto: string; 
 function ScopedStyle() {
   return (
     <style>{`
-.fcx .fc-scroller{overflow-x:hidden}
+.fcx .fc-scroller{overflow:visible}
 .fcx table.fc{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed}
+.fcx table.fc tbody tr:last-child td:first-child{border-bottom-left-radius:15px}
+.fcx table.fc tbody tr:last-child td:last-child{border-bottom-right-radius:15px}
 .fcx table.fc th,.fcx table.fc td{padding:6px 5px;text-align:right;white-space:nowrap;border-bottom:1px solid #F0EEEC;font-size:clamp(9px,0.86vw,13px);overflow:hidden}
-.fcx table.fc thead th{position:sticky;top:0;z-index:3;background:#fff;color:#4B5563;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;border-bottom:2px solid #E7E3DF}
+.fcx table.fc thead th{position:sticky;top:var(--topo-h,150px);z-index:3;background:#EEF3F9;color:#4B5563;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;border-bottom:2px solid #E7E3DF}
 .fcx table.fc th.rowlabel,.fcx table.fc td.rowlabel{text-align:left;position:sticky;left:0;z-index:2;background:#fff;width:16%;white-space:normal;word-break:break-word;line-height:1.2;font-weight:600;box-shadow:1px 0 0 #E7E3DF;font-size:clamp(10px,0.86vw,13px)}
-.fcx table.fc thead th.rowlabel{z-index:4}
+.fcx table.fc thead th.rowlabel{z-index:4;background:#EEF3F9}
 .fcx table.fc th.col-total,.fcx table.fc td.col-total{background:rgb(var(--brand)/0.06);font-weight:800;border-left:1px solid rgb(var(--brand)/0.18)}
 .fcx table.fc thead th.col-total{background:rgb(var(--brand)/0.14);color:rgb(var(--brand))}
 .fcx td.num{color:#1F2937}.fcx td.num.neg{color:#C0392B}.fcx td.num.zero{color:#C7C2BC}
