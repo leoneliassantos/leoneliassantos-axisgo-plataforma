@@ -2,14 +2,14 @@ import { Outlet } from 'react-router-dom'
 import type { Frente } from '../modules/registry'
 
 /**
- * Layout de uma frente. A navegação entre os módulos passou para a barra
- * lateral (submenu da frente); aqui fica só um título compacto de contexto
- * e o conteúdo do módulo, aproveitando a largura para os indicadores.
+ * Layout de uma frente. A navegação entre módulos passou para a barra lateral
+ * (submenu da frente), que também já indica em que frente/módulo você está.
+ * Por isso aqui não há mais cabeçalho próprio: cada módulo renderiza o seu
+ * título, e a área ganha altura para o conteúdo (indicadores, tabelas).
  */
 export function FrenteLayout({ frente }: { frente: Frente }) {
   return (
-    <div className="flex flex-col gap-2">
-      <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-brand">{frente.nome}</span>
+    <div className="flex flex-col" data-frente={frente.slug}>
       <Outlet />
     </div>
   )
