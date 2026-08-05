@@ -448,6 +448,15 @@ export function FluxoCaixa() {
         <Kpi lbl="Resultado de Caixa" val={res} accent={res >= 0 ? 'pos' : 'neg'} foot="Recebimentos − Pagamentos" signed />
         <Kpi lbl="Saldo Final de Caixa" val={fim} accent="band" foot="Saldo projetado ao fim do período" signed />
       </div>
+
+      {!vazio && (
+        <div className="flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5">
+          <h3 className="text-[14px] font-bold text-ink">Demonstrativo do Fluxo de Caixa</h3>
+          <span className="text-[11px] text-muted">
+            {loading ? 'carregando…' : `${rows.length} lançamentos · ${nCats} categorias`}
+          </span>
+        </div>
+      )}
       </ModuloTopo>
 
       {erro && <Alerta tipo="erro" texto={erro} onClose={() => setErro(null)} />}
@@ -455,13 +464,6 @@ export function FluxoCaixa() {
 
       {/* Tabela */}
       <div className="rounded-2xl border border-line bg-surface shadow-card">
-        <div className="flex items-center gap-2 border-b border-line px-4 py-3">
-          <h3 className="text-[15px] font-bold text-ink">Demonstrativo do Fluxo de Caixa</h3>
-          <span className="text-[11px] text-muted">
-            {loading ? 'carregando…' : `${rows.length} lançamentos · ${nCats} categorias`}
-          </span>
-        </div>
-
         {loading ? (
           <div className="grid place-items-center py-16 text-sm text-muted">Carregando base…</div>
         ) : vazio ? (
@@ -621,7 +623,7 @@ function ScopedStyle() {
 .fcx table.fc tbody tr:last-child td:first-child{border-bottom-left-radius:15px}
 .fcx table.fc tbody tr:last-child td:last-child{border-bottom-right-radius:15px}
 .fcx table.fc th,.fcx table.fc td{padding:6px 5px;text-align:right;white-space:nowrap;border-bottom:1px solid #F0EEEC;font-size:clamp(9px,0.86vw,13px);overflow:hidden}
-.fcx table.fc thead th{position:sticky;top:var(--topo-h,150px);z-index:3;background:#EEF3F9;color:#4B5563;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;border-bottom:2px solid #E7E3DF}
+.fcx table.fc thead th{position:sticky;top:calc(var(--topo-h,150px) - 1px);z-index:3;background:#EEF3F9;color:#4B5563;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;border-bottom:2px solid #E7E3DF}
 .fcx table.fc th.rowlabel,.fcx table.fc td.rowlabel{text-align:left;position:sticky;left:0;z-index:2;background:#fff;width:16%;white-space:normal;word-break:break-word;line-height:1.2;font-weight:600;box-shadow:1px 0 0 #E7E3DF;font-size:clamp(10px,0.86vw,13px)}
 .fcx table.fc thead th.rowlabel{z-index:4;background:#EEF3F9}
 .fcx table.fc th.col-total,.fcx table.fc td.col-total{background:rgb(var(--brand)/0.06);font-weight:800;border-left:1px solid rgb(var(--brand)/0.18)}
