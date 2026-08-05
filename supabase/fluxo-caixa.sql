@@ -76,6 +76,14 @@ begin
     raise exception 'Apenas administradores podem atualizar a base.';
   end if;
 
+  -- GUARDA anti-truncate: recusa envio vazio. Sem isto, um payload vazio (ou
+  -- não-array) faria o TRUNCATE abaixo zerar TODA a base sem inserir nada. A
+  -- UI já barra arquivo vazio; esta é a rede de segurança no servidor, para
+  -- chamadas diretas de API. Limpar a base inteira nunca é a intenção aqui.
+  if p_rows is null or jsonb_typeof(p_rows) <> 'array' or jsonb_array_length(p_rows) = 0 then
+    raise exception 'Envio vazio: nenhum lançamento para gravar. A base atual foi preservada.';
+  end if;
+
   -- TRUNCATE esvazia a tabela sem esbarrar na proteção safe-update do
   -- Supabase (que exige WHERE em DELETE). restart identity zera o id.
   truncate table public.fluxo_caixa restart identity;

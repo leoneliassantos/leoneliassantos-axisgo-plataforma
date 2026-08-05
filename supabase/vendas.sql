@@ -57,6 +57,14 @@ begin
     raise exception 'Apenas administradores podem atualizar a base.';
   end if;
 
+  -- GUARDA anti-truncate: recusa envio vazio, senão o TRUNCATE abaixo zeraria
+  -- TODA a base de vendas sem inserir nada. Rede de segurança no servidor
+  -- (a UI já barra arquivo vazio); substituir a base inteira por vazio nunca
+  -- é intenção legítima aqui.
+  if p_rows is null or jsonb_typeof(p_rows) <> 'array' or jsonb_array_length(p_rows) = 0 then
+    raise exception 'Envio vazio: nenhuma venda para gravar. A base atual foi preservada.';
+  end if;
+
   -- TRUNCATE (em vez de DELETE) para não esbarrar na proteção safe-update.
   truncate table public.vendas restart identity;
 
