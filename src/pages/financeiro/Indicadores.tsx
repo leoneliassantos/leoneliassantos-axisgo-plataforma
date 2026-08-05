@@ -183,7 +183,7 @@ export function Indicadores() {
   return (
     <div
       ref={wrapRef}
-      style={{ width: 'min(1600px, 96vw)', height: altura, position: 'relative', left: '50%', transform: 'translateX(-50%)', overflow: 'hidden' }}
+      style={{ width: '100%', height: altura, overflow: 'hidden' }}
       className="flex flex-col gap-2"
     >
       {/* Filtros */}
