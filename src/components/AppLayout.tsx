@@ -99,7 +99,7 @@ export function AppLayout() {
   )
 
   return (
-    <div className="flex min-h-screen">
+    <div className="flex h-screen overflow-hidden">
       {/* Fundo escuro atrás da gaveta (só no mobile, quando aberta) */}
       {aberta && (
         <button type="button" aria-label="Fechar menu" onClick={fechaMobile} className="fixed inset-0 z-30 bg-black/30 md:hidden" />
@@ -127,7 +127,7 @@ export function AppLayout() {
         </div>
 
         {/* Navegação */}
-        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-3">
+        <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-3">
           <NavLink to="/" end className={itemClass} onClick={fechaMobile} title="Início">
             <Icon>{icons.inicio}</Icon>
             <span className={rot(true)}>Início</span>
@@ -239,7 +239,7 @@ export function AppLayout() {
       </aside>
 
       {/* Coluna de conteúdo */}
-      <div className="flex min-h-screen w-full flex-1 flex-col">
+      <div className="flex h-screen min-w-0 flex-1 flex-col">
         {/* Barra superior — só no mobile, para abrir a gaveta */}
         <header className="flex h-14 items-center gap-3 border-b border-line bg-surface px-4 md:hidden">
           <button type="button" aria-label="Abrir menu" onClick={() => setAberta(true)} className="rounded-md p-1.5 text-ink transition hover:bg-paper">
@@ -258,8 +258,10 @@ export function AppLayout() {
           </div>
         )}
 
-        <main className="mx-auto w-full max-w-content flex-1 px-5 pb-10 pt-2.5">
-          <Outlet />
+        <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+          <div className="mx-auto w-full max-w-[1600px] px-5 pb-10 pt-3">
+            <Outlet />
+          </div>
         </main>
 
         <footer className="bg-band text-paper shadow-[0_-2px_10px_rgba(0,0,0,0.08)]">

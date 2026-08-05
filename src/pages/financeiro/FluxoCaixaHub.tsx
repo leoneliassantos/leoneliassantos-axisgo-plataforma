@@ -15,7 +15,7 @@ export function FluxoCaixaHub() {
   const [aba, setAba] = useState<Aba>('demonstrativo')
   return (
     <div className="flex flex-col gap-2">
-      <div className="mx-auto w-full" style={{ maxWidth: 'min(1400px, 95vw)' }}>
+      <div className="w-full">
         <div className="inline-flex items-center gap-1 rounded-xl border border-line bg-surface p-0.5 shadow-card">
           <SubTab ativo={aba === 'demonstrativo'} onClick={() => setAba('demonstrativo')}>
             <IconFluxo />

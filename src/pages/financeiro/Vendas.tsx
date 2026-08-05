@@ -474,7 +474,7 @@ export function Vendas() {
   return (
     <div
       ref={wrapRef}
-      style={{ width: 'min(1600px, 96vw)', height: !vazio && view === 'painel' ? altura : undefined, position: 'relative', left: '50%', transform: 'translateX(-50%)', overflow: !vazio && view === 'painel' ? 'hidden' : undefined }}
+      style={{ width: '100%', height: !vazio && view === 'painel' ? altura : undefined, overflow: !vazio && view === 'painel' ? 'hidden' : undefined }}
       className="flex flex-col gap-2"
     >
       {/* Barra de topo: título + ações */}

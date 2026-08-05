@@ -384,7 +384,7 @@ export function Dre() {
   return (
     <div
       className="dre-mod flex flex-col gap-3"
-      style={{ width: 'min(1400px, 95vw)', position: 'relative', left: '50%', transform: 'translateX(-50%)' }}
+      style={{ width: '100%' }}
     >
       <ScopedStyle />
 
