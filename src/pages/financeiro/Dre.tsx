@@ -712,7 +712,7 @@ function ScopedStyle() {
 .dre-mod table.dre.mensal th.rowlabel,.dre-mod table.dre.mensal td.rowlabel{width:24%}
 .dre-mod table.dre thead th.rowlabel{z-index:4;background:#EEF3F9}
 .dre-mod table.dre th.col-total,.dre-mod table.dre td.col-total{background:rgb(var(--brand)/0.06);font-weight:800;border-left:1px solid rgb(var(--brand)/0.18)}
-.dre-mod table.dre thead th.col-total{background:rgb(var(--brand)/0.14);color:rgb(var(--brand))}
+.dre-mod table.dre thead th.col-total{background:#FEE7DC;color:rgb(var(--brand))}
 .dre-mod td.num{color:#1F2937}.dre-mod td.num.neg{color:#C0392B}.dre-mod td.num.zero{color:#C7C2BC}
 .dre-mod .op{display:inline-block;width:28px;color:#9aa0a6;font-weight:700}
 .dre-mod .op.pos{color:#15734F}
