@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
+import { ModuloTopo } from '../../components/ModuloTopo'
 import { readFirstSheetAOA } from '../../lib/xls'
 import {
   apelidoEmpresa,
@@ -388,8 +389,9 @@ export function Dre() {
     >
       <ScopedStyle />
 
+      <ModuloTopo>
       {/* Cabeçalho do módulo */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex min-h-[64px] flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="font-serif text-lg font-semibold text-ink">DRE — Demonstração do Resultado</h2>
           <p className="text-[13px] text-muted">
@@ -452,6 +454,16 @@ export function Dre() {
         )}
       </div>
 
+        {modo === 'dre' && (
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Kpi lbl="Receita Líquida" val={recLiq} accent="band" foot="após deduções" />
+            <Kpi lbl="EBITDA" val={ebitda} accent={ebitda >= 0 ? 'pos' : 'neg'} foot="antes de deprec. e financeiro" signed />
+            <Kpi lbl="Resultado Líquido" val={liquido} accent={liquido >= 0 ? 'pos' : 'neg'} foot="após IR/CSLL" signed />
+            <Kpi lbl="Margem Líquida" val={margem} isPct foot="resultado ÷ receita bruta" signed accent={margem !== null && margem < 0 ? 'neg' : 'pos'} />
+          </div>
+        )}
+      </ModuloTopo>
+
       {erro && <Alerta tipo="erro" texto={erro} onClose={() => setErro(null)} />}
       {aviso && <Alerta tipo="ok" texto={aviso} onClose={() => setAviso(null)} />}
 
@@ -488,16 +500,8 @@ export function Dre() {
         />
       ) : (
         <>
-      {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi lbl="Receita Líquida" val={recLiq} accent="band" foot="após deduções" />
-        <Kpi lbl="EBITDA" val={ebitda} accent={ebitda >= 0 ? 'pos' : 'neg'} foot="antes de deprec. e financeiro" signed />
-        <Kpi lbl="Resultado Líquido" val={liquido} accent={liquido >= 0 ? 'pos' : 'neg'} foot="após IR/CSLL" signed />
-        <Kpi lbl="Margem Líquida" val={margem} isPct foot="resultado ÷ receita bruta" signed accent={margem !== null && margem < 0 ? 'neg' : 'pos'} />
-      </div>
-
       {/* Tabela do DRE */}
-      <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
+      <div className="rounded-2xl border border-line bg-surface shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
           {/* seletor de empresa */}
           <div className="seg flex-wrap">
@@ -695,14 +699,16 @@ function Alerta({ tipo, texto, onClose }: { tipo: 'erro' | 'ok'; texto: string; 
 function ScopedStyle() {
   return (
     <style>{`
-.dre-mod .dre-scroller{overflow-x:auto}
+.dre-mod .dre-scroller{overflow:visible}
 .dre-mod table.dre{border-collapse:separate;border-spacing:0;width:100%;table-layout:fixed}
-.dre-mod table.dre.mensal{min-width:1100px}
+.dre-mod table.dre.mensal{min-width:0}
+.dre-mod table.dre tbody tr:last-child td:first-child{border-bottom-left-radius:15px}
+.dre-mod table.dre tbody tr:last-child td:last-child{border-bottom-right-radius:15px}
 .dre-mod table.dre th,.dre-mod table.dre td{padding:7px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid #F0EEEC;font-size:clamp(10px,0.9vw,13px);overflow:hidden}
-.dre-mod table.dre thead th{position:sticky;top:0;z-index:3;background:#fff;color:#4B5563;font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;border-bottom:2px solid #E7E3DF}
+.dre-mod table.dre thead th{position:sticky;top:var(--topo-h,150px);z-index:3;background:#EEF3F9;color:#4B5563;font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;border-bottom:2px solid #E7E3DF}
 .dre-mod table.dre th.rowlabel,.dre-mod table.dre td.rowlabel{text-align:left;position:sticky;left:0;z-index:2;background:#fff;width:38%;white-space:normal;word-break:break-word;line-height:1.2;font-weight:600;box-shadow:1px 0 0 #E7E3DF}
 .dre-mod table.dre.mensal th.rowlabel,.dre-mod table.dre.mensal td.rowlabel{width:24%}
-.dre-mod table.dre thead th.rowlabel{z-index:4}
+.dre-mod table.dre thead th.rowlabel{z-index:4;background:#EEF3F9}
 .dre-mod table.dre th.col-total,.dre-mod table.dre td.col-total{background:rgb(var(--brand)/0.06);font-weight:800;border-left:1px solid rgb(var(--brand)/0.18)}
 .dre-mod table.dre thead th.col-total{background:rgb(var(--brand)/0.14);color:rgb(var(--brand))}
 .dre-mod td.num{color:#1F2937}.dre-mod td.num.neg{color:#C0392B}.dre-mod td.num.zero{color:#C7C2BC}
