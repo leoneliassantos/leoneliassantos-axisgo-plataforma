@@ -627,7 +627,7 @@ function ScopedStyle() {
 .fcx table.fc th.rowlabel,.fcx table.fc td.rowlabel{text-align:left;position:sticky;left:0;z-index:2;background:#fff;width:16%;white-space:normal;word-break:break-word;line-height:1.2;font-weight:600;box-shadow:1px 0 0 #E7E3DF;font-size:clamp(10px,0.86vw,13px)}
 .fcx table.fc thead th.rowlabel{z-index:4;background:#EEF3F9}
 .fcx table.fc th.col-total,.fcx table.fc td.col-total{background:rgb(var(--brand)/0.06);font-weight:800;border-left:1px solid rgb(var(--brand)/0.18)}
-.fcx table.fc thead th.col-total{background:rgb(var(--brand)/0.14);color:rgb(var(--brand))}
+.fcx table.fc thead th.col-total{background:#FEE7DC;color:rgb(var(--brand))}
 .fcx td.num{color:#1F2937}.fcx td.num.neg{color:#C0392B}.fcx td.num.zero{color:#C7C2BC}
 .fcx tr.section td{background:#FAF8F6;color:rgb(var(--brand));font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:800}
 .fcx tr.cat{cursor:pointer}
