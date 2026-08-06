@@ -166,12 +166,18 @@ export function AjustesReclass({
     return [...s].sort((a, b) => a - b)
   }, [anos, anoSel])
 
-  // opções de subgrupo (nível 2) do grupo escolhido — vêm do catálogo definido
-  // em "Reclassificar contas". Aqui só se SELECIONA; criar subgrupo é lá.
-  function opcoesSub(grupo: string, atual: string): string[] {
-    const cat = subgruposPorGrupo.get(grupo) ?? []
-    // preserva o valor já gravado mesmo se ainda não estiver no catálogo
-    return atual && !cat.includes(atual) ? [...cat, atual] : cat
+  // TODOS os subgrupos existentes no sistema (de qualquer grupo, vindos da base
+  // do Razão + criados na plataforma). Ambiente de ajustes gerenciais = liberdade
+  // total: qualquer subgrupo pode ser destino de qualquer grupo. Criar é em
+  // "Reclassificar contas"; aqui só se SELECIONA.
+  const todosSubgrupos = useMemo(() => {
+    const s = new Set<string>()
+    for (const arr of subgruposPorGrupo.values()) for (const sg of arr) if (sg) s.add(sg)
+    return [...s].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  }, [subgruposPorGrupo])
+  function opcoesSub(atual: string): string[] {
+    // preserva o valor já gravado mesmo se ainda não estiver na lista
+    return atual && !todosSubgrupos.includes(atual) ? [...todosSubgrupos, atual] : todosSubgrupos
   }
 
   const apelidoSel = empresas.find((e) => e.empresa === empresaSel)?.apelido ?? 'empresa'
@@ -247,12 +253,12 @@ export function AjustesReclass({
                     <span className="nomero">{l.grupo}{l.subgrupo ? ` · ${l.subgrupo}` : ''}</span>
                   ) : (
                     <div className="destwrap">
-                      <select className="selgrp" value={l.grupo} onChange={(e) => patch(l.id, { grupo: e.target.value, subgrupo: '' })}>
+                      <select className="selgrp" value={l.grupo} onChange={(e) => patch(l.id, { grupo: e.target.value })}>
                         {gruposOrd.map((g) => <option key={g.nome} value={g.nome}>{g.nome}</option>)}
                       </select>
                       <select className="selgrp" value={l.subgrupo} onChange={(e) => patch(l.id, { subgrupo: e.target.value })}>
                         <option value="">— sem subgrupo —</option>
-                        {opcoesSub(l.grupo, l.subgrupo).map((s) => <option key={s} value={s}>{s}</option>)}
+                        {opcoesSub(l.subgrupo).map((s) => <option key={s} value={s}>{s}</option>)}
                       </select>
                     </div>
                   )}
