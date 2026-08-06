@@ -68,6 +68,7 @@ export function Dre() {
   const [reclass, setReclass] = useState<ReclassLanc[]>([])
   const [overrides, setOverrides] = useState<Record<string, { grupo: string; subgrupo: string }>>({})
   const [customGrupos, setCustomGrupos] = useState<GrupoDef[]>([])
+  const [customSubgrupos, setCustomSubgrupos] = useState<{ grupo: string; subgrupo: string }[]>([])
   const [empresaSel, setEmpresaSel] = useState<string>(CONSOLIDADO)
   const [mesDe, setMesDe] = useState(0)
   const [mesAte, setMesAte] = useState(11)
@@ -114,9 +115,10 @@ export function Dre() {
       })),
     )
     // classificação + grupos customizados + DDL (tolera tabelas ausentes = usa padrão)
-    const [cls, grp, ddlRes, rclRes] = await Promise.all([
+    const [cls, grp, sgp, ddlRes, rclRes] = await Promise.all([
       supabase.from('dre_classificacao').select('codigo, grupo, subgrupo'),
       supabase.from('dre_grupos').select('nome, papel, ordem').order('ordem'),
+      supabase.from('dre_subgrupos').select('grupo, subgrupo, ordem').order('ordem'),
       supabase.from('dre_ddl').select('empresa, socio, ano, mes, valor'),
       supabase.from('dre_reclass').select('empresa, ano, mes, origem, origem_nome, grupo, subgrupo, valor'),
     ])
@@ -124,6 +126,7 @@ export function Dre() {
     for (const c of cls.data ?? []) ov[(c.codigo ?? '').toString()] = { grupo: (c.grupo ?? '').toString(), subgrupo: (c.subgrupo ?? '').toString() }
     setOverrides(ov)
     setCustomGrupos((grp.data ?? []).map((g) => ({ nome: (g.nome ?? '').toString(), papel: (g.papel ?? 'despesa_op') as GrupoDef['papel'] })))
+    setCustomSubgrupos((sgp.data ?? []).map((s) => ({ grupo: (s.grupo ?? '').toString(), subgrupo: (s.subgrupo ?? '').toString() })).filter((s) => s.grupo && s.subgrupo))
     setDdl((ddlRes.data ?? []).map((d) => ({
       empresa: (d.empresa ?? '').toString(),
       socio: (d.socio ?? '').toString(),
@@ -228,7 +231,30 @@ export function Dre() {
     return [...m.values()].map((e) => ({ codigo: e.codigo, nome: e.nome, valor: Math.abs(e.cred - e.deb) }))
   }, [rows])
 
-  async function salvarClassificacao(mapa: Record<string, { grupo: string; subgrupo: string }>, custom: GrupoDef[]) {
+  /* ---------- catálogo de subgrupos por grupo (nível 2) ---------- */
+  // União de: (1) catálogo explícito (tabela dre_subgrupos), (2) subgrupos já
+  // atribuídos a contas na classificação atual e (3) subgrupos já usados em
+  // reclassificações. Alimenta os SELECT de subgrupo na Classificação e nos Ajustes.
+  const subgruposPorGrupo = useMemo(() => {
+    const m = new Map<string, Set<string>>()
+    const add = (g: string, s: string) => {
+      if (!g || !s) return
+      if (!m.has(g)) m.set(g, new Set<string>())
+      m.get(g)!.add(s)
+    }
+    for (const c of customSubgrupos) add(c.grupo, c.subgrupo)
+    for (const c of universo) { const r = classificar(c.codigo, c.nome); add(r.grupo, r.subgrupo) }
+    for (const r of reclass) add(r.grupo, r.subgrupo)
+    const out = new Map<string, string[]>()
+    for (const [g, set] of m) out.set(g, [...set].sort((a, b) => a.localeCompare(b, 'pt-BR')))
+    return out
+  }, [customSubgrupos, universo, classificar, reclass])
+
+  async function salvarClassificacao(
+    mapa: Record<string, { grupo: string; subgrupo: string }>,
+    custom: GrupoDef[],
+    subgrupos: { grupo: string; subgrupo: string }[],
+  ) {
     setSalvandoCls(true)
     setErro(null)
     try {
@@ -242,10 +268,24 @@ export function Dre() {
           const { error: e2 } = await supabase.from('dre_grupos').upsert(grpRows)
           if (e2) throw new Error(e2.message)
         }
+        // catálogo de subgrupos: grava os atuais e remove os que saíram
+        const subLimpos = subgrupos.filter((s) => s.grupo && s.subgrupo)
+        if (subLimpos.length) {
+          const sgRows = subLimpos.map((s, i) => ({ grupo: s.grupo, subgrupo: s.subgrupo, ordem: i, updated_at: agora }))
+          const { error: e3 } = await supabase.from('dre_subgrupos').upsert(sgRows)
+          if (e3) throw new Error(e3.message)
+        }
+        const desejados = new Set(subLimpos.map((s) => `${s.grupo}${s.subgrupo}`))
+        const removidos = customSubgrupos.filter((s) => !desejados.has(`${s.grupo}${s.subgrupo}`))
+        for (const s of removidos) {
+          const { error: e4 } = await supabase.from('dre_subgrupos').delete().eq('grupo', s.grupo).eq('subgrupo', s.subgrupo)
+          if (e4) throw new Error(e4.message)
+        }
         await carregar()
       } else {
         setOverrides(mapa)
         setCustomGrupos(custom)
+        setCustomSubgrupos(subgrupos.filter((s) => s.grupo && s.subgrupo))
       }
       setModo('dre')
       setAviso('Classificação salva. O DRE foi reorganizado.')
@@ -513,6 +553,7 @@ export function Dre() {
           contas={universo}
           classificarInicial={classificar}
           customIniciais={customGrupos}
+          subgruposIniciais={customSubgrupos}
           onSalvar={salvarClassificacao}
           onFechar={() => setModo('dre')}
           salvando={salvandoCls}
@@ -532,6 +573,7 @@ export function Dre() {
           entries={reclass}
           contas={universo}
           catalogo={catalogo}
+          subgruposPorGrupo={subgruposPorGrupo}
           empresas={empresas}
           anos={anosDisponiveis}
           onSalvar={salvarReclass}

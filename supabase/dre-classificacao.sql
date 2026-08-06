@@ -51,5 +51,29 @@ create policy "dregr_escrita_admin"
   on public.dre_grupos for all to authenticated
   using (public.is_admin()) with check (public.is_admin());
 
--- Pronto. O DRE lê estas duas tabelas e monta a estrutura; sem elas, usa a
+-- Catálogo de subgrupos (nível 2) por grupo. Antes o subgrupo só existia
+-- "colado" a uma conta em dre_classificacao; agora vira catálogo de primeira
+-- classe (igual dre_grupos), para poder ser SELECIONADO nos Ajustes e existir
+-- mesmo em grupos sem conta nativa (ex.: um grupo de Custo criado para receber
+-- reclassificações). Vale para todas as empresas.
+create table if not exists public.dre_subgrupos (
+  grupo      text not null,               -- nível 1 (referencia o nome do grupo)
+  subgrupo   text not null,               -- nível 2
+  ordem      integer not null default 0,
+  updated_at timestamptz not null default now(),
+  primary key (grupo, subgrupo)
+);
+
+alter table public.dre_subgrupos enable row level security;
+
+drop policy if exists "dresg_leitura_autenticado" on public.dre_subgrupos;
+create policy "dresg_leitura_autenticado"
+  on public.dre_subgrupos for select to authenticated using (true);
+
+drop policy if exists "dresg_escrita_admin" on public.dre_subgrupos;
+create policy "dresg_escrita_admin"
+  on public.dre_subgrupos for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+
+-- Pronto. O DRE lê estas três tabelas e monta a estrutura; sem elas, usa a
 -- classificação padrão embutida no código.

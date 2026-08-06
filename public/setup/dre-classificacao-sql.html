@@ -68,6 +68,26 @@ drop policy if exists "dregr_escrita_admin" on public.dre_grupos;
 create policy "dregr_escrita_admin"
   on public.dre_grupos for all to authenticated
   using (public.is_admin()) with check (public.is_admin());
+
+-- Catálogo de subgrupos (nível 2) por grupo — selecionáveis nos Ajustes.
+create table if not exists public.dre_subgrupos (
+  grupo      text not null,
+  subgrupo   text not null,
+  ordem      integer not null default 0,
+  updated_at timestamptz not null default now(),
+  primary key (grupo, subgrupo)
+);
+
+alter table public.dre_subgrupos enable row level security;
+
+drop policy if exists "dresg_leitura_autenticado" on public.dre_subgrupos;
+create policy "dresg_leitura_autenticado"
+  on public.dre_subgrupos for select to authenticated using (true);
+
+drop policy if exists "dresg_escrita_admin" on public.dre_subgrupos;
+create policy "dresg_escrita_admin"
+  on public.dre_subgrupos for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
 </textarea>
   </div>
 

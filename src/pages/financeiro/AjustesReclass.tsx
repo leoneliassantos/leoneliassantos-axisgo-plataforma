@@ -40,7 +40,6 @@ const z12 = () => new Array(12).fill(0) as number[]
 const sum = (a: number[]) => a.reduce((s, v) => s + v, 0)
 const fmt = (v: number) => (Math.abs(v) < 0.5 ? '—' : Math.round(v).toLocaleString('pt-BR'))
 const keyOf = (empresa: string, ano: number) => `${empresa}|${ano}`
-const sanit = (s: string) => (s || '').replace(/[^a-z0-9]+/gi, '-')
 
 /** Monta a grade (uma linha por de-para) a partir dos ajustes salvos. */
 function baseline(entries: ReclassLanc[], empresa: string, ano: number): Linha[] {
@@ -62,6 +61,7 @@ export function AjustesReclass({
   entries,
   contas,
   catalogo,
+  subgruposPorGrupo,
   empresas,
   anos,
   onSalvar,
@@ -72,6 +72,7 @@ export function AjustesReclass({
   entries: ReclassLanc[]
   contas: ContaOpt[]
   catalogo: GrupoDef[]
+  subgruposPorGrupo: Map<string, string[]>
   empresas: EmpresaOpt[]
   anos: number[]
   onSalvar: (empresa: string, ano: number, rows: ReclassSaveRow[]) => void
@@ -165,16 +166,13 @@ export function AjustesReclass({
     return [...s].sort((a, b) => a - b)
   }, [anos, anoSel])
 
-  // subgrupos já usados por grupo (sugestão no datalist)
-  const subsPorGrupo = useMemo(() => {
-    const m = new Map<string, Set<string>>()
-    for (const l of linhas) {
-      if (!l.subgrupo.trim()) continue
-      if (!m.has(l.grupo)) m.set(l.grupo, new Set())
-      m.get(l.grupo)!.add(l.subgrupo.trim())
-    }
-    return m
-  }, [linhas])
+  // opções de subgrupo (nível 2) do grupo escolhido — vêm do catálogo definido
+  // em "Reclassificar contas". Aqui só se SELECIONA; criar subgrupo é lá.
+  function opcoesSub(grupo: string, atual: string): string[] {
+    const cat = subgruposPorGrupo.get(grupo) ?? []
+    // preserva o valor já gravado mesmo se ainda não estiver no catálogo
+    return atual && !cat.includes(atual) ? [...cat, atual] : cat
+  }
 
   const apelidoSel = empresas.find((e) => e.empresa === empresaSel)?.apelido ?? 'empresa'
 
@@ -220,13 +218,6 @@ export function AjustesReclass({
         </div>
       </div>
 
-      {/* datalists de subgrupos por grupo */}
-      {[...subsPorGrupo.entries()].map(([g, set]) => (
-        <datalist key={g} id={`rsub-${sanit(g)}`}>
-          {[...set].map((s) => <option key={s} value={s} />)}
-        </datalist>
-      ))}
-
       <div className="overflow-x-auto rounded-2xl border border-line bg-surface">
         <table className="rcltab tnum">
           <thead>
@@ -256,10 +247,13 @@ export function AjustesReclass({
                     <span className="nomero">{l.grupo}{l.subgrupo ? ` · ${l.subgrupo}` : ''}</span>
                   ) : (
                     <div className="destwrap">
-                      <select className="selgrp" value={l.grupo} onChange={(e) => patch(l.id, { grupo: e.target.value })}>
+                      <select className="selgrp" value={l.grupo} onChange={(e) => patch(l.id, { grupo: e.target.value, subgrupo: '' })}>
                         {gruposOrd.map((g) => <option key={g.nome} value={g.nome}>{g.nome}</option>)}
                       </select>
-                      <input className="subinp" list={`rsub-${sanit(l.grupo)}`} value={l.subgrupo} placeholder="subgrupo (opcional)" onChange={(e) => patch(l.id, { subgrupo: e.target.value })} />
+                      <select className="selgrp" value={l.subgrupo} onChange={(e) => patch(l.id, { subgrupo: e.target.value })}>
+                        <option value="">— sem subgrupo —</option>
+                        {opcoesSub(l.grupo, l.subgrupo).map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
                     </div>
                   )}
                 </td>
