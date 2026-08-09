@@ -4,6 +4,9 @@ import { Rentabilidade } from '../pages/financeiro/Rentabilidade'
 import { FluxoCaixaHub } from '../pages/financeiro/FluxoCaixaHub'
 import { Dre } from '../pages/financeiro/Dre'
 import { Vendas } from '../pages/financeiro/Vendas'
+import { FluxoProducao } from '../pages/operacoes/FluxoProducao'
+import { OrdensProducao } from '../pages/operacoes/OrdensProducao'
+import { Acompanhamento } from '../pages/operacoes/Acompanhamento'
 
 /**
  * ============================================================
@@ -86,21 +89,13 @@ const TODAS_FRENTES: Frente[] = [
   {
     slug: 'operacoes',
     nome: 'Operações',
-    descricao: 'Processos, entregas e produtividade das equipes.',
-    disponivel: false,
+    descricao: 'Fluxo de produção, ordens e acompanhamento das entregas.',
+    disponivel: true,
     icon: iconOperacoes,
     modulos: [
-      {
-        slug: 'visao-geral',
-        label: 'Visão geral',
-        element: (
-          <EmConstrucao
-            titulo="Frente de Operações"
-            descricao="Processos, projetos, capacidade das equipes e cumprimento de prazos (SLA)."
-            itens={['Projetos', 'Capacidade', 'Produtividade', 'SLA']}
-          />
-        ),
-      },
+      { slug: 'fluxo-producao', label: 'Fluxo de Produção', element: <FluxoProducao /> },
+      { slug: 'ordens-producao', label: 'Ordens de Produção', element: <OrdensProducao /> },
+      { slug: 'acompanhamento', label: 'Acompanhamento', element: <Acompanhamento /> },
     ],
   },
   {
