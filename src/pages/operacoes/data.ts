@@ -50,6 +50,7 @@ export interface Cadastro {
   nome: string
   apelido?: string | null
   contato?: string | null
+  bloqueado?: boolean
 }
 
 export interface LogoItem {
@@ -170,10 +171,10 @@ export async function loadCadastros(): Promise<Cadastros> {
     return { clientes: db.clientes, uniformes: db.uniformes, cores: db.cores, fornecedores: db.fornecedores }
   }
   const [cli, uni, cor, forn] = await Promise.all([
-    supabase!.from('clientes').select('id, nome, apelido, contato').order('nome'),
-    supabase!.from('uniformes').select('id, nome').order('nome'),
-    supabase!.from('cores').select('id, nome').order('nome'),
-    supabase!.from('fornecedores').select('id, nome').order('nome'),
+    supabase!.from('clientes').select('id, nome, apelido, contato, bloqueado').order('nome'),
+    supabase!.from('uniformes').select('id, nome, bloqueado').order('nome'),
+    supabase!.from('cores').select('id, nome, bloqueado').order('nome'),
+    supabase!.from('fornecedores').select('id, nome, bloqueado').order('nome'),
   ])
   const err = cli.error || uni.error || cor.error || forn.error
   if (err) throw new Error(err.message)
@@ -185,7 +186,12 @@ export async function loadCadastros(): Promise<Cadastros> {
   }
 }
 
-type TabelaCadastro = 'clientes' | 'uniformes' | 'cores' | 'fornecedores'
+export type TabelaCadastro = 'clientes' | 'uniformes' | 'cores' | 'fornecedores'
+
+/** Colunas de leitura conforme a tabela (só clientes tem apelido/contato). */
+function colunas(tabela: TabelaCadastro): string {
+  return tabela === 'clientes' ? 'id, nome, apelido, contato, bloqueado' : 'id, nome, bloqueado'
+}
 
 export async function addCadastro(
   tabela: TabelaCadastro,
@@ -197,7 +203,7 @@ export async function addCadastro(
     const db = demoLoad()
     const existente = db[tabela].find((c) => c.nome.toLowerCase() === nomeTrim.toLowerCase())
     if (existente) return existente
-    const novo: Cadastro = { id: uid(), nome: nomeTrim, apelido: extra?.apelido ?? null, contato: extra?.contato ?? null }
+    const novo: Cadastro = { id: uid(), nome: nomeTrim, apelido: extra?.apelido ?? null, contato: extra?.contato ?? null, bloqueado: false }
     db[tabela] = [...db[tabela], novo].sort((a, b) => a.nome.localeCompare(b.nome))
     demoSave(db)
     return novo
@@ -207,14 +213,57 @@ export async function addCadastro(
     payload.apelido = extra?.apelido ?? null
     payload.contato = extra?.contato ?? null
   }
-  const { data, error } = await supabase!.from(tabela).insert(payload).select('id, nome, apelido, contato').single()
+  const { data, error } = await supabase!.from(tabela).insert(payload).select(colunas(tabela)).single()
   if (error) {
     // Nome duplicado (índice único): busca o existente para reaproveitar.
-    const { data: achou } = await supabase!.from(tabela).select('id, nome, apelido, contato').ilike('nome', nomeTrim).limit(1)
-    if (achou && achou.length) return achou[0] as Cadastro
+    const { data: achou } = await supabase!.from(tabela).select(colunas(tabela)).ilike('nome', nomeTrim).limit(1)
+    if (achou && achou.length) return achou[0] as unknown as Cadastro
     throw new Error(error.message)
   }
-  return data as Cadastro
+  return data as unknown as Cadastro
+}
+
+/** Edita nome (e, para clientes, apelido/contato). */
+export async function updateCadastro(
+  tabela: TabelaCadastro,
+  id: string,
+  patch: { nome?: string; apelido?: string; contato?: string },
+): Promise<void> {
+  if (isDemo) {
+    const db = demoLoad()
+    const item = db[tabela].find((c) => c.id === id)
+    if (item) {
+      if (patch.nome !== undefined) item.nome = patch.nome.trim()
+      if (tabela === 'clientes') {
+        if (patch.apelido !== undefined) item.apelido = patch.apelido || null
+        if (patch.contato !== undefined) item.contato = patch.contato || null
+      }
+      db[tabela] = [...db[tabela]].sort((a, b) => a.nome.localeCompare(b.nome))
+    }
+    demoSave(db)
+    return
+  }
+  const payload: Record<string, unknown> = {}
+  if (patch.nome !== undefined) payload.nome = patch.nome.trim()
+  if (tabela === 'clientes') {
+    if (patch.apelido !== undefined) payload.apelido = patch.apelido || null
+    if (patch.contato !== undefined) payload.contato = patch.contato || null
+  }
+  const { error } = await supabase!.from(tabela).update(payload).eq('id', id)
+  if (error) throw new Error(error.message)
+}
+
+/** Bloqueia/desbloqueia um cadastro (nunca exclui). */
+export async function setBloqueado(tabela: TabelaCadastro, id: string, bloqueado: boolean): Promise<void> {
+  if (isDemo) {
+    const db = demoLoad()
+    const item = db[tabela].find((c) => c.id === id)
+    if (item) item.bloqueado = bloqueado
+    demoSave(db)
+    return
+  }
+  const { error } = await supabase!.from(tabela).update({ bloqueado }).eq('id', id)
+  if (error) throw new Error(error.message)
 }
 
 export async function loadPedidos(): Promise<Pedido[]> {

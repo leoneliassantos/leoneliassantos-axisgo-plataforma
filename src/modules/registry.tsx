@@ -7,6 +7,7 @@ import { Vendas } from '../pages/financeiro/Vendas'
 import { FluxoProducao } from '../pages/operacoes/FluxoProducao'
 import { OrdensProducao } from '../pages/operacoes/OrdensProducao'
 import { Acompanhamento } from '../pages/operacoes/Acompanhamento'
+import { Cadastros } from '../pages/operacoes/Cadastros'
 
 /**
  * ============================================================
@@ -33,6 +34,11 @@ export interface Modulo {
    * cliente (ex.: Vendas da MC) não vaza para os outros que usam o mesmo Core.
    */
   optIn?: boolean
+  /**
+   * Rótulo de agrupamento no menu lateral. Módulos com o mesmo `grupo`
+   * aparecem juntos, sob um submenu recolhível (ex.: "Cadastros").
+   */
+  grupo?: string
 }
 
 export interface Frente {
@@ -96,6 +102,10 @@ const TODAS_FRENTES: Frente[] = [
       { slug: 'fluxo-producao', label: 'Fluxo de Produção', element: <FluxoProducao /> },
       { slug: 'ordens-producao', label: 'Ordens de Produção', element: <OrdensProducao /> },
       { slug: 'acompanhamento', label: 'Acompanhamento', element: <Acompanhamento /> },
+      { slug: 'cad-clientes', label: 'Clientes', grupo: 'Cadastros', element: <Cadastros tipo="clientes" /> },
+      { slug: 'cad-uniformes', label: 'Uniformes', grupo: 'Cadastros', element: <Cadastros tipo="uniformes" /> },
+      { slug: 'cad-cores', label: 'Cores', grupo: 'Cadastros', element: <Cadastros tipo="cores" /> },
+      { slug: 'cad-fornecedores', label: 'Fornecedores', grupo: 'Cadastros', element: <Cadastros tipo="fornecedores" /> },
     ],
   },
   {

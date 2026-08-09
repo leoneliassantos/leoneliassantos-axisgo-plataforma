@@ -54,6 +54,14 @@ export function NovaOP({
   const [produtos, setProdutos] = useState<ProdutoDraft[]>([novaLinha()])
   const [erro, setErro] = useState<string | null>(null)
 
+  // No lançamento só aparecem cadastros ATIVOS (bloqueados ficam de fora).
+  const ativos = {
+    clientes: cadastros.clientes.filter((c) => !c.bloqueado),
+    uniformes: cadastros.uniformes.filter((c) => !c.bloqueado),
+    cores: cadastros.cores.filter((c) => !c.bloqueado),
+    fornecedores: cadastros.fornecedores.filter((c) => !c.bloqueado),
+  }
+
   const upd = (key: string, patch: Partial<ProdutoDraft>) =>
     setProdutos((ps) => ps.map((p) => (p.key === key ? { ...p, ...patch } : p)))
   const updLogo = (key: string, tipo: TipoLogo, patch: Partial<LogoDraft>) =>
@@ -105,7 +113,7 @@ export function NovaOP({
           <label className={lab}>Cliente *</label>
           <Combobox
             value={clienteId}
-            options={cadastros.clientes}
+            options={ativos.clientes}
             placeholder="Selecione o cliente"
             addLabel="Cadastrar cliente"
             onSelect={setClienteId}
@@ -162,12 +170,12 @@ export function NovaOP({
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div>
                 <label className={lab}>Uniforme *</label>
-                <Combobox value={p.uniformeId} options={cadastros.uniformes} placeholder="Selecione" addLabel="Cadastrar uniforme"
+                <Combobox value={p.uniformeId} options={ativos.uniformes} placeholder="Selecione" addLabel="Cadastrar uniforme"
                   onSelect={(id) => upd(p.key, { uniformeId: id })} onAdd={(nome) => addAndSelect('uniformes', nome, (id) => upd(p.key, { uniformeId: id }))} />
               </div>
               <div>
                 <label className={lab}>Cor</label>
-                <Combobox value={p.corId} options={cadastros.cores} placeholder="Selecione" addLabel="Cadastrar cor"
+                <Combobox value={p.corId} options={ativos.cores} placeholder="Selecione" addLabel="Cadastrar cor"
                   onSelect={(id) => upd(p.key, { corId: id })} onAdd={(nome) => addAndSelect('cores', nome, (id) => upd(p.key, { corId: id }))} />
               </div>
               <div>
@@ -207,7 +215,7 @@ export function NovaOP({
                     </label>
                     {p.logos[t].ativo && (
                       <div className="mt-2">
-                        <Combobox value={p.logos[t].fornecedorId} options={cadastros.fornecedores} placeholder="Fornecedor" addLabel="Cadastrar fornecedor"
+                        <Combobox value={p.logos[t].fornecedorId} options={ativos.fornecedores} placeholder="Fornecedor" addLabel="Cadastrar fornecedor"
                           onSelect={(id) => updLogo(p.key, t, { fornecedorId: id })} onAdd={(nome) => addAndSelect('fornecedores', nome, (id) => updLogo(p.key, t, { fornecedorId: id }))} />
                       </div>
                     )}

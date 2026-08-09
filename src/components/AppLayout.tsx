@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/AuthContext'
 import { CLIENT } from '../config/client'
-import { FRENTES } from '../modules/registry'
+import { FRENTES, type Modulo } from '../modules/registry'
 
 const STORAGE_KEY = 'axisgo.sidebar.recolhida'
 
@@ -18,6 +18,8 @@ const icons = {
   ),
   sair: <path d="M15 4h3a1 1 0 011 1v14a1 1 0 01-1 1h-3M10 8l-4 4 4 4M6 12h11" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />,
   modulo: <circle cx="12" cy="12" r="3.4" strokeWidth="2" />,
+  cadastros: <path d="M4 6a2 2 0 012-2h3l2 2h7a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2z" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />,
+  chevron: <path d="M9 6l6 6-6 6" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />,
 }
 
 function Icon({ children, size = 18 }: { children: ReactNode; size?: number }) {
@@ -43,6 +45,7 @@ export function AppLayout() {
   })
   const [aberta, setAberta] = useState(false) // gaveta no mobile
   const [logoH, setLogoH] = useState(32)
+  const [gruposAbertos, setGruposAbertos] = useState<Record<string, boolean>>({})
 
   // Início (Hub) = sem barra lateral, só os cards. Dentro de um ambiente = sidebar
   // com Início + os módulos DAQUELE ambiente (sem a lista dos outros ambientes).
@@ -166,6 +169,28 @@ export function AppLayout() {
       isActive ? 'bg-brand/10 text-brand' : 'text-muted hover:bg-paper hover:text-ink'
     } ${recolhida ? 'md:justify-center md:px-0' : ''}`
 
+  const renderModulo = (m: Modulo, indent: boolean) => (
+    <NavLink
+      key={m.slug}
+      to={`/${frenteAtiva!.slug}/${m.slug}`}
+      onClick={fechaMobile}
+      title={m.label}
+      className={({ isActive }) =>
+        `flex items-center gap-2.5 rounded-md py-2 text-sm transition ${indent ? 'pl-9 pr-3' : 'px-3'} ${
+          isActive ? 'bg-brand/10 font-medium text-brand' : 'text-muted hover:bg-paper hover:text-ink'
+        } ${recolhida ? 'md:justify-center md:px-0' : ''}`
+      }
+    >
+      <Icon size={16}>{icons.modulo}</Icon>
+      <span className={rot(true)}>{m.label}</span>
+    </NavLink>
+  )
+
+  // Separa módulos soltos dos agrupados (ex.: "Cadastros").
+  const soltos = frenteAtiva ? frenteAtiva.modulos.filter((m) => !m.grupo) : []
+  const grupos: Record<string, Modulo[]> = {}
+  if (frenteAtiva) for (const m of frenteAtiva.modulos) if (m.grupo) (grupos[m.grupo] ??= []).push(m)
+
   return (
     <div className="flex h-screen overflow-hidden">
       {aberta && (
@@ -199,22 +224,31 @@ export function AppLayout() {
               <div className={`px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted ${rot(true)}`}>
                 {frenteAtiva.nome}
               </div>
-              {frenteAtiva.modulos.map((m) => (
-                <NavLink
-                  key={m.slug}
-                  to={`/${frenteAtiva.slug}/${m.slug}`}
-                  onClick={fechaMobile}
-                  title={m.label}
-                  className={({ isActive }) =>
-                    `flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition ${
-                      isActive ? 'bg-brand/10 font-medium text-brand' : 'text-muted hover:bg-paper hover:text-ink'
-                    } ${recolhida ? 'md:justify-center md:px-0' : ''}`
-                  }
-                >
-                  <Icon size={16}>{icons.modulo}</Icon>
-                  <span className={rot(true)}>{m.label}</span>
-                </NavLink>
-              ))}
+              {soltos.map((m) => renderModulo(m, false))}
+
+              {Object.entries(grupos).map(([nome, itens]) => {
+                const temAtivo = itens.some((m) => pathname === `/${frenteAtiva.slug}/${m.slug}`)
+                const aberto = gruposAbertos[nome] ?? temAtivo
+                return (
+                  <div key={nome} className="mt-1">
+                    <button
+                      type="button"
+                      onClick={() => setGruposAbertos((g) => ({ ...g, [nome]: !(g[nome] ?? temAtivo) }))}
+                      title={nome}
+                      className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium text-muted transition hover:bg-paper hover:text-ink ${recolhida ? 'md:justify-center md:px-0' : ''}`}
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <Icon size={16}>{icons.cadastros}</Icon>
+                        <span className={rot(true)}>{nome}</span>
+                      </span>
+                      <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" className={`transition-transform ${aberto ? 'rotate-90' : ''} ${rot(true)}`}>
+                        {icons.chevron}
+                      </svg>
+                    </button>
+                    {aberto && <div className="mt-0.5 flex flex-col">{itens.map((m) => renderModulo(m, true))}</div>}
+                  </div>
+                )
+              })}
             </div>
           )}
 
