@@ -11,7 +11,7 @@ import {
   type Cadastros, type Pedido, type Produto, type ProdutoPatch, type NovoPedidoInput, type StatusProd,
 } from './data'
 
-const CADASTROS_VAZIO: Cadastros = { clientes: [], uniformes: [], cores: [], fornecedores: [] }
+const CADASTROS_VAZIO: Cadastros = { clientes: [], uniformes: [], cores: [], tecidos: [], fornecedores: [] }
 
 interface MoveAlvo { produtoId: string; de: string; para: string }
 
@@ -58,7 +58,7 @@ export function FluxoProducao() {
   }, [pedidos, itemId])
 
   /* ------------------------------ ações ------------------------------ */
-  async function handleAddCadastro(tabela: 'clientes' | 'uniformes' | 'cores' | 'fornecedores', nome: string) {
+  async function handleAddCadastro(tabela: 'clientes' | 'uniformes' | 'cores' | 'tecidos' | 'fornecedores', nome: string) {
     const c = await addCadastro(tabela, nome)
     setCadastros((prev) => ({ ...prev, [tabela]: [...prev[tabela], c].sort((a, b) => a.nome.localeCompare(b.nome)) }))
     return c
@@ -312,7 +312,7 @@ function CardItem({ it, onAbrir, dragId }: { it: Produto; onAbrir: (id: string) 
         <span className="tnum rounded bg-paper px-1.5 py-0.5 text-[10px] font-semibold text-muted">{it.qtd} pçs</span>
       </div>
       <div className="mt-1 text-sm font-medium leading-tight text-ink">{it.uniformeNome}</div>
-      <div className="text-[12px] text-muted">Cor: <b className="text-ink/80">{it.corNome || '—'}</b></div>
+      <div className="text-[12px] text-muted">Cor: <b className="text-ink/80">{it.corNome || '—'}</b>{it.tecidoNome ? <> · {it.tecidoNome}</> : null}</div>
       {it.logos.length > 0 && (
         <div className="mt-1 flex flex-wrap gap-1">
           {it.logos.map((l, i) => <span key={i} className="rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-medium text-brand">{l.tipo}</span>)}

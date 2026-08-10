@@ -48,7 +48,7 @@ export function ItemModal({
   return (
     <Modal
       title={produto.uniformeNome || 'Item'}
-      subtitle={`Cor: ${produto.corNome || '—'}${produto.numeroPedido ? ` · Pedido ${produto.numeroPedido}` : ''}`}
+      subtitle={`Cor: ${produto.corNome || '—'}${produto.tecidoNome ? ` · Tecido: ${produto.tecidoNome}` : ''}${produto.numeroPedido ? ` · Pedido ${produto.numeroPedido}` : ''}`}
       width={680}
       onClose={onClose}
       footer={

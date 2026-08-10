@@ -7,7 +7,7 @@ import {
   type Prioridade, type TipoLogo, PRIO_LABEL,
 } from './data'
 
-type TabCad = 'clientes' | 'uniformes' | 'cores' | 'fornecedores'
+type TabCad = 'clientes' | 'uniformes' | 'cores' | 'tecidos' | 'fornecedores'
 
 interface LogoDraft {
   ativo: boolean
@@ -17,6 +17,7 @@ interface ProdutoDraft {
   key: string
   uniformeId: string | null
   corId: string | null
+  tecidoId: string | null
   numeroProposta: string
   numeroPedido: string
   qtd: string
@@ -29,7 +30,7 @@ interface ProdutoDraft {
 const TIPOS_LOGO: TipoLogo[] = ['Bordado', 'Silk', 'DTF']
 const novaLinha = (): ProdutoDraft => ({
   key: Math.random().toString(36).slice(2),
-  uniformeId: null, corId: null, numeroProposta: '', numeroPedido: '', qtd: '', previsaoEntrega: '',
+  uniformeId: null, corId: null, tecidoId: null, numeroProposta: '', numeroPedido: '', qtd: '', previsaoEntrega: '',
   prioridade: 'media', temLogo: false,
   logos: { Bordado: { ativo: false, fornecedorId: null }, Silk: { ativo: false, fornecedorId: null }, DTF: { ativo: false, fornecedorId: null } },
 })
@@ -59,6 +60,7 @@ export function NovaOP({
     clientes: cadastros.clientes.filter((c) => !c.bloqueado),
     uniformes: cadastros.uniformes.filter((c) => !c.bloqueado),
     cores: cadastros.cores.filter((c) => !c.bloqueado),
+    tecidos: cadastros.tecidos.filter((c) => !c.bloqueado),
     fornecedores: cadastros.fornecedores.filter((c) => !c.bloqueado),
   }
 
@@ -80,7 +82,7 @@ export function NovaOP({
     const input: NovoPedidoInput = {
       clienteId, numeroProposta: numeroProposta.trim(), dataPedido, prioridade,
       produtos: validos.map<NovoProdutoInput>((p) => ({
-        uniformeId: p.uniformeId, corId: p.corId, numeroProposta: p.numeroProposta.trim(),
+        uniformeId: p.uniformeId, corId: p.corId, tecidoId: p.tecidoId, numeroProposta: p.numeroProposta.trim(),
         numeroPedido: p.numeroPedido.trim(), qtd: Number(p.qtd), prioridade: p.prioridade,
         previsaoEntrega: p.previsaoEntrega,
         logos: p.temLogo
@@ -177,6 +179,11 @@ export function NovaOP({
                 <label className={lab}>Cor</label>
                 <Combobox value={p.corId} options={ativos.cores} placeholder="Selecione" addLabel="Cadastrar cor"
                   onSelect={(id) => upd(p.key, { corId: id })} onAdd={(nome) => addAndSelect('cores', nome, (id) => upd(p.key, { corId: id }))} />
+              </div>
+              <div>
+                <label className={lab}>Tecido</label>
+                <Combobox value={p.tecidoId} options={ativos.tecidos} placeholder="Selecione" addLabel="Cadastrar tecido"
+                  onSelect={(id) => upd(p.key, { tecidoId: id })} onAdd={(nome) => addAndSelect('tecidos', nome, (id) => upd(p.key, { tecidoId: id }))} />
               </div>
               <div>
                 <label className={lab}>Quantidade (peças) *</label>

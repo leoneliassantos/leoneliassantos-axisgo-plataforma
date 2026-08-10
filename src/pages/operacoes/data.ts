@@ -75,6 +75,8 @@ export interface Produto {
   uniformeNome: string
   corId: string | null
   corNome: string
+  tecidoId: string | null
+  tecidoNome: string
   numeroProposta: string
   numeroPedido: string
   qtd: number
@@ -105,12 +107,14 @@ export interface Cadastros {
   clientes: Cadastro[]
   uniformes: Cadastro[]
   cores: Cadastro[]
+  tecidos: Cadastro[]
   fornecedores: Cadastro[]
 }
 
 export interface NovoProdutoInput {
   uniformeId: string | null
   corId: string | null
+  tecidoId: string | null
   numeroProposta: string
   numeroPedido: string
   qtd: number
@@ -148,13 +152,14 @@ interface DemoDB extends Cadastros {
   pedidos: Pedido[]
 }
 function demoLoad(): DemoDB {
+  const vazio: DemoDB = { clientes: [], uniformes: [], cores: [], tecidos: [], fornecedores: [], pedidos: [] }
   try {
     const raw = localStorage.getItem(DEMO_KEY)
-    if (raw) return JSON.parse(raw) as DemoDB
+    if (raw) return { ...vazio, ...(JSON.parse(raw) as Partial<DemoDB>) }
   } catch {
     /* ignore */
   }
-  return { clientes: [], uniformes: [], cores: [], fornecedores: [], pedidos: [] }
+  return vazio
 }
 function demoSave(db: DemoDB) {
   localStorage.setItem(DEMO_KEY, JSON.stringify(db))
@@ -168,25 +173,27 @@ const uid = () => (crypto?.randomUUID ? crypto.randomUUID() : `id-${Date.now()}-
 export async function loadCadastros(): Promise<Cadastros> {
   if (isDemo) {
     const db = demoLoad()
-    return { clientes: db.clientes, uniformes: db.uniformes, cores: db.cores, fornecedores: db.fornecedores }
+    return { clientes: db.clientes, uniformes: db.uniformes, cores: db.cores, tecidos: db.tecidos, fornecedores: db.fornecedores }
   }
-  const [cli, uni, cor, forn] = await Promise.all([
+  const [cli, uni, cor, tec, forn] = await Promise.all([
     supabase!.from('clientes').select('id, nome, apelido, contato, bloqueado').order('nome'),
     supabase!.from('uniformes').select('id, nome, bloqueado').order('nome'),
     supabase!.from('cores').select('id, nome, bloqueado').order('nome'),
+    supabase!.from('tecidos').select('id, nome, bloqueado').order('nome'),
     supabase!.from('fornecedores').select('id, nome, bloqueado').order('nome'),
   ])
-  const err = cli.error || uni.error || cor.error || forn.error
+  const err = cli.error || uni.error || cor.error || tec.error || forn.error
   if (err) throw new Error(err.message)
   return {
     clientes: (cli.data as Cadastro[]) ?? [],
     uniformes: (uni.data as Cadastro[]) ?? [],
     cores: (cor.data as Cadastro[]) ?? [],
+    tecidos: (tec.data as Cadastro[]) ?? [],
     fornecedores: (forn.data as Cadastro[]) ?? [],
   }
 }
 
-export type TabelaCadastro = 'clientes' | 'uniformes' | 'cores' | 'fornecedores'
+export type TabelaCadastro = 'clientes' | 'uniformes' | 'cores' | 'tecidos' | 'fornecedores'
 
 /** Colunas de leitura conforme a tabela (só clientes tem apelido/contato). */
 function colunas(tabela: TabelaCadastro): string {
@@ -270,7 +277,7 @@ export async function loadPedidos(): Promise<Pedido[]> {
   if (isDemo) return demoLoad().pedidos
   const [ops, prods, logos, datas, hist] = await Promise.all([
     supabase!.from('op').select('id, cliente_id, numero_proposta, data_pedido, prioridade, observacao, clientes(nome)').order('data_pedido', { ascending: false }),
-    supabase!.from('op_produtos').select('id, op_id, uniforme_id, cor_id, numero_proposta, numero_pedido, qtd, prioridade, status, etapa_id, progresso, responsavel, previsao_entrega, observacao, uniformes(nome), cores(nome)'),
+    supabase!.from('op_produtos').select('id, op_id, uniforme_id, cor_id, tecido_id, numero_proposta, numero_pedido, qtd, prioridade, status, etapa_id, progresso, responsavel, previsao_entrega, observacao, uniformes(nome), cores(nome), tecidos(nome)'),
     supabase!.from('op_produto_logo').select('produto_id, tipo, fornecedor_id, fornecedores(nome)'),
     supabase!.from('op_produto_etapa').select('produto_id, etapa_id, data_conclusao'),
     supabase!.from('op_etapa_historico').select('id, produto_id, kind, etapa_de, etapa_para, data, texto').order('created_at'),
@@ -307,6 +314,7 @@ export async function loadPedidos(): Promise<Pedido[]> {
       id: p.id as string, opId: p.op_id as string,
       uniformeId: (p.uniforme_id as string) ?? null, uniformeNome: rel(p.uniformes),
       corId: (p.cor_id as string) ?? null, corNome: rel(p.cores),
+      tecidoId: (p.tecido_id as string) ?? null, tecidoNome: rel(p.tecidos),
       numeroProposta: (p.numero_proposta as string) ?? '', numeroPedido: (p.numero_pedido as string) ?? '',
       qtd: Number(p.qtd) || 0, prioridade: (p.prioridade as Prioridade) ?? 'media',
       status: (p.status as StatusProd) ?? 'ok', etapaId: (p.etapa_id as string) ?? 'pedido',
@@ -342,9 +350,11 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
     const produtos: Produto[] = input.produtos.map((p) => {
       const uni = db.uniformes.find((u) => u.id === p.uniformeId)
       const cor = db.cores.find((c) => c.id === p.corId)
+      const tec = db.tecidos.find((t) => t.id === p.tecidoId)
       return {
         id: uid(), opId, uniformeId: p.uniformeId, uniformeNome: uni?.nome ?? '',
-        corId: p.corId, corNome: cor?.nome ?? '', numeroProposta: p.numeroProposta || input.numeroProposta,
+        corId: p.corId, corNome: cor?.nome ?? '', tecidoId: p.tecidoId, tecidoNome: tec?.nome ?? '',
+        numeroProposta: p.numeroProposta || input.numeroProposta,
         numeroPedido: p.numeroPedido, qtd: p.qtd, prioridade: p.prioridade, status: 'ok',
         etapaId: 'pedido', progresso: progressoDaEtapa('pedido'), responsavel: '',
         previsaoEntrega: p.previsaoEntrega, observacao: '',
@@ -372,7 +382,7 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
     const { data: prod, error: pErr } = await supabase!
       .from('op_produtos')
       .insert({
-        op_id: opId, uniforme_id: p.uniformeId, cor_id: p.corId,
+        op_id: opId, uniforme_id: p.uniformeId, cor_id: p.corId, tecido_id: p.tecidoId,
         numero_proposta: p.numeroProposta || input.numeroProposta || null, numero_pedido: p.numeroPedido || null,
         qtd: p.qtd, prioridade: p.prioridade, status: 'ok', etapa_id: 'pedido', progresso: progressoDaEtapa('pedido'),
         previsao_entrega: p.previsaoEntrega || null,

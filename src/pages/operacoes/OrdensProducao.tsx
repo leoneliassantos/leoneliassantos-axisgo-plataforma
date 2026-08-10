@@ -7,6 +7,7 @@ interface LinhaProduto {
   cliente: string
   uniforme: string
   cor: string
+  tecido: string
   qtd: number
   numeroPedido: string
   etapaId: string
@@ -36,7 +37,7 @@ export function OrdensProducao() {
     const out: LinhaProduto[] = []
     for (const p of pedidos) for (const it of p.produtos) {
       out.push({
-        pedidoId: p.id, cliente: p.clienteNome, uniforme: it.uniformeNome, cor: it.corNome, qtd: it.qtd,
+        pedidoId: p.id, cliente: p.clienteNome, uniforme: it.uniformeNome, cor: it.corNome, tecido: it.tecidoNome, qtd: it.qtd,
         numeroPedido: it.numeroPedido || p.numeroProposta, etapaId: it.etapaId, status: it.status,
         prioridade: it.prioridade, previsao: it.previsaoEntrega, responsavel: it.responsavel,
       })
@@ -49,7 +50,7 @@ export function OrdensProducao() {
     return linhas.filter((l) => {
       if (filtroEtapa && l.etapaId !== filtroEtapa) return false
       if (filtroSit && l.status !== filtroSit) return false
-      if (t && ![l.cliente, l.uniforme, l.cor, l.numeroPedido].join(' ').toLowerCase().includes(t)) return false
+      if (t && ![l.cliente, l.uniforme, l.cor, l.tecido, l.numeroPedido].join(' ').toLowerCase().includes(t)) return false
       return true
     })
   }, [linhas, busca, filtroEtapa, filtroSit])
@@ -91,7 +92,7 @@ export function OrdensProducao() {
           <table className="w-full border-collapse">
             <thead>
               <tr>
-                <th className={th}>Cliente</th><th className={th}>Uniforme</th><th className={th}>Cor</th>
+                <th className={th}>Cliente</th><th className={th}>Uniforme</th><th className={th}>Cor</th><th className={th}>Tecido</th>
                 <th className={`${th} text-right`}>Qtd</th><th className={th}>Nº Pedido</th><th className={th}>Etapa atual</th>
                 <th className={th}>Situação</th><th className={th}>Prioridade</th><th className={th}>Previsão</th><th className={th}>Resp.</th>
               </tr>
@@ -102,6 +103,7 @@ export function OrdensProducao() {
                   <td className={`${td} font-medium`}>{l.cliente || '—'}</td>
                   <td className={td}>{l.uniforme}</td>
                   <td className={td}>{l.cor || '—'}</td>
+                  <td className={td}>{l.tecido || '—'}</td>
                   <td className={`${td} tnum text-right`}>{l.qtd}</td>
                   <td className={`${td} text-muted`}>{l.numeroPedido || '—'}</td>
                   <td className={td}>{etapaLabel(l.etapaId)}</td>

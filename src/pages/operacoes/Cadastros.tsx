@@ -6,6 +6,7 @@ const TITULO: Record<TabelaCadastro, { titulo: string; singular: string; label: 
   clientes: { titulo: 'Cadastro de Clientes', singular: 'cliente', label: 'Nome do cliente' },
   uniformes: { titulo: 'Cadastro de Uniformes', singular: 'uniforme', label: 'Nome do uniforme' },
   cores: { titulo: 'Cadastro de Cores', singular: 'cor', label: 'Nome / código da cor' },
+  tecidos: { titulo: 'Cadastro de Tecidos', singular: 'tecido', label: 'Nome do tecido' },
   fornecedores: { titulo: 'Cadastro de Fornecedores', singular: 'fornecedor', label: 'Nome do fornecedor' },
 }
 

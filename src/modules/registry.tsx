@@ -105,6 +105,7 @@ const TODAS_FRENTES: Frente[] = [
       { slug: 'cad-clientes', label: 'Clientes', grupo: 'Cadastros', element: <Cadastros tipo="clientes" /> },
       { slug: 'cad-uniformes', label: 'Uniformes', grupo: 'Cadastros', element: <Cadastros tipo="uniformes" /> },
       { slug: 'cad-cores', label: 'Cores', grupo: 'Cadastros', element: <Cadastros tipo="cores" /> },
+      { slug: 'cad-tecidos', label: 'Tecidos', grupo: 'Cadastros', element: <Cadastros tipo="tecidos" /> },
       { slug: 'cad-fornecedores', label: 'Fornecedores', grupo: 'Cadastros', element: <Cadastros tipo="fornecedores" /> },
     ],
   },
