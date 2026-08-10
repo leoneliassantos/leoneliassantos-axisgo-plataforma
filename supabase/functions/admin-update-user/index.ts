@@ -7,8 +7,11 @@ import { createClient } from 'jsr:@supabase/supabase-js@2'
 // CORS restrito: só a plataforma (produção + previews da Vercel deste projeto).
 // Qualquer outra origem recebe Allow-Origin vazio e o navegador bloqueia.
 function isAllowedOrigin(origin: string): boolean {
-  if (origin === 'https://axisgo-plataforma.vercel.app') return true
-  return /^https:\/\/axisgo-plataforma[a-z0-9-]*\.vercel\.app$/.test(origin)
+  // Cada instância da plataforma AxisGo (Batux, MC, MM, Fukuda…) roda no seu
+  // próprio domínio *.vercel.app. A segurança real é o JWT + checagem de admin
+  // abaixo (a service_role nunca sai do servidor); o CORS é só reforço.
+  if (/^http:\/\/localhost(:\d+)?$/.test(origin)) return true
+  return /^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(origin)
 }
 function corsHeaders(req: Request) {
   const origin = req.headers.get('Origin') ?? ''
