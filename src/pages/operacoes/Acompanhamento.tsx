@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { daysBetween, statusClasse } from './helpers'
-import { loadPedidos, ETAPAS, ETAPA_COR, STATUS_LABEL, type Pedido, type StatusProd } from './data'
+import { loadPedidos, isProduzido, ETAPAS, ETAPA_COR, STATUS_LABEL, type Pedido, type StatusProd } from './data'
 
 export function Acompanhamento() {
   const [loading, setLoading] = useState(true)
@@ -18,20 +18,33 @@ export function Acompanhamento() {
   const m = useMemo(() => {
     const itens = pedidos.flatMap((p) => p.produtos)
     const total = itens.length
-    const entregues = itens.filter((i) => i.etapaId === 'entrega').length
-    const atrasados = itens.filter((i) => i.status === 'atrasado').length
+    // Em produção = até "Produção Finalizada". Produzido = "Saiu para Entrega" em diante.
+    const emProd = itens.filter((i) => !isProduzido(i.etapaId))
+    const prod = itens.filter((i) => isProduzido(i.etapaId))
+    const soma = (arr: typeof itens) => arr.reduce((s, i) => s + (i.qtd || 0), 0)
+
+    const atrasados = emProd.filter((i) => i.status === 'atrasado').length
+    const pedidosAtivos = pedidos.filter((p) => p.produtos.some((i) => !isProduzido(i.etapaId))).length
+    const pedidosProduzidos = pedidos.filter((p) => p.produtos.length > 0 && p.produtos.every((i) => isProduzido(i.etapaId))).length
+
     const porEtapa = ETAPAS.map((e) => ({ etapa: e, n: itens.filter((i) => i.etapaId === e.id).length }))
     const porSit: Record<StatusProd, number> = { ok: 0, atrasado: 0, alerta: 0, aguardando: 0 }
     for (const i of itens) porSit[i.status]++
+
     const leads: number[] = []
     for (const i of itens) {
       const ds = ETAPAS.map((e) => i.datas[e.id]).filter(Boolean).sort()
       if (ds.length >= 2) leads.push(daysBetween(ds[0], ds[ds.length - 1]))
     }
     const leadMedio = leads.length ? Math.round(leads.reduce((a, b) => a + b, 0) / leads.length) : 0
-    const pedidosAtivos = pedidos.filter((p) => p.produtos.some((i) => i.etapaId !== 'entrega')).length
     const maxEtapa = Math.max(1, ...porEtapa.map((x) => x.n))
-    return { total, entregues, emProducao: total - entregues, atrasados, porEtapa, porSit, leadMedio, pedidosAtivos, maxEtapa }
+
+    return {
+      total,
+      emProdItens: emProd.length, pecasEmProd: soma(emProd),
+      prodItens: prod.length, pecasProduzidas: soma(prod),
+      atrasados, pedidosAtivos, pedidosProduzidos, porEtapa, porSit, leadMedio, maxEtapa,
+    }
   }, [pedidos])
 
   if (loading) return <div className="py-20 text-center text-muted">Carregando…</div>
@@ -48,11 +61,22 @@ export function Acompanhamento() {
         <div className="rounded-2xl border border-dashed border-line bg-surface p-12 text-center text-muted">Sem dados ainda. Lance pedidos no Fluxo de Produção para ver os indicadores.</div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {/* Em produção (até Produção Finalizada) */}
+          <div className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-muted">Em produção <span className="font-normal normal-case">· até “Produção Finalizada”</span></div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
             <Kpi titulo="Pedidos ativos" valor={m.pedidosAtivos} />
-            <Kpi titulo="Itens em produção" valor={m.emProducao} />
+            <Kpi titulo="Itens em produção" valor={m.emProdItens} />
+            <Kpi titulo="Peças em produção" valor={m.pecasEmProd} destaque="brand" />
             <Kpi titulo="Itens atrasados" valor={m.atrasados} destaque={m.atrasados > 0 ? 'neg' : undefined} />
             <Kpi titulo="Lead time médio" valor={m.leadMedio ? `${m.leadMedio} dias` : '—'} />
+          </div>
+
+          {/* Produzidos (Saiu para Entrega em diante) */}
+          <div className="mb-2 mt-6 text-[12px] font-semibold uppercase tracking-wide text-muted">Produzidos <span className="font-normal normal-case">· de “Saiu para Entrega” em diante</span></div>
+          <div className="grid grid-cols-3 gap-4">
+            <Kpi titulo="Pedidos produzidos" valor={m.pedidosProduzidos} />
+            <Kpi titulo="Itens produzidos" valor={m.prodItens} />
+            <Kpi titulo="Peças produzidas" valor={m.pecasProduzidas} destaque="pos" />
           </div>
 
           <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -62,7 +86,7 @@ export function Acompanhamento() {
               <div className="space-y-2.5">
                 {m.porEtapa.map(({ etapa, n }) => (
                   <div key={etapa.id} className="flex items-center gap-3">
-                    <span className="w-40 shrink-0 text-[13px] text-muted">{etapa.label}</span>
+                    <span className="w-44 shrink-0 text-[13px] text-muted">{etapa.label}</span>
                     <div className="h-5 flex-1 overflow-hidden rounded bg-paper">
                       <div className="h-full rounded" style={{ width: `${(n / m.maxEtapa) * 100}%`, background: ETAPA_COR[etapa.id], minWidth: n ? 6 : 0 }} />
                     </div>
@@ -91,7 +115,7 @@ export function Acompanhamento() {
                 })}
               </div>
               <div className="mt-5 border-t border-line pt-3 text-sm text-muted">
-                Entregues: <b className="text-ink">{m.entregues}</b> de <b className="text-ink">{m.total}</b> itens
+                Produzidos: <b className="text-ink">{m.prodItens}</b> de <b className="text-ink">{m.total}</b> itens · <b className="text-ink">{m.pecasProduzidas}</b> peças
               </div>
             </div>
           </div>
@@ -101,11 +125,12 @@ export function Acompanhamento() {
   )
 }
 
-function Kpi({ titulo, valor, destaque }: { titulo: string; valor: number | string; destaque?: 'neg' }) {
+function Kpi({ titulo, valor, destaque }: { titulo: string; valor: number | string; destaque?: 'neg' | 'pos' | 'brand' }) {
+  const cor = destaque === 'neg' ? 'text-neg' : destaque === 'pos' ? 'text-pos' : destaque === 'brand' ? 'text-brand' : 'text-ink'
   return (
     <div className="rounded-2xl border border-line bg-surface p-5 shadow-card">
       <div className="text-[12px] uppercase tracking-wide text-muted">{titulo}</div>
-      <div className={`mt-1 font-serif text-3xl font-semibold ${destaque === 'neg' ? 'text-neg' : 'text-ink'}`}>{valor}</div>
+      <div className={`mt-1 font-serif text-3xl font-semibold ${cor}`}>{valor}</div>
     </div>
   )
 }

@@ -1,6 +1,9 @@
 import type { Pedido, Produto, StatusProd, Prioridade } from './data'
 import { ETAPAS } from './data'
 
+/** Última etapa do fluxo (Entregue/Finalizado). */
+const ULTIMA_ETAPA = ETAPAS[ETAPAS.length - 1].id
+
 /** ISO (YYYY-MM-DD) do dia de hoje, no fuso local. */
 export function hojeISO(): string {
   const d = new Date()
@@ -50,7 +53,7 @@ export function resumoPedido(ped: Pedido): ResumoPedido {
   const atrasados = its.filter((i) => i.status === 'atrasado').length
   const alertas = its.filter((i) => i.status === 'alerta').length
   const aguardando = its.filter((i) => i.status === 'aguardando').length
-  const entregues = its.filter((i) => i.etapaId === 'entrega').length
+  const entregues = its.filter((i) => i.etapaId === ULTIMA_ETAPA).length
   const progresso = total ? Math.round(its.reduce((s, i) => s + (i.progresso || 0), 0) / total) : 0
   let situacao: StatusProd = 'ok'
   if (atrasados) situacao = 'atrasado'

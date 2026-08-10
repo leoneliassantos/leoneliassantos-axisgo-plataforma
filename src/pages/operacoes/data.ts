@@ -31,13 +31,21 @@ export const ETAPAS: Etapa[] = [
   { id: 'acabamento', ordem: 8, label: 'Acabamento' },
   { id: 'finalizada', ordem: 9, label: 'Produção Finalizada' },
   { id: 'entrega', ordem: 10, label: 'Saiu para Entrega' },
+  { id: 'entregue', ordem: 11, label: 'Entregue/Finalizado' },
 ]
+
+/** Etapas a partir das quais o item é considerado PRODUZIDO (Saiu para Entrega em diante). */
+export const ETAPAS_PRODUZIDO = ['entrega', 'entregue']
+/** true se o item já saiu da produção (ordem >= "Saiu para Entrega"). */
+export function isProduzido(etapaId: string): boolean {
+  return ETAPAS_PRODUZIDO.includes(etapaId)
+}
 
 /** Cor de destaque por etapa (só visual, para o quadro/stepper). */
 export const ETAPA_COR: Record<string, string> = {
   pedido: '#0e9488', ficha: '#3574c4', modelagem: '#6d4bd0', compra: '#1f9d6b',
   corte: '#c98a12', logo: '#e2670a', oficina: '#4a6b86', acabamento: '#c23c86',
-  finalizada: '#189f57', entrega: '#0e9488',
+  finalizada: '#189f57', entrega: '#0e9488', entregue: '#0f7a3d',
 }
 
 export const PRIO_LABEL: Record<Prioridade, string> = { alta: 'Alta', media: 'Média', baixa: 'Baixa' }
