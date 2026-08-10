@@ -2,38 +2,8 @@ import { useState } from 'react'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
 import { Combobox } from './Combobox'
 import { hojeISO } from './helpers'
-import {
-  type Cadastro, type Cadastros, type NovoPedidoInput, type NovoProdutoInput,
-  type Prioridade, type TipoLogo, PRIO_LABEL,
-} from './data'
-
-type TabCad = 'clientes' | 'uniformes' | 'cores' | 'tecidos' | 'fornecedores'
-
-interface LogoDraft {
-  ativo: boolean
-  fornecedorId: string | null
-}
-interface ProdutoDraft {
-  key: string
-  uniformeId: string | null
-  corId: string | null
-  tecidoId: string | null
-  numeroProposta: string
-  numeroPedido: string
-  qtd: string
-  previsaoEntrega: string
-  prioridade: Prioridade
-  temLogo: boolean
-  logos: Record<TipoLogo, LogoDraft>
-}
-
-const TIPOS_LOGO: TipoLogo[] = ['Bordado', 'Silk', 'DTF']
-const novaLinha = (): ProdutoDraft => ({
-  key: Math.random().toString(36).slice(2),
-  uniformeId: null, corId: null, tecidoId: null, numeroProposta: '', numeroPedido: '', qtd: '', previsaoEntrega: '',
-  prioridade: 'media', temLogo: false,
-  logos: { Bordado: { ativo: false, fornecedorId: null }, Silk: { ativo: false, fornecedorId: null }, DTF: { ativo: false, fornecedorId: null } },
-})
+import { ProdutoFields, novaLinha, draftToInput, type ProdutoDraft, type TabCad } from './ProdutoFields'
+import { type Cadastro, type Cadastros, type NovoPedidoInput, type Prioridade, PRIO_LABEL } from './data'
 
 export function NovaOP({
   cadastros,
@@ -50,13 +20,14 @@ export function NovaOP({
 }) {
   const [clienteId, setClienteId] = useState<string | null>(null)
   const [numeroProposta, setNumeroProposta] = useState('')
+  const [numeroPedido, setNumeroPedido] = useState('')
   const [dataPedido, setDataPedido] = useState(hojeISO())
   const [prioridade, setPrioridade] = useState<Prioridade>('media')
   const [produtos, setProdutos] = useState<ProdutoDraft[]>([novaLinha()])
   const [erro, setErro] = useState<string | null>(null)
 
   // No lançamento só aparecem cadastros ATIVOS (bloqueados ficam de fora).
-  const ativos = {
+  const ativos: Cadastros = {
     clientes: cadastros.clientes.filter((c) => !c.bloqueado),
     uniformes: cadastros.uniformes.filter((c) => !c.bloqueado),
     cores: cadastros.cores.filter((c) => !c.bloqueado),
@@ -66,12 +37,10 @@ export function NovaOP({
 
   const upd = (key: string, patch: Partial<ProdutoDraft>) =>
     setProdutos((ps) => ps.map((p) => (p.key === key ? { ...p, ...patch } : p)))
-  const updLogo = (key: string, tipo: TipoLogo, patch: Partial<LogoDraft>) =>
-    setProdutos((ps) => ps.map((p) => (p.key === key ? { ...p, logos: { ...p.logos, [tipo]: { ...p.logos[tipo], ...patch } } } : p)))
 
-  async function addAndSelect(tabela: TabCad, nome: string, setter: (id: string) => void) {
-    const c = await onAddCadastro(tabela, nome)
-    setter(c.id)
+  async function addClienteAndSelect(nome: string) {
+    const c = await onAddCadastro('clientes', nome)
+    setClienteId(c.id)
   }
 
   function submit() {
@@ -80,15 +49,8 @@ export function NovaOP({
     const validos = produtos.filter((p) => p.uniformeId && Number(p.qtd) > 0)
     if (!validos.length) { setErro('Adicione ao menos um produto com uniforme e quantidade.'); return }
     const input: NovoPedidoInput = {
-      clienteId, numeroProposta: numeroProposta.trim(), dataPedido, prioridade,
-      produtos: validos.map<NovoProdutoInput>((p) => ({
-        uniformeId: p.uniformeId, corId: p.corId, tecidoId: p.tecidoId, numeroProposta: p.numeroProposta.trim(),
-        numeroPedido: p.numeroPedido.trim(), qtd: Number(p.qtd), prioridade: p.prioridade,
-        previsaoEntrega: p.previsaoEntrega,
-        logos: p.temLogo
-          ? TIPOS_LOGO.filter((t) => p.logos[t].ativo).map((t) => ({ tipo: t, fornecedorId: p.logos[t].fornecedorId }))
-          : [],
-      })),
+      clienteId, numeroProposta: numeroProposta.trim(), numeroPedido: numeroPedido.trim(), dataPedido, prioridade,
+      produtos: validos.map((p) => draftToInput(p, numeroProposta, numeroPedido)),
     }
     onCreate(input)
   }
@@ -111,7 +73,7 @@ export function NovaOP({
     >
       {/* Cabeçalho do pedido */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-        <div className="sm:col-span-2">
+        <div className="sm:col-span-4">
           <label className={lab}>Cliente *</label>
           <Combobox
             value={clienteId}
@@ -119,7 +81,7 @@ export function NovaOP({
             placeholder="Selecione o cliente"
             addLabel="Cadastrar cliente"
             onSelect={setClienteId}
-            onAdd={(nome) => addAndSelect('clientes', nome, setClienteId)}
+            onAdd={addClienteAndSelect}
           />
         </div>
         <div>
@@ -127,24 +89,20 @@ export function NovaOP({
           <input className={inp} value={numeroProposta} onChange={(e) => setNumeroProposta(e.target.value)} placeholder="Ex.: ORÇA 514" />
         </div>
         <div>
+          <label className={lab}>Nº do Pedido</label>
+          <input className={inp} value={numeroPedido} onChange={(e) => setNumeroPedido(e.target.value)} placeholder="Ex.: BLING 745" />
+        </div>
+        <div>
           <label className={lab}>Data do Pedido</label>
           <input type="date" className={inp} value={dataPedido} onChange={(e) => setDataPedido(e.target.value)} />
         </div>
-      </div>
-
-      <div className="mt-3">
-        <label className={lab}>Prioridade do pedido</label>
-        <div className="flex gap-2">
-          {(['alta', 'media', 'baixa'] as Prioridade[]).map((p) => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setPrioridade(p)}
-              className={`rounded-lg border px-3 py-1.5 text-sm transition ${prioridade === p ? 'border-brand bg-brand/10 font-medium text-brand' : 'border-line text-muted hover:bg-paper'}`}
-            >
-              {PRIO_LABEL[p]}
-            </button>
-          ))}
+        <div>
+          <label className={lab}>Prioridade</label>
+          <select className={inp} value={prioridade} onChange={(e) => setPrioridade(e.target.value as Prioridade)}>
+            <option value="alta">{PRIO_LABEL.alta}</option>
+            <option value="media">{PRIO_LABEL.media}</option>
+            <option value="baixa">{PRIO_LABEL.baixa}</option>
+          </select>
         </div>
       </div>
 
@@ -168,68 +126,7 @@ export function NovaOP({
                 </button>
               )}
             </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <div>
-                <label className={lab}>Uniforme *</label>
-                <Combobox value={p.uniformeId} options={ativos.uniformes} placeholder="Selecione" addLabel="Cadastrar uniforme"
-                  onSelect={(id) => upd(p.key, { uniformeId: id })} onAdd={(nome) => addAndSelect('uniformes', nome, (id) => upd(p.key, { uniformeId: id }))} />
-              </div>
-              <div>
-                <label className={lab}>Cor</label>
-                <Combobox value={p.corId} options={ativos.cores} placeholder="Selecione" addLabel="Cadastrar cor"
-                  onSelect={(id) => upd(p.key, { corId: id })} onAdd={(nome) => addAndSelect('cores', nome, (id) => upd(p.key, { corId: id }))} />
-              </div>
-              <div>
-                <label className={lab}>Tecido</label>
-                <Combobox value={p.tecidoId} options={ativos.tecidos} placeholder="Selecione" addLabel="Cadastrar tecido"
-                  onSelect={(id) => upd(p.key, { tecidoId: id })} onAdd={(nome) => addAndSelect('tecidos', nome, (id) => upd(p.key, { tecidoId: id }))} />
-              </div>
-              <div>
-                <label className={lab}>Quantidade (peças) *</label>
-                <input type="number" min={0} className={inp} value={p.qtd} onChange={(e) => upd(p.key, { qtd: e.target.value })} placeholder="0" />
-              </div>
-              <div>
-                <label className={lab}>Nº do Pedido</label>
-                <input className={inp} value={p.numeroPedido} onChange={(e) => upd(p.key, { numeroPedido: e.target.value })} placeholder="Ex.: BLING 745" />
-              </div>
-              <div>
-                <label className={lab}>Previsão de entrega</label>
-                <input type="date" className={inp} value={p.previsaoEntrega} onChange={(e) => upd(p.key, { previsaoEntrega: e.target.value })} />
-              </div>
-              <div>
-                <label className={lab}>Prioridade do produto</label>
-                <select className={inp} value={p.prioridade} onChange={(e) => upd(p.key, { prioridade: e.target.value as Prioridade })}>
-                  <option value="alta">Alta</option>
-                  <option value="media">Média</option>
-                  <option value="baixa">Baixa</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Logomarca */}
-            <label className="mt-3 flex items-center gap-2 text-sm text-ink">
-              <input type="checkbox" checked={p.temLogo} onChange={(e) => upd(p.key, { temLogo: e.target.checked })} className="accent-brand" />
-              Tem aplicação de logomarca?
-            </label>
-            {p.temLogo && (
-              <div className="mt-2 grid grid-cols-1 gap-2 rounded-lg bg-paper p-3 sm:grid-cols-3">
-                {TIPOS_LOGO.map((t) => (
-                  <div key={t} className="rounded-lg border border-line bg-surface p-2.5">
-                    <label className="flex items-center gap-2 text-sm font-medium text-ink">
-                      <input type="checkbox" checked={p.logos[t].ativo} onChange={(e) => updLogo(p.key, t, { ativo: e.target.checked })} className="accent-brand" />
-                      {t}
-                    </label>
-                    {p.logos[t].ativo && (
-                      <div className="mt-2">
-                        <Combobox value={p.logos[t].fornecedorId} options={ativos.fornecedores} placeholder="Fornecedor" addLabel="Cadastrar fornecedor"
-                          onSelect={(id) => updLogo(p.key, t, { fornecedorId: id })} onAdd={(nome) => addAndSelect('fornecedores', nome, (id) => updLogo(p.key, t, { fornecedorId: id }))} />
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+            <ProdutoFields draft={p} ativos={ativos} opProposta={numeroProposta} opPedido={numeroPedido} onChange={(patch) => upd(p.key, patch)} onAddCadastro={onAddCadastro} />
           </div>
         ))}
       </div>

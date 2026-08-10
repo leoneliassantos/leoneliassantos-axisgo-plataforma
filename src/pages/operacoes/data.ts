@@ -97,6 +97,7 @@ export interface Pedido {
   clienteId: string
   clienteNome: string
   numeroProposta: string
+  numeroPedido: string
   dataPedido: string // YYYY-MM-DD
   prioridade: Prioridade
   observacao: string
@@ -126,6 +127,7 @@ export interface NovoProdutoInput {
 export interface NovoPedidoInput {
   clienteId: string
   numeroProposta: string
+  numeroPedido: string
   dataPedido: string
   prioridade: Prioridade
   produtos: NovoProdutoInput[]
@@ -276,7 +278,7 @@ export async function setBloqueado(tabela: TabelaCadastro, id: string, bloqueado
 export async function loadPedidos(): Promise<Pedido[]> {
   if (isDemo) return demoLoad().pedidos
   const [ops, prods, logos, datas, hist] = await Promise.all([
-    supabase!.from('op').select('id, cliente_id, numero_proposta, data_pedido, prioridade, observacao, clientes(nome)').order('data_pedido', { ascending: false }),
+    supabase!.from('op').select('id, cliente_id, numero_proposta, numero_pedido, data_pedido, prioridade, observacao, clientes(nome)').order('data_pedido', { ascending: false }),
     supabase!.from('op_produtos').select('id, op_id, uniforme_id, cor_id, tecido_id, numero_proposta, numero_pedido, qtd, prioridade, status, etapa_id, progresso, responsavel, previsao_entrega, observacao, uniformes(nome), cores(nome), tecidos(nome)'),
     supabase!.from('op_produto_logo').select('produto_id, tipo, fornecedor_id, fornecedores(nome)'),
     supabase!.from('op_produto_etapa').select('produto_id, etapa_id, data_conclusao'),
@@ -329,7 +331,8 @@ export async function loadPedidos(): Promise<Pedido[]> {
   }
   return ((ops.data ?? []) as Array<Record<string, unknown>>).map((o) => ({
     id: o.id as string, clienteId: o.cliente_id as string, clienteNome: rel(o.clientes),
-    numeroProposta: (o.numero_proposta as string) ?? '', dataPedido: (o.data_pedido as string).slice(0, 10),
+    numeroProposta: (o.numero_proposta as string) ?? '', numeroPedido: (o.numero_pedido as string) ?? '',
+    dataPedido: (o.data_pedido as string).slice(0, 10),
     prioridade: (o.prioridade as Prioridade) ?? 'media', observacao: (o.observacao as string) ?? '',
     produtos: prodsByOp.get(o.id as string) ?? [],
   }))
@@ -363,7 +366,7 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
       }
     })
     db.pedidos = [
-      { id: opId, clienteId: input.clienteId, clienteNome: cliente?.nome ?? '', numeroProposta: input.numeroProposta, dataPedido: input.dataPedido, prioridade: input.prioridade, observacao: '', produtos },
+      { id: opId, clienteId: input.clienteId, clienteNome: cliente?.nome ?? '', numeroProposta: input.numeroProposta, numeroPedido: input.numeroPedido, dataPedido: input.dataPedido, prioridade: input.prioridade, observacao: '', produtos },
       ...db.pedidos,
     ]
     demoSave(db)
@@ -372,7 +375,7 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
 
   const { data: op, error: opErr } = await supabase!
     .from('op')
-    .insert({ cliente_id: input.clienteId, numero_proposta: input.numeroProposta || null, data_pedido: input.dataPedido, prioridade: input.prioridade })
+    .insert({ cliente_id: input.clienteId, numero_proposta: input.numeroProposta || null, numero_pedido: input.numeroPedido || null, data_pedido: input.dataPedido, prioridade: input.prioridade })
     .select('id')
     .single()
   if (opErr) throw new Error(opErr.message)
@@ -383,7 +386,7 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
       .from('op_produtos')
       .insert({
         op_id: opId, uniforme_id: p.uniformeId, cor_id: p.corId, tecido_id: p.tecidoId,
-        numero_proposta: p.numeroProposta || input.numeroProposta || null, numero_pedido: p.numeroPedido || null,
+        numero_proposta: p.numeroProposta || input.numeroProposta || null, numero_pedido: p.numeroPedido || input.numeroPedido || null,
         qtd: p.qtd, prioridade: p.prioridade, status: 'ok', etapa_id: 'pedido', progresso: progressoDaEtapa('pedido'),
         previsao_entrega: p.previsaoEntrega || null,
       })
@@ -400,6 +403,47 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
   }
   // Silencia o parâmetro não usado fora do modo demo.
   void cadastros
+}
+
+/** Acrescenta UM produto a uma OP já existente (complementar a OP). */
+export async function addProduto(opId: string, p: NovoProdutoInput): Promise<void> {
+  if (isDemo) {
+    const db = demoLoad()
+    const ped = db.pedidos.find((o) => o.id === opId)
+    if (!ped) return
+    const uni = db.uniformes.find((u) => u.id === p.uniformeId)
+    const cor = db.cores.find((c) => c.id === p.corId)
+    const tec = db.tecidos.find((t) => t.id === p.tecidoId)
+    ped.produtos.push({
+      id: uid(), opId, uniformeId: p.uniformeId, uniformeNome: uni?.nome ?? '',
+      corId: p.corId, corNome: cor?.nome ?? '', tecidoId: p.tecidoId, tecidoNome: tec?.nome ?? '',
+      numeroProposta: p.numeroProposta, numeroPedido: p.numeroPedido, qtd: p.qtd,
+      prioridade: p.prioridade, status: 'ok', etapaId: 'pedido', progresso: progressoDaEtapa('pedido'),
+      responsavel: '', previsaoEntrega: p.previsaoEntrega, observacao: '',
+      logos: p.logos.map((l) => ({ tipo: l.tipo, fornecedorId: l.fornecedorId, fornecedorNome: db.fornecedores.find((f) => f.id === l.fornecedorId)?.nome })),
+      datas: {}, historico: [],
+    })
+    demoSave(db)
+    return
+  }
+  const { data: prod, error } = await supabase!
+    .from('op_produtos')
+    .insert({
+      op_id: opId, uniforme_id: p.uniformeId, cor_id: p.corId, tecido_id: p.tecidoId,
+      numero_proposta: p.numeroProposta || null, numero_pedido: p.numeroPedido || null,
+      qtd: p.qtd, prioridade: p.prioridade, status: 'ok', etapa_id: 'pedido', progresso: progressoDaEtapa('pedido'),
+      previsao_entrega: p.previsaoEntrega || null,
+    })
+    .select('id')
+    .single()
+  if (error) throw new Error(error.message)
+  const prodId = (prod as { id: string }).id
+  if (p.logos.length) {
+    const { error: lErr } = await supabase!
+      .from('op_produto_logo')
+      .insert(p.logos.map((l) => ({ produto_id: prodId, tipo: l.tipo, fornecedor_id: l.fornecedorId })))
+    if (lErr) throw new Error(lErr.message)
+  }
 }
 
 export interface ProdutoPatch {

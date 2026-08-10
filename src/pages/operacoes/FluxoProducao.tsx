@@ -1,14 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NovaOP } from './NovaOP'
+import { NovoItem } from './NovoItem'
 import { ItemModal } from './ItemModal'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
 import {
   resumoPedido, contagemPorEtapa, statusClasse, prioCor, fmtBR, hojeISO, itemFiltraTexto,
 } from './helpers'
 import {
-  loadCadastros, loadPedidos, addCadastro, createPedido, updateProduto, moveProduto, addObservacao,
+  loadCadastros, loadPedidos, addCadastro, createPedido, addProduto, updateProduto, moveProduto, addObservacao,
   isDemo, ETAPAS, ETAPA_COR, STATUS_LABEL, PRIO_LABEL,
-  type Cadastros, type Pedido, type Produto, type ProdutoPatch, type NovoPedidoInput, type StatusProd,
+  type Cadastros, type Pedido, type Produto, type ProdutoPatch, type NovoPedidoInput, type NovoProdutoInput, type StatusProd,
 } from './data'
 
 const CADASTROS_VAZIO: Cadastros = { clientes: [], uniformes: [], cores: [], tecidos: [], fornecedores: [] }
@@ -28,6 +29,7 @@ export function FluxoProducao() {
 
   const [showNova, setShowNova] = useState(false)
   const [itemId, setItemId] = useState<string | null>(null)
+  const [addItemOpId, setAddItemOpId] = useState<string | null>(null)
   const [moveAlvo, setMoveAlvo] = useState<MoveAlvo | null>(null)
   const [saving, setSaving] = useState(false)
   const dragId = useRef<string | null>(null)
@@ -72,6 +74,20 @@ export function FluxoProducao() {
       setShowNova(false)
     } catch (e) {
       alert('Não foi possível criar a OP: ' + (e instanceof Error ? e.message : ''))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleAddItem(input: NovoProdutoInput) {
+    if (!addItemOpId) return
+    setSaving(true)
+    try {
+      await addProduto(addItemOpId, input)
+      await refreshPedidos()
+      setAddItemOpId(null)
+    } catch (e) {
+      alert('Não foi possível acrescentar o item: ' + (e instanceof Error ? e.message : ''))
     } finally {
       setSaving(false)
     }
@@ -136,10 +152,13 @@ export function FluxoProducao() {
 
       {view === 'list'
         ? <ListaPedidos pedidos={pedidos} busca={busca} setBusca={setBusca} filtroSit={filtroSit} setFiltroSit={setFiltroSit} onAbrir={abrirBoard} onNova={() => setShowNova(true)} />
-        : currentOrder && <Quadro order={currentOrder} busca={busca} setBusca={setBusca} onVoltar={() => setView('list')} onAbrirItem={setItemId} dragId={dragId} onSoltar={pedirMove} />}
+        : currentOrder && <Quadro order={currentOrder} busca={busca} setBusca={setBusca} onVoltar={() => setView('list')} onAbrirItem={setItemId} onAddItem={() => setAddItemOpId(currentOrder.id)} dragId={dragId} onSoltar={pedirMove} />}
 
       {showNova && (
         <NovaOP cadastros={cadastros} saving={saving} onAddCadastro={handleAddCadastro} onCreate={handleCreate} onClose={() => setShowNova(false)} />
+      )}
+      {addItemOpId && currentOrder && (
+        <NovoItem cadastros={cadastros} opProposta={currentOrder.numeroProposta} opPedido={currentOrder.numeroPedido} saving={saving} onAddCadastro={handleAddCadastro} onCreate={handleAddItem} onClose={() => setAddItemOpId(null)} />
       )}
       {itemAberto && (
         <ItemModal produto={itemAberto} saving={saving} onSaveDetalhes={handleSaveDetalhes} onMover={(para) => pedirMove(itemAberto.id, itemAberto.etapaId, para)} onAddObs={handleAddObs} onClose={() => setItemId(null)} />
@@ -213,7 +232,8 @@ function LinhaPedido({ ped, onAbrir }: { ped: Pedido; onAbrir: (id: string) => v
           <span className="font-medium text-ink">{ped.clienteNome || '—'}</span>
         </div>
         <div className="mt-0.5 text-[13px] text-muted">
-          {ped.numeroProposta && <>Pedido <b className="text-ink/80">{ped.numeroProposta}</b> · </>}
+          {ped.numeroProposta && <>Proposta <b className="text-ink/80">{ped.numeroProposta}</b> · </>}
+          {ped.numeroPedido && <>Pedido <b className="text-ink/80">{ped.numeroPedido}</b> · </>}
           {fmtBR(ped.dataPedido)} · <b className="text-ink/80">{r.total}</b> itens · {r.entregues}/{r.total} entregues
         </div>
       </div>
@@ -244,29 +264,42 @@ function LinhaPedido({ ped, onAbrir }: { ped: Pedido; onAbrir: (id: string) => v
 
 /* =========================== Quadro (Kanban do pedido) =========================== */
 function Quadro({
-  order, busca, setBusca, onVoltar, onAbrirItem, dragId, onSoltar,
+  order, busca, setBusca, onVoltar, onAbrirItem, onAddItem, dragId, onSoltar,
 }: {
   order: Pedido; busca: string; setBusca: (s: string) => void
-  onVoltar: () => void; onAbrirItem: (id: string) => void
+  onVoltar: () => void; onAbrirItem: (id: string) => void; onAddItem: () => void
   dragId: React.MutableRefObject<string | null>; onSoltar: (produtoId: string, de: string, para: string) => void
 }) {
   const r = resumoPedido(order)
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <BtnGhost onClick={onVoltar}>
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"><path d="M15 6l-6 6 6 6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            Voltar aos pedidos
-          </BtnGhost>
-          <div>
-            <div className="font-serif text-lg font-semibold text-ink">{order.clienteNome}</div>
-            <div className="text-[13px] text-muted">{order.numeroProposta && <>Pedido {order.numeroProposta} · </>}{r.total} itens · {r.entregues} entregues · {r.progresso}%</div>
+      <button
+        type="button"
+        onClick={onVoltar}
+        className="mb-3 inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink transition hover:border-brand/50 hover:bg-paper"
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"><path d="M15 6l-6 6 6 6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        Voltar aos pedidos
+      </button>
+
+      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="font-serif text-lg font-semibold text-ink">{order.clienteNome}</div>
+          <div className="text-[13px] text-muted">
+            {order.numeroProposta && <>Proposta <b className="text-ink/80">{order.numeroProposta}</b> · </>}
+            {order.numeroPedido && <>Pedido <b className="text-ink/80">{order.numeroPedido}</b> · </>}
+            {r.total} itens · {r.entregues} entregues · {r.progresso}%
           </div>
         </div>
-        <div className="relative min-w-[220px]">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"><circle cx="11" cy="11" r="7" strokeWidth="1.8" /><path d="M21 21l-4-4" strokeWidth="1.8" strokeLinecap="round" /></svg>
-          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Filtrar itens…" className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm text-ink focus:border-brand focus:outline-none" />
+        <div className="flex items-center gap-2">
+          <div className="relative min-w-[200px]">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"><circle cx="11" cy="11" r="7" strokeWidth="1.8" /><path d="M21 21l-4-4" strokeWidth="1.8" strokeLinecap="round" /></svg>
+            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Filtrar itens…" className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm text-ink focus:border-brand focus:outline-none" />
+          </div>
+          <BtnPrimary onClick={onAddItem}>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14" strokeWidth="2" strokeLinecap="round" /></svg>
+            Acrescentar item
+          </BtnPrimary>
         </div>
       </div>
 
