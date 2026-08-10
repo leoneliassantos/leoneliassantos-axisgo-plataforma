@@ -66,6 +66,7 @@ export interface HistEntry {
   etapaPara?: string | null
   data: string // YYYY-MM-DD
   texto?: string | null
+  usuario?: string | null
 }
 
 export interface Produto {
@@ -282,7 +283,7 @@ export async function loadPedidos(): Promise<Pedido[]> {
     supabase!.from('op_produtos').select('id, op_id, uniforme_id, cor_id, tecido_id, numero_proposta, numero_pedido, qtd, prioridade, status, etapa_id, progresso, responsavel, previsao_entrega, observacao, uniformes(nome), cores(nome), tecidos(nome)'),
     supabase!.from('op_produto_logo').select('produto_id, tipo, fornecedor_id, fornecedores(nome)'),
     supabase!.from('op_produto_etapa').select('produto_id, etapa_id, data_conclusao'),
-    supabase!.from('op_etapa_historico').select('id, produto_id, kind, etapa_de, etapa_para, data, texto').order('created_at'),
+    supabase!.from('op_etapa_historico').select('id, produto_id, kind, etapa_de, etapa_para, data, texto, usuario').order('created_at'),
   ])
   const err = ops.error || prods.error || logos.error || datas.error || hist.error
   if (err) throw new Error(err.message)
@@ -306,6 +307,7 @@ export async function loadPedidos(): Promise<Pedido[]> {
       id: h.id as string, kind: h.kind as 'mov' | 'obs',
       etapaDe: (h.etapa_de as string) ?? null, etapaPara: (h.etapa_para as string) ?? null,
       data: (h.data as string).slice(0, 10), texto: (h.texto as string) ?? null,
+      usuario: (h.usuario as string) ?? null,
     })
     histByProd.set(h.produto_id as string, arr)
   }
@@ -447,6 +449,11 @@ export async function addProduto(opId: string, p: NovoProdutoInput): Promise<voi
 }
 
 export interface ProdutoPatch {
+  uniformeId?: string | null
+  corId?: string | null
+  tecidoId?: string | null
+  numeroProposta?: string
+  numeroPedido?: string
   qtd?: number
   prioridade?: Prioridade
   status?: StatusProd
@@ -461,6 +468,11 @@ export async function updateProduto(id: string, patch: ProdutoPatch): Promise<vo
     for (const ped of db.pedidos) {
       const prod = ped.produtos.find((p) => p.id === id)
       if (prod) {
+        if (patch.uniformeId !== undefined) { prod.uniformeId = patch.uniformeId; prod.uniformeNome = db.uniformes.find((u) => u.id === patch.uniformeId)?.nome ?? '' }
+        if (patch.corId !== undefined) { prod.corId = patch.corId; prod.corNome = db.cores.find((c) => c.id === patch.corId)?.nome ?? '' }
+        if (patch.tecidoId !== undefined) { prod.tecidoId = patch.tecidoId; prod.tecidoNome = db.tecidos.find((t) => t.id === patch.tecidoId)?.nome ?? '' }
+        if (patch.numeroProposta !== undefined) prod.numeroProposta = patch.numeroProposta
+        if (patch.numeroPedido !== undefined) prod.numeroPedido = patch.numeroPedido
         if (patch.qtd !== undefined) prod.qtd = patch.qtd
         if (patch.prioridade !== undefined) prod.prioridade = patch.prioridade
         if (patch.status !== undefined) prod.status = patch.status
@@ -474,6 +486,11 @@ export async function updateProduto(id: string, patch: ProdutoPatch): Promise<vo
     return
   }
   const payload: Record<string, unknown> = {}
+  if (patch.uniformeId !== undefined) payload.uniforme_id = patch.uniformeId
+  if (patch.corId !== undefined) payload.cor_id = patch.corId
+  if (patch.tecidoId !== undefined) payload.tecido_id = patch.tecidoId
+  if (patch.numeroProposta !== undefined) payload.numero_proposta = patch.numeroProposta || null
+  if (patch.numeroPedido !== undefined) payload.numero_pedido = patch.numeroPedido || null
   if (patch.qtd !== undefined) payload.qtd = patch.qtd
   if (patch.prioridade !== undefined) payload.prioridade = patch.prioridade
   if (patch.status !== undefined) payload.status = patch.status
@@ -484,8 +501,30 @@ export async function updateProduto(id: string, patch: ProdutoPatch): Promise<vo
   if (error) throw new Error(error.message)
 }
 
+/** Substitui as logomarcas de um produto (apaga as antigas e grava as novas). */
+export async function setProdutoLogos(produtoId: string, logos: { tipo: TipoLogo; fornecedorId: string | null }[]): Promise<void> {
+  if (isDemo) {
+    const db = demoLoad()
+    for (const ped of db.pedidos) {
+      const prod = ped.produtos.find((p) => p.id === produtoId)
+      if (prod) {
+        prod.logos = logos.map((l) => ({ tipo: l.tipo, fornecedorId: l.fornecedorId, fornecedorNome: db.fornecedores.find((f) => f.id === l.fornecedorId)?.nome }))
+        break
+      }
+    }
+    demoSave(db)
+    return
+  }
+  const del = await supabase!.from('op_produto_logo').delete().eq('produto_id', produtoId)
+  if (del.error) throw new Error(del.error.message)
+  if (logos.length) {
+    const ins = await supabase!.from('op_produto_logo').insert(logos.map((l) => ({ produto_id: produtoId, tipo: l.tipo, fornecedor_id: l.fornecedorId })))
+    if (ins.error) throw new Error(ins.error.message)
+  }
+}
+
 /** Move um item de etapa: grava histórico, data de conclusão da etapa de origem e recalcula o progresso. */
-export async function moveProduto(id: string, de: string, para: string, data: string, obs: string): Promise<void> {
+export async function moveProduto(id: string, de: string, para: string, data: string, obs: string, usuario = ''): Promise<void> {
   const prog = progressoDaEtapa(para)
   if (isDemo) {
     const db = demoLoad()
@@ -495,7 +534,7 @@ export async function moveProduto(id: string, de: string, para: string, data: st
         prod.etapaId = para
         prod.progresso = prog
         prod.datas[de] = data
-        prod.historico.push({ kind: 'mov', etapaDe: de, etapaPara: para, data, texto: obs || null })
+        prod.historico.push({ kind: 'mov', etapaDe: de, etapaPara: para, data, texto: obs || null, usuario: usuario || null })
         break
       }
     }
@@ -506,20 +545,20 @@ export async function moveProduto(id: string, de: string, para: string, data: st
   if (up.error) throw new Error(up.error.message)
   const ed = await supabase!.from('op_produto_etapa').upsert({ produto_id: id, etapa_id: de, data_conclusao: data }, { onConflict: 'produto_id,etapa_id' })
   if (ed.error) throw new Error(ed.error.message)
-  const h = await supabase!.from('op_etapa_historico').insert({ produto_id: id, kind: 'mov', etapa_de: de, etapa_para: para, data, texto: obs || null })
+  const h = await supabase!.from('op_etapa_historico').insert({ produto_id: id, kind: 'mov', etapa_de: de, etapa_para: para, data, texto: obs || null, usuario: usuario || null })
   if (h.error) throw new Error(h.error.message)
 }
 
-export async function addObservacao(id: string, data: string, texto: string): Promise<void> {
+export async function addObservacao(id: string, data: string, texto: string, usuario = ''): Promise<void> {
   if (isDemo) {
     const db = demoLoad()
     for (const ped of db.pedidos) {
       const prod = ped.produtos.find((p) => p.id === id)
-      if (prod) { prod.historico.push({ kind: 'obs', data, texto }); break }
+      if (prod) { prod.historico.push({ kind: 'obs', data, texto, usuario: usuario || null }); break }
     }
     demoSave(db)
     return
   }
-  const { error } = await supabase!.from('op_etapa_historico').insert({ produto_id: id, kind: 'obs', data, texto })
+  const { error } = await supabase!.from('op_etapa_historico').insert({ produto_id: id, kind: 'obs', data, texto, usuario: usuario || null })
   if (error) throw new Error(error.message)
 }

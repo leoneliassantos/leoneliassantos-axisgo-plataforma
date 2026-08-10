@@ -1,32 +1,37 @@
 import { useMemo, useState } from 'react'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
 import { fmtBRfull, hojeISO, daysBetween, statusClasse } from './helpers'
+import { ProdutoFields, produtoToDraft, TIPOS_LOGO, type ProdutoDraft, type TabCad } from './ProdutoFields'
 import {
-  type Produto, type ProdutoPatch, type Prioridade, type StatusProd,
+  type Produto, type ProdutoPatch, type StatusProd, type TipoLogo, type Cadastro, type Cadastros,
   ETAPAS, etapaLabel, PRIO_LABEL, STATUS_LABEL,
 } from './data'
 
+const nomeDe = (list: Cadastro[], id: string | null) => (id ? list.find((c) => c.id === id)?.nome ?? '' : '')
+
 export function ItemModal({
   produto,
+  cadastros,
   saving,
-  onSaveDetalhes,
+  onSaveItem,
   onMover,
   onAddObs,
+  onAddCadastro,
   onClose,
 }: {
   produto: Produto
+  cadastros: Cadastros
   saving: boolean
-  onSaveDetalhes: (patch: ProdutoPatch) => void
+  onSaveItem: (patch: ProdutoPatch, logos: { tipo: TipoLogo; fornecedorId: string | null }[], logText: string) => void
   onMover: (para: string) => void
   onAddObs: (texto: string, data: string) => void
+  onAddCadastro: (tabela: TabCad, nome: string) => Promise<Cadastro>
   onClose: () => void
 }) {
   const [aba, setAba] = useState<'detalhes' | 'mov'>('detalhes')
-  const [qtd, setQtd] = useState(String(produto.qtd))
-  const [prioridade, setPrioridade] = useState<Prioridade>(produto.prioridade)
-  const [status, setStatus] = useState<StatusProd>(produto.status)
+  const [draft, setDraft] = useState<ProdutoDraft>(() => produtoToDraft(produto))
   const [responsavel, setResponsavel] = useState(produto.responsavel)
-  const [previsao, setPrevisao] = useState(produto.previsaoEntrega)
+  const [status, setStatus] = useState<StatusProd>(produto.status)
 
   const [obsData, setObsData] = useState(hojeISO())
   const [obsTexto, setObsTexto] = useState('')
@@ -42,6 +47,46 @@ export function ItemModal({
     [produto.historico],
   )
 
+  /** Compara os valores do formulário com o item salvo e descreve o que mudou. */
+  function calcularMudancas(): string[] {
+    const ch: string[] = []
+    const prop = draft.numeroProposta.trim()
+    const ped = draft.numeroPedido.trim()
+    if (draft.uniformeId !== produto.uniformeId) ch.push(`Uniforme: "${produto.uniformeNome || '—'}" → "${nomeDe(cadastros.uniformes, draft.uniformeId) || '—'}"`)
+    if (draft.corId !== produto.corId) ch.push(`Cor: "${produto.corNome || '—'}" → "${nomeDe(cadastros.cores, draft.corId) || '—'}"`)
+    if (draft.tecidoId !== produto.tecidoId) ch.push(`Tecido: "${produto.tecidoNome || '—'}" → "${nomeDe(cadastros.tecidos, draft.tecidoId) || '—'}"`)
+    if (prop !== (produto.numeroProposta || '')) ch.push(`Nº Proposta: "${produto.numeroProposta || '—'}" → "${prop || '—'}"`)
+    if (ped !== (produto.numeroPedido || '')) ch.push(`Nº Pedido: "${produto.numeroPedido || '—'}" → "${ped || '—'}"`)
+    const qtd = Number(draft.qtd) || 0
+    if (qtd !== produto.qtd) ch.push(`Quantidade: ${produto.qtd} → ${qtd}`)
+    if (draft.prioridade !== produto.prioridade) ch.push(`Prioridade: ${PRIO_LABEL[produto.prioridade]} → ${PRIO_LABEL[draft.prioridade]}`)
+    if (status !== produto.status) ch.push(`Situação: ${STATUS_LABEL[produto.status]} → ${STATUS_LABEL[status]}`)
+    if (responsavel.trim() !== (produto.responsavel || '')) ch.push(`Responsável: "${produto.responsavel || '—'}" → "${responsavel.trim() || '—'}"`)
+    if (draft.previsaoEntrega !== produto.previsaoEntrega) ch.push(`Previsão: ${fmtBRfull(produto.previsaoEntrega) || '—'} → ${fmtBRfull(draft.previsaoEntrega) || '—'}`)
+    for (const t of TIPOS_LOGO) {
+      const old = produto.logos.find((l) => l.tipo === t)
+      const novoAtivo = draft.temLogo && draft.logos[t].ativo
+      const novoForn = draft.logos[t].fornecedorId
+      if (old && !novoAtivo) ch.push(`Logomarca ${t} removida`)
+      else if (!old && novoAtivo) ch.push(`Logomarca ${t} adicionada${novoForn ? ` (fornecedor: ${nomeDe(cadastros.fornecedores, novoForn)})` : ''}`)
+      else if (old && novoAtivo && (old.fornecedorId ?? null) !== (novoForn ?? null)) ch.push(`Fornecedor do ${t}: "${old.fornecedorNome || '—'}" → "${nomeDe(cadastros.fornecedores, novoForn) || '—'}"`)
+    }
+    return ch
+  }
+
+  function salvar() {
+    const mudancas = calcularMudancas()
+    if (mudancas.length === 0) { onClose(); return }
+    const logos = draft.temLogo ? TIPOS_LOGO.filter((t) => draft.logos[t].ativo).map((t) => ({ tipo: t, fornecedorId: draft.logos[t].fornecedorId })) : []
+    const patch: ProdutoPatch = {
+      uniformeId: draft.uniformeId, corId: draft.corId, tecidoId: draft.tecidoId,
+      numeroProposta: draft.numeroProposta.trim(), numeroPedido: draft.numeroPedido.trim(),
+      qtd: Number(draft.qtd) || 0, prioridade: draft.prioridade, status, responsavel: responsavel.trim(), previsaoEntrega: draft.previsaoEntrega,
+    }
+    onSaveItem(patch, logos, mudancas.join('; '))
+    setAba('mov') // mostra o log registrado
+  }
+
   const lab = 'block text-[12px] font-medium text-muted mb-1'
   const inp = 'w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none'
 
@@ -49,15 +94,13 @@ export function ItemModal({
     <Modal
       title={produto.uniformeNome || 'Item'}
       subtitle={`Cor: ${produto.corNome || '—'}${produto.tecidoNome ? ` · Tecido: ${produto.tecidoNome}` : ''}${produto.numeroPedido ? ` · Pedido ${produto.numeroPedido}` : ''}`}
-      width={680}
+      width={720}
       onClose={onClose}
       footer={
         aba === 'detalhes' ? (
           <>
             <BtnGhost onClick={onClose} disabled={saving}>Fechar</BtnGhost>
-            <BtnPrimary onClick={() => onSaveDetalhes({ qtd: Number(qtd) || 0, prioridade, status, responsavel, previsaoEntrega: previsao })} disabled={saving}>
-              {saving ? 'Salvando…' : 'Salvar'}
-            </BtnPrimary>
+            <BtnPrimary onClick={salvar} disabled={saving}>{saving ? 'Salvando…' : 'Salvar alterações'}</BtnPrimary>
           </>
         ) : (
           <BtnGhost onClick={onClose}>Fechar</BtnGhost>
@@ -80,15 +123,14 @@ export function ItemModal({
 
       {aba === 'detalhes' ? (
         <div>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <div><label className={lab}>Quantidade (peças)</label><input type="number" min={0} className={inp} value={qtd} onChange={(e) => setQtd(e.target.value)} /></div>
-            <div><label className={lab}>Responsável</label><input className={inp} value={responsavel} onChange={(e) => setResponsavel(e.target.value)} placeholder="Ex.: AL" /></div>
-            <div><label className={lab}>Previsão de entrega</label><input type="date" className={inp} value={previsao} onChange={(e) => setPrevisao(e.target.value)} /></div>
+          <div className="mb-1 text-[12px] font-semibold uppercase tracking-wide text-muted">Cadastro do item</div>
+          <ProdutoFields draft={draft} ativos={cadastros} opProposta={produto.numeroProposta} opPedido={produto.numeroPedido} onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))} onAddCadastro={onAddCadastro} />
+
+          {/* Campos específicos do item em produção */}
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div>
-              <label className={lab}>Prioridade</label>
-              <select className={inp} value={prioridade} onChange={(e) => setPrioridade(e.target.value as Prioridade)}>
-                <option value="alta">Alta</option><option value="media">Média</option><option value="baixa">Baixa</option>
-              </select>
+              <label className={lab}>Responsável</label>
+              <input className={inp} value={responsavel} onChange={(e) => setResponsavel(e.target.value)} placeholder="Ex.: AL" />
             </div>
             <div>
               <label className={lab}>Situação</label>
@@ -105,28 +147,10 @@ export function ItemModal({
             </div>
           </div>
 
-          {(produto.numeroProposta || produto.numeroPedido) && (
-            <div className="mt-4 flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted">
-              {produto.numeroProposta && <span>Nº Proposta: <b className="text-ink">{produto.numeroProposta}</b></span>}
-              {produto.numeroPedido && <span>Nº Pedido: <b className="text-ink">{produto.numeroPedido}</b></span>}
-            </div>
-          )}
-
-          {produto.logos.length > 0 && (
-            <div className="mt-4">
-              <label className={lab}>Logomarca</label>
-              <div className="flex flex-wrap gap-1.5">
-                {produto.logos.map((l, i) => (
-                  <span key={i} className="rounded-md bg-brand/10 px-2 py-1 text-[12px] font-medium text-brand">
-                    {l.tipo}{l.fornecedorNome ? ` · ${l.fornecedorNome}` : ''}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
+          <p className="mt-3 text-[12px] text-muted">Toda alteração salva aqui é registrada na aba <b>Movimentação</b> (o quê, quando e por quem). Mudar a <b>etapa</b> pede a data de conclusão.</p>
 
           {/* Linha do tempo do item */}
-          <div className="mt-6">
+          <div className="mt-5">
             <label className={lab}>Linha do tempo do item</label>
             <ol className="mt-1 space-y-1.5">
               {ETAPAS.map((e) => {
@@ -168,19 +192,20 @@ export function ItemModal({
           <div className="mt-5">
             <label className={lab}>Histórico</label>
             {historicoOrd.length === 0 ? (
-              <p className="text-sm text-muted">Sem movimentações ainda. Mova o item entre as etapas para registrar o histórico.</p>
+              <p className="text-sm text-muted">Sem movimentações ainda. Mover o item entre as etapas ou salvar alterações registra o histórico.</p>
             ) : (
               <ol className="relative space-y-3 border-l border-line pl-4">
                 {historicoOrd.map((h, i) => (
                   <li key={h.id ?? i} className="relative">
                     <span className="absolute -left-[21px] top-1 size-2.5 rounded-full bg-brand" />
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                       <span className="tnum text-[12px] font-semibold text-ink">{fmtBRfull(h.data)}</span>
                       {h.kind === 'mov' ? (
                         <span className="text-sm text-ink">{h.etapaDe ? etapaLabel(h.etapaDe) : ''} → <b>{h.etapaPara ? etapaLabel(h.etapaPara) : ''}</b></span>
                       ) : (
-                        <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${statusClasse('alerta')}`}>Observação</span>
+                        <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${statusClasse('alerta')}`}>Alteração</span>
                       )}
+                      {h.usuario && <span className="text-[12px] text-muted">· por <b className="text-ink/80">{h.usuario}</b></span>}
                     </div>
                     {h.texto && <p className="mt-0.5 text-sm text-muted">{h.texto}</p>}
                   </li>
@@ -188,8 +213,6 @@ export function ItemModal({
               </ol>
             )}
           </div>
-
-          <p className="mt-4 text-[12px] text-muted">Situação atual: <span className={`rounded px-1.5 py-0.5 font-medium ${statusClasse(produto.status)}`}>{STATUS_LABEL[produto.status]}</span> · Prioridade: <b className="text-ink">{PRIO_LABEL[produto.prioridade]}</b></p>
         </div>
       )}
     </Modal>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useAuth } from '../../auth/AuthContext'
 import { NovaOP } from './NovaOP'
 import { NovoItem } from './NovoItem'
 import { ItemModal } from './ItemModal'
@@ -7,9 +8,9 @@ import {
   resumoPedido, contagemPorEtapa, statusClasse, prioCor, fmtBR, hojeISO, itemFiltraTexto,
 } from './helpers'
 import {
-  loadCadastros, loadPedidos, addCadastro, createPedido, addProduto, updateProduto, moveProduto, addObservacao,
+  loadCadastros, loadPedidos, addCadastro, createPedido, addProduto, updateProduto, setProdutoLogos, moveProduto, addObservacao,
   isDemo, ETAPAS, ETAPA_COR, STATUS_LABEL, PRIO_LABEL,
-  type Cadastros, type Pedido, type Produto, type ProdutoPatch, type NovoPedidoInput, type NovoProdutoInput, type StatusProd,
+  type Cadastros, type Pedido, type Produto, type ProdutoPatch, type NovoPedidoInput, type NovoProdutoInput, type StatusProd, type TipoLogo,
 } from './data'
 
 const CADASTROS_VAZIO: Cadastros = { clientes: [], uniformes: [], cores: [], tecidos: [], fornecedores: [] }
@@ -17,6 +18,8 @@ const CADASTROS_VAZIO: Cadastros = { clientes: [], uniformes: [], cores: [], tec
 interface MoveAlvo { produtoId: string; de: string; para: string }
 
 export function FluxoProducao() {
+  const { user } = useAuth()
+  const usuario = user?.nome || user?.email || ''
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const [cadastros, setCadastros] = useState<Cadastros>(CADASTROS_VAZIO)
@@ -93,18 +96,22 @@ export function FluxoProducao() {
     }
   }
 
-  async function handleSaveDetalhes(patch: ProdutoPatch) {
+  async function handleSaveItem(patch: ProdutoPatch, logos: { tipo: TipoLogo; fornecedorId: string | null }[], logText: string) {
     if (!itemId) return
     setSaving(true)
-    try { await updateProduto(itemId, patch); await refreshPedidos() }
-    catch (e) { alert('Não foi possível salvar: ' + (e instanceof Error ? e.message : '')) }
+    try {
+      await updateProduto(itemId, patch)
+      await setProdutoLogos(itemId, logos)
+      if (logText) await addObservacao(itemId, hojeISO(), logText, usuario)
+      await refreshPedidos()
+    } catch (e) { alert('Não foi possível salvar: ' + (e instanceof Error ? e.message : '')) }
     finally { setSaving(false) }
   }
 
   async function handleConfirmMove(data: string, obs: string) {
     if (!moveAlvo) return
     setSaving(true)
-    try { await moveProduto(moveAlvo.produtoId, moveAlvo.de, moveAlvo.para, data, obs); await refreshPedidos(); setMoveAlvo(null) }
+    try { await moveProduto(moveAlvo.produtoId, moveAlvo.de, moveAlvo.para, data, obs, usuario); await refreshPedidos(); setMoveAlvo(null) }
     catch (e) { alert('Não foi possível mover o item: ' + (e instanceof Error ? e.message : '')) }
     finally { setSaving(false) }
   }
@@ -112,7 +119,7 @@ export function FluxoProducao() {
   async function handleAddObs(texto: string, data: string) {
     if (!itemId) return
     setSaving(true)
-    try { await addObservacao(itemId, data, texto); await refreshPedidos() }
+    try { await addObservacao(itemId, data, texto, usuario); await refreshPedidos() }
     catch (e) { alert('Não foi possível adicionar a observação: ' + (e instanceof Error ? e.message : '')) }
     finally { setSaving(false) }
   }
@@ -161,7 +168,7 @@ export function FluxoProducao() {
         <NovoItem cadastros={cadastros} opProposta={currentOrder.numeroProposta} opPedido={currentOrder.numeroPedido} saving={saving} onAddCadastro={handleAddCadastro} onCreate={handleAddItem} onClose={() => setAddItemOpId(null)} />
       )}
       {itemAberto && (
-        <ItemModal produto={itemAberto} saving={saving} onSaveDetalhes={handleSaveDetalhes} onMover={(para) => pedirMove(itemAberto.id, itemAberto.etapaId, para)} onAddObs={handleAddObs} onClose={() => setItemId(null)} />
+        <ItemModal key={itemAberto.id} produto={itemAberto} cadastros={cadastros} saving={saving} onSaveItem={handleSaveItem} onMover={(para) => pedirMove(itemAberto.id, itemAberto.etapaId, para)} onAddObs={handleAddObs} onAddCadastro={handleAddCadastro} onClose={() => setItemId(null)} />
       )}
       {moveAlvo && (
         <MoveModal alvo={moveAlvo} saving={saving} onConfirm={handleConfirmMove} onClose={() => setMoveAlvo(null)} />

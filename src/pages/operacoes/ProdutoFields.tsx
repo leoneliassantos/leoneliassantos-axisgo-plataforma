@@ -1,5 +1,5 @@
 import { Combobox } from './Combobox'
-import type { Cadastro, Cadastros, NovoProdutoInput, Prioridade, TipoLogo } from './data'
+import type { Cadastro, Cadastros, NovoProdutoInput, Prioridade, TipoLogo, Produto } from './data'
 
 export type TabCad = 'clientes' | 'uniformes' | 'cores' | 'tecidos' | 'fornecedores'
 
@@ -32,6 +32,23 @@ export const novaLinha = (): ProdutoDraft => ({
   qtd: '', previsaoEntrega: '', prioridade: 'media', temLogo: false,
   logos: { Bordado: { ativo: false, fornecedorId: null }, Silk: { ativo: false, fornecedorId: null }, DTF: { ativo: false, fornecedorId: null } },
 })
+
+/** Converte um Produto já existente em rascunho editável (para a aba Detalhes). */
+export function produtoToDraft(p: Produto): ProdutoDraft {
+  const logoOf = (t: TipoLogo) => p.logos.find((l) => l.tipo === t)
+  return {
+    key: p.id,
+    uniformeId: p.uniformeId, corId: p.corId, tecidoId: p.tecidoId,
+    numeroProposta: p.numeroProposta, numeroPedido: p.numeroPedido, propostaEdit: true, pedidoEdit: true,
+    qtd: String(p.qtd), previsaoEntrega: p.previsaoEntrega, prioridade: p.prioridade,
+    temLogo: p.logos.length > 0,
+    logos: {
+      Bordado: { ativo: !!logoOf('Bordado'), fornecedorId: logoOf('Bordado')?.fornecedorId ?? null },
+      Silk: { ativo: !!logoOf('Silk'), fornecedorId: logoOf('Silk')?.fornecedorId ?? null },
+      DTF: { ativo: !!logoOf('DTF'), fornecedorId: logoOf('DTF')?.fornecedorId ?? null },
+    },
+  }
+}
 
 /** Nº efetivo: usa o do item se foi editado; senão herda o da OP. */
 export const propostaEfetiva = (d: ProdutoDraft, opProposta: string) => (d.propostaEdit ? d.numeroProposta : opProposta)
