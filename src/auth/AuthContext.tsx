@@ -177,7 +177,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const { error } = await supabase!.functions.invoke('admin-create-user', { body: dados })
-    if (error) return { error: 'Não foi possível criar o usuário. Verifique a Edge Function admin-create-user.' }
+    if (error) {
+      // A Edge Function devolve o motivo real em JSON ({ error: '...' }). Sem ler
+      // esse corpo, todo erro vira a mesma mensagem genérica e cega o suporte
+      // (ex.: "e-mail já cadastrado" e "você não é admin" ficam idênticos).
+      let motivo = ''
+      const resposta = (error as { context?: Response }).context
+      if (resposta && typeof resposta.json === 'function') {
+        try {
+          motivo = ((await resposta.json()) as { error?: string })?.error ?? ''
+        } catch {
+          /* corpo não-JSON (ex.: função fora do ar): mantém a mensagem genérica */
+        }
+      }
+      // Traduz a causa mais comum (e-mail repetido) para pt-BR.
+      if (/already.*registered|already been registered|duplicate/i.test(motivo)) {
+        motivo = 'Já existe um usuário com esse e-mail.'
+      }
+      return { error: motivo || 'Não foi possível criar o usuário. Verifique a Edge Function admin-create-user.' }
+    }
     return {}
   }
 

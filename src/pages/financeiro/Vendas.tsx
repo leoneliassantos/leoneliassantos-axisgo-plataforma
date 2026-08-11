@@ -179,6 +179,7 @@ export function Vendas() {
   const fileRef = useRef<HTMLInputElement>(null)
 
   // filtros
+  const [ano, setAno] = useState('') // '' = todos os anos
   const [dataDe, setDataDe] = useState('')
   const [dataAte, setDataAte] = useState('')
   const [selCanais, setSelCanais] = useState<Set<string> | null>(null) // null = todos
@@ -241,9 +242,14 @@ export function Vendas() {
     }))
     setRows(mapped)
     if (mapped.length) {
-      const ds = mapped.map((r) => r.data).filter(Boolean).sort()
-      setDataDe(ds[0])
-      setDataAte(ds[ds.length - 1])
+      // Abre no ano mais recente da base (o seletor de Ano começa nele).
+      const anosArr = Array.from(new Set(mapped.map((r) => r.data.slice(0, 4)).filter(Boolean))).sort()
+      const ultimo = anosArr[anosArr.length - 1] ?? ''
+      setAno(ultimo)
+      const base = ultimo ? mapped.filter((r) => r.data.slice(0, 4) === ultimo) : mapped
+      const ds = base.map((r) => r.data).filter(Boolean).sort()
+      setDataDe(ds[0] ?? '')
+      setDataAte(ds[ds.length - 1] ?? '')
     }
     setLoading(false)
   }, [mode])
@@ -257,12 +263,28 @@ export function Vendas() {
     [rows],
   )
 
+  // Anos presentes na base (para o seletor) e a base já recortada pelo ano escolhido.
+  const anos = useMemo(
+    () => Array.from(new Set(rows.map((r) => r.data.slice(0, 4)).filter(Boolean))).sort(),
+    [rows],
+  )
+  const rowsView = useMemo(() => (ano ? rows.filter((r) => r.data.slice(0, 4) === ano) : rows), [rows, ano])
+
+  // Troca o ano e reajusta o período (De/Até) para o intervalo real daquele ano.
+  function escolherAno(a: string) {
+    setAno(a)
+    const base = a ? rows.filter((r) => r.data.slice(0, 4) === a) : rows
+    const ds = base.map((r) => r.data).filter(Boolean).sort()
+    setDataDe(ds[0] ?? '')
+    setDataAte(ds[ds.length - 1] ?? '')
+  }
+
   /* ---------- métricas com filtros ---------- */
   const m = useMemo(() => {
     const canalOk = (c: string) => selCanais === null || selCanais.has(c)
     const de = dataDe || '0000-01-01'
     const ate = dataAte || '9999-12-31'
-    const f = rows.filter((r) => r.data >= de && r.data <= ate && canalOk(r.origem))
+    const f = rowsView.filter((r) => r.data >= de && r.data <= ate && canalOk(r.origem))
 
     const fat = (r: Venda) => r.qtd * r.unit
     const faturamento = f.reduce((a, r) => a + fat(r), 0)
@@ -300,7 +322,7 @@ export function Vendas() {
     const porSku = agrupar((r) => r.sku)
 
     return { faturamento, itens, pedidos, skusAtivos, ticket, serie, porCanal, porProduto, porSku }
-  }, [rows, selCanais, dataDe, dataAte, gran])
+  }, [rowsView, selCanais, dataDe, dataAte, gran])
 
   /* ---------- ações ---------- */
   async function baixarBase() {
@@ -484,7 +506,22 @@ export function Vendas() {
           <p className="text-[12px] text-muted">Notas de venda item a item · faturamento por canal, produto e período</p>
         </div>
         {!vazio && (
-          <Toggle valor={view} set={setView} ops={[['painel', 'Painel'], ['comparativo', 'Comparativo'], ['abc', 'Curva ABC']]} />
+          <div className="flex flex-wrap items-center gap-2">
+            {view !== 'comparativo' && (
+              <label className="flex items-center gap-1.5 text-[12px]" title="Filtra os indicadores por ano. O Comparativo cruza anos livremente, por isso não usa este seletor.">
+                <span className="font-bold uppercase tracking-wider text-muted">Ano</span>
+                <select
+                  value={ano}
+                  onChange={(e) => escolherAno(e.target.value)}
+                  className="rounded-md border border-line bg-white px-2 py-1 text-[12px] font-semibold text-ink outline-none focus:border-brand"
+                >
+                  <option value="">Todos</option>
+                  {anos.map((a) => <option key={a} value={a}>{a}</option>)}
+                </select>
+              </label>
+            )}
+            <Toggle valor={view} set={setView} ops={[['painel', 'Painel'], ['comparativo', 'Comparativo'], ['abc', 'Curva ABC']]} />
+          </div>
         )}
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -522,7 +559,7 @@ export function Vendas() {
       ) : view === 'comparativo' ? (
         <Comparativo rows={rows} />
       ) : view === 'abc' ? (
-        <AbcCurva rows={rows} />
+        <AbcCurva rows={rowsView} />
       ) : (
         <>
           {/* Filtros */}
@@ -541,7 +578,7 @@ export function Vendas() {
             </div>
             <button
               className="ml-auto rounded-md border border-line px-2.5 py-1 text-[12px] font-medium text-muted transition hover:bg-paper"
-              onClick={() => { const ds = rows.map((r) => r.data).filter(Boolean).sort(); setDataDe(ds[0] ?? ''); setDataAte(ds[ds.length - 1] ?? ''); setSelCanais(null) }}
+              onClick={() => { const ds = rowsView.map((r) => r.data).filter(Boolean).sort(); setDataDe(ds[0] ?? ''); setDataAte(ds[ds.length - 1] ?? ''); setSelCanais(null) }}
             >
               Limpar filtros
             </button>
