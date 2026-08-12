@@ -21,11 +21,16 @@ create table if not exists public.vendas (
   valor_unitario numeric(16, 2) not null default 0,
   serie          text,
   origem         text,
+  categoria      text,   -- agrupador do "de-para" (ex.: Açaí, Mussarela); vem da coluna K do Excel
   created_at     timestamptz not null default now()
 );
 
-create index if not exists vendas_data_idx   on public.vendas (data);
-create index if not exists vendas_origem_idx on public.vendas (origem);
+-- Para bases já existentes (adiciona a coluna sem apagar dados):
+alter table public.vendas add column if not exists categoria text;
+
+create index if not exists vendas_data_idx      on public.vendas (data);
+create index if not exists vendas_origem_idx    on public.vendas (origem);
+create index if not exists vendas_categoria_idx on public.vendas (categoria);
 
 alter table public.vendas enable row level security;
 
@@ -68,11 +73,11 @@ begin
   -- TRUNCATE (em vez de DELETE) para não esbarrar na proteção safe-update.
   truncate table public.vendas restart identity;
 
-  insert into public.vendas (nota, data, tipo, cliente, sku, produto, quantidade, valor_unitario, serie, origem)
-  select x.nota, x.data, x.tipo, x.cliente, x.sku, x.produto, x.quantidade, x.valor_unitario, x.serie, x.origem
+  insert into public.vendas (nota, data, tipo, cliente, sku, produto, quantidade, valor_unitario, serie, origem, categoria)
+  select x.nota, x.data, x.tipo, x.cliente, x.sku, x.produto, x.quantidade, x.valor_unitario, x.serie, x.origem, x.categoria
   from jsonb_to_recordset(p_rows) as x(
     nota text, data date, tipo text, cliente text, sku text, produto text,
-    quantidade numeric, valor_unitario numeric, serie text, origem text
+    quantidade numeric, valor_unitario numeric, serie text, origem text, categoria text
   );
 
   get diagnostics n = row_count;
@@ -112,11 +117,11 @@ begin
   where v.origem is not distinct from r.origem
     and v.data between r.d0 and r.d1;
 
-  insert into public.vendas (nota, data, tipo, cliente, sku, produto, quantidade, valor_unitario, serie, origem)
-  select x.nota, x.data, x.tipo, x.cliente, x.sku, x.produto, x.quantidade, x.valor_unitario, x.serie, x.origem
+  insert into public.vendas (nota, data, tipo, cliente, sku, produto, quantidade, valor_unitario, serie, origem, categoria)
+  select x.nota, x.data, x.tipo, x.cliente, x.sku, x.produto, x.quantidade, x.valor_unitario, x.serie, x.origem, x.categoria
   from jsonb_to_recordset(p_rows) as x(
     nota text, data date, tipo text, cliente text, sku text, produto text,
-    quantidade numeric, valor_unitario numeric, serie text, origem text
+    quantidade numeric, valor_unitario numeric, serie text, origem text, categoria text
   );
 
   get diagnostics n = row_count;

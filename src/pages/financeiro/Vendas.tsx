@@ -21,6 +21,7 @@ interface Venda {
   unit: number
   serie: string
   origem: string
+  categoria: string // agrupador do "de-para" (ex.: Açaí, Mussarela) — coluna K da base
 }
 type Gran = 'dia' | 'semana' | 'mes'
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
@@ -54,6 +55,9 @@ function parseBR(s: string | number): number {
   const n = parseFloat(t)
   return isNaN(n) ? 0 : n
 }
+// A base tem a coluna "categoria" preenchida? (define se o agrupamento padrão é
+// por Categoria — o de-para do cliente — ou cai para Produto em bases sem ela.)
+const temCategoria = (rs: Venda[]) => rs.some((r) => r.categoria)
 function excelDateToISO(v: unknown): string {
   if (v instanceof Date && !isNaN(v.getTime())) {
     return `${v.getFullYear()}-${pad2(v.getMonth() + 1)}-${pad2(v.getDate())}`
@@ -146,7 +150,7 @@ async function parseFoodproPDF(file: File): Promise<Venda[]> {
         nota: cur.nota, data: cur.data,
         tipo: /^[12]/.test(cfop) ? 'Entrada' : 'Saída', // CFOP 1xxx/2xxx = devolução/entrada; 5xxx/6xxx = venda
         cliente: cur.cliente, sku: t[1], produto: t.slice(2, t.length - 7).join(' '),
-        qtd, unit, serie: '', origem: FOODPRO_ORIGEM,
+        qtd, unit, serie: '', origem: FOODPRO_ORIGEM, categoria: '',
       })
     }
   }
@@ -184,9 +188,11 @@ export function Vendas() {
   const [dataAte, setDataAte] = useState('')
   const [selCanais, setSelCanais] = useState<Set<string> | null>(null) // null = todos
   const [gran, setGran] = useState<Gran>('semana')
-  const [rankPor, setRankPor] = useState<'produto' | 'sku'>('produto')
+  const [rankPor, setRankPor] = useState<'categoria' | 'produto' | 'sku'>('categoria')
   const [detalhe, setDetalhe] = useState<Detalhe | null>(null)
   const [view, setView] = useState<'painel' | 'comparativo' | 'abc'>('painel')
+  // Base sem coluna categoria (ex.: cliente ainda não migrado): cai para Produto.
+  useEffect(() => { if (rows.length && !temCategoria(rows)) setRankPor('produto') }, [rows])
 
   // altura disponível (caber 100% na tela)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -217,12 +223,19 @@ export function Vendas() {
       nota: string | null; data: string | null; tipo: string | null; cliente: string | null
       sku: string | null; produto: string | null; quantidade: number | string | null
       valor_unitario: number | string | null; serie: string | null; origem: string | null
+      categoria?: string | null
     }
-    const { data: brutos, error } = await fetchAllRows<LinhaVenda>((from, to) =>
-      supabase!
-        .from('vendas')
-        .select('nota, data, tipo, cliente, sku, produto, quantidade, valor_unitario, serie, origem')
-        .order('data').order('id').range(from, to))
+    const COLS = 'nota, data, tipo, cliente, sku, produto, quantidade, valor_unitario, serie, origem'
+    // Tenta ler com a coluna "categoria" (agrupador do de-para). Se o banco deste
+    // cliente ainda não tem essa coluna, o PostgREST devolve erro citando "categoria":
+    // nesse caso relê sem ela, para a tela seguir funcionando (retrocompatível).
+    let res = await fetchAllRows<LinhaVenda>((from, to) =>
+      supabase!.from('vendas').select(`${COLS}, categoria`).order('data').order('id').range(from, to))
+    if (res.error && /categoria/i.test(res.error.message)) {
+      res = await fetchAllRows<LinhaVenda>((from, to) =>
+        supabase!.from('vendas').select(COLS).order('data').order('id').range(from, to))
+    }
+    const { data: brutos, error } = res
     if (error) {
       setErro('Não foi possível carregar a base. Verifique se a tabela "vendas" foi criada no Supabase.')
       setLoading(false)
@@ -239,6 +252,7 @@ export function Vendas() {
       unit: Number(r.valor_unitario) || 0,
       serie: (r.serie ?? '').toString(),
       origem: ((r.origem ?? '').toString().trim()) || '(sem canal)',
+      categoria: (r.categoria ?? '').toString().trim(),
     }))
     setRows(mapped)
     if (mapped.length) {
@@ -320,8 +334,9 @@ export function Vendas() {
     const porCanal = agrupar((r) => r.origem)
     const porProduto = agrupar((r) => r.produto)
     const porSku = agrupar((r) => r.sku)
+    const porCategoria = agrupar((r) => r.categoria)
 
-    return { faturamento, itens, pedidos, skusAtivos, ticket, serie, porCanal, porProduto, porSku }
+    return { faturamento, itens, pedidos, skusAtivos, ticket, serie, porCanal, porProduto, porSku, porCategoria }
   }, [rowsView, selCanais, dataDe, dataAte, gran])
 
   /* ---------- ações ---------- */
@@ -329,14 +344,14 @@ export function Vendas() {
     try {
       setBusy(true)
       const XLSX = await import('xlsx')
-      const aoa: unknown[][] = [['Nº nota', 'Data', 'Tipo', 'Cliente/Fornecedor', 'Código (SKU)', 'Produto', 'Quantidade', 'Valor unitário', 'Nº série', 'Origem']]
+      const aoa: unknown[][] = [['Nº nota', 'Data', 'Tipo', 'Cliente/Fornecedor', 'Código (SKU)', 'Produto', 'Quantidade', 'Valor unitário', 'Nº série', 'Origem', 'Categoria']]
       for (const r of rows) {
         const p = r.data.split('-')
         const dt = p.length === 3 ? new Date(+p[0], +p[1] - 1, +p[2]) : null
-        aoa.push([r.nota, dt, r.tipo, r.cliente, r.sku, r.produto, r.qtd, r.unit, r.serie, r.origem])
+        aoa.push([r.nota, dt, r.tipo, r.cliente, r.sku, r.produto, r.qtd, r.unit, r.serie, r.origem, r.categoria])
       }
       const ws = XLSX.utils.aoa_to_sheet(aoa, { cellDates: true })
-      ws['!cols'] = [{ wch: 10 }, { wch: 12 }, { wch: 8 }, { wch: 30 }, { wch: 16 }, { wch: 54 }, { wch: 11 }, { wch: 13 }, { wch: 8 }, { wch: 12 }]
+      ws['!cols'] = [{ wch: 10 }, { wch: 12 }, { wch: 8 }, { wch: 30 }, { wch: 16 }, { wch: 54 }, { wch: 11 }, { wch: 13 }, { wch: 8 }, { wch: 12 }, { wch: 18 }]
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, ws, 'Vendas')
       const h = new Date()
@@ -383,6 +398,7 @@ export function Vendas() {
               nota: find(hs, 'NOTA'), data, tipo: find(hs, 'TIPO'),
               cliente: find(hs, 'CLIENTE', 'FORNECEDOR'), sku: find(hs, 'SKU', 'CÓDIGO', 'CODIGO'),
               produto: prod, qtd, val, serie: find(hs, 'SÉRIE', 'SERIE'), origem: find(hs, 'ORIGEM', 'CANAL'),
+              categoria: find(hs, 'CATEGORIA'),
             }
             break
           }
@@ -411,6 +427,7 @@ export function Vendas() {
             qtd, unit,
             serie: (get(row, col.serie) ?? '').toString().trim(),
             origem: ((get(row, col.origem) ?? '').toString().trim()) || 'Olist',
+            categoria: (get(row, col.categoria) ?? '').toString().trim(),
           })
         }
         if (!novo.length) throw new Error('nenhuma venda válida encontrada na planilha.')
@@ -430,6 +447,7 @@ export function Vendas() {
         const payload = novo.map((r) => ({
           nota: r.nota, data: r.data, tipo: r.tipo, cliente: r.cliente, sku: r.sku,
           produto: r.produto, quantidade: r.qtd, valor_unitario: r.unit, serie: r.serie, origem: r.origem,
+          categoria: r.categoria,
         }))
         const { error } = await supabase.rpc('vendas_replace_periodo', { p_rows: payload })
         if (error) throw new Error(error.message)
@@ -482,13 +500,16 @@ export function Vendas() {
 
   /* ---------- render ---------- */
   const vazio = rows.length === 0
-  const rank = rankPor === 'produto' ? m.porProduto : m.porSku
+  // Dimensão do ranking/Pareto (Categoria = de-para do cliente; Produto/SKU = detalhe).
+  const rankRot = rankPor === 'categoria' ? 'Categoria' : rankPor === 'produto' ? 'Produto' : 'SKU'
+  const rankUnid = rankPor === 'categoria' ? 'categorias' : rankPor === 'produto' ? 'produtos' : 'SKUs'
+  const rank = rankPor === 'categoria' ? m.porCategoria : rankPor === 'produto' ? m.porProduto : m.porSku
   const conc80 = (() => {
-    const arr = m.porProduto, tot = m.faturamento
+    const arr = rank, tot = m.faturamento
     if (!arr.length || tot <= 0) return ''
     let acc = 0, k = 0
     for (const it of arr) { acc += it.valor; k++; if (acc / tot >= 0.8) break }
-    return `${k} de ${arr.length} produtos = 80% do faturamento`
+    return `${k} de ${arr.length} ${rankUnid} = 80% do faturamento`
   })()
 
   if (loading) return <div className="grid place-items-center rounded-2xl border border-line bg-surface py-20 text-sm text-muted">Carregando vendas…</div>
@@ -599,8 +620,8 @@ export function Vendas() {
               <AreaFat serie={m.serie} />
             </Tile>
 
-            <Tile className="col-span-12 lg:col-span-4" titulo={`Top ${rankPor === 'produto' ? 'Produtos' : 'SKUs'}`} tip="Itens que mais faturam no período/canal. Alterne entre Produto e SKU no botão." onDetalhes={() => setDetalhe(detRank(rank, `Top ${rankPor === 'produto' ? 'produtos' : 'SKUs'}`, `Vendas - Top ${rankPor}.xlsx`, rankPor === 'produto' ? 'Produto' : 'SKU'))}
-              acao={<Toggle valor={rankPor} set={setRankPor} ops={[['produto', 'Produto'], ['sku', 'SKU']]} />}
+            <Tile className="col-span-12 lg:col-span-4" titulo={`Top ${rankRot}s`} tip="O que mais fatura no período/canal. Alterne entre Categoria (agrupa itens semelhantes), Produto e SKU no botão." onDetalhes={() => setDetalhe(detRank(rank, `Top ${rankUnid}`, `Vendas - Top ${rankPor}.xlsx`, rankRot))}
+              acao={<Toggle valor={rankPor} set={setRankPor} ops={[['categoria', 'Categoria'], ['produto', 'Produto'], ['sku', 'SKU']]} />}
             >
               <BarrasH itens={rank.slice(0, 6)} total={m.faturamento} />
             </Tile>
@@ -609,8 +630,8 @@ export function Vendas() {
               <Donut itens={m.porCanal} total={m.faturamento} />
             </Tile>
 
-            <Tile className="col-span-12 lg:col-span-4" titulo="Concentração (Pareto)" sub={conc80} tip="Mostra quantos itens concentram o faturamento: a linha acumulada mostra que poucos produtos respondem pela maior parte das vendas." onDetalhes={() => setDetalhe(detRank(m.porProduto, 'Concentração por produto', 'Vendas - Concentracao.xlsx', 'Produto'))}>
-              <Pareto itens={m.porProduto} total={m.faturamento} />
+            <Tile className="col-span-12 lg:col-span-4" titulo="Concentração (Pareto)" sub={conc80} tip="Mostra quantos itens concentram o faturamento: a linha acumulada mostra que poucos respondem pela maior parte das vendas. Segue a dimensão escolhida em “Top” (Categoria, Produto ou SKU)." onDetalhes={() => setDetalhe(detRank(rank, `Concentração por ${rankRot.toLowerCase()}`, 'Vendas - Concentracao.xlsx', rankRot))}>
+              <Pareto itens={rank} total={m.faturamento} />
             </Tile>
           </div>
         </>
@@ -978,7 +999,7 @@ function br(iso: string): string {
 }
 interface Metrica {
   fat: number; itens: number; pedidos: number; skus: number; ticket: number
-  canal: Map<string, number>; produto: Map<string, number>; sku: Map<string, number>
+  canal: Map<string, number>; produto: Map<string, number>; sku: Map<string, number>; categoria: Map<string, number>
 }
 function calcMetrica(sub: Venda[]): Metrica {
   const byKey = (k: (r: Venda) => string) => {
@@ -992,7 +1013,7 @@ function calcMetrica(sub: Venda[]): Metrica {
     fat, itens: sub.reduce((s, r) => s + r.qtd, 0), pedidos,
     skus: new Set(sub.filter((r) => r.sku).map((r) => r.sku)).size,
     ticket: pedidos ? fat / pedidos : 0,
-    canal: byKey((r) => r.origem), produto: byKey((r) => r.produto), sku: byKey((r) => r.sku),
+    canal: byKey((r) => r.origem), produto: byKey((r) => r.produto), sku: byKey((r) => r.sku), categoria: byKey((r) => r.categoria),
   }
 }
 function pct(a: number, b: number): number | null { return a <= 0 ? null : ((b - a) / a) * 100 }
@@ -1007,7 +1028,8 @@ const deltaCor = (a: number, b: number) => (b > a + 0.005 ? UP : b < a - 0.005 ?
 function Comparativo({ rows }: { rows: Venda[] }) {
   const [modo, setModo] = useState<'mes' | 'intervalo'>('mes')
   const [selCanais, setSelCanais] = useState<Set<string> | null>(null)
-  const [rankPor, setRankPor] = useState<'produto' | 'sku'>('produto')
+  const [rankPor, setRankPor] = useState<'categoria' | 'produto' | 'sku'>('categoria')
+  useEffect(() => { if (rows.length && !temCategoria(rows)) setRankPor('produto') }, [rows])
   const [detalhe, setDetalhe] = useState<Detalhe | null>(null)
   const [mesA, setMesA] = useState(''); const [mesB, setMesB] = useState('')
   const [aDe, setADe] = useState(''); const [aAte, setAAte] = useState('')
@@ -1033,7 +1055,8 @@ function Comparativo({ rows }: { rows: Venda[] }) {
   const uni = (ma: Map<string, number>, mb: Map<string, number>) =>
     Array.from(new Set([...ma.keys(), ...mb.keys()])).map((nome) => ({ nome, a: ma.get(nome) || 0, b: mb.get(nome) || 0 }))
   const canalCmp = uni(A.canal, B.canal).sort((x, y) => y.b - x.b)
-  const dim: 'produto' | 'sku' = rankPor
+  const dim: 'categoria' | 'produto' | 'sku' = rankPor
+  const dimRot = dim === 'categoria' ? 'Categoria' : dim === 'produto' ? 'Produto' : 'SKU'
   const rankCmp = uni(A[dim], B[dim]).filter((x) => x.a > 0 || x.b > 0).sort((x, y) => y.b - x.b)
   const evol = meses.map((ym) => ({ ym, label: mesLabel(ym), fat: rows.filter((r) => canalOk(r.origem) && r.data.slice(0, 7) === ym).reduce((s, r) => s + r.qtd * r.unit, 0) }))
 
@@ -1083,11 +1106,11 @@ function Comparativo({ rows }: { rows: Venda[] }) {
         </CardC>
       </div>
 
-      <CardC titulo={`Por ${rankPor === 'produto' ? 'produto' : 'SKU'} — quem cresceu e quem caiu`} sub={`${rotA} × ${rotB}`}
-        tip="Ranking dos itens comparando os dois períodos. Δ mostra a variação em R$ e Δ% em percentual (verde = cresceu, vermelho = caiu). Alterne entre Produto e SKU."
-        acao={<Toggle valor={rankPor} set={setRankPor} ops={[['produto', 'Produto'], ['sku', 'SKU']]} />}
-        onDet={() => setDetalhe({ titulo: `Comparativo por ${rankPor}`, arquivo: `Vendas - Comparativo ${rankPor}.xlsx`, colunas: colsCmp(rankPor === 'produto' ? 'Produto' : 'SKU'), linhas: linhasDet(rankCmp) })}>
-        <TabelaCmp itens={rankCmp.slice(0, 10)} rotA={rotA} rotB={rotB} rot={rankPor === 'produto' ? 'Produto' : 'SKU'} />
+      <CardC titulo={`Por ${dimRot.toLowerCase()} — quem cresceu e quem caiu`} sub={`${rotA} × ${rotB}`}
+        tip="Ranking comparando os dois períodos. Δ mostra a variação em R$ e Δ% em percentual (verde = cresceu, vermelho = caiu). Alterne entre Categoria, Produto e SKU."
+        acao={<Toggle valor={rankPor} set={setRankPor} ops={[['categoria', 'Categoria'], ['produto', 'Produto'], ['sku', 'SKU']]} />}
+        onDet={() => setDetalhe({ titulo: `Comparativo por ${dimRot.toLowerCase()}`, arquivo: `Vendas - Comparativo ${rankPor}.xlsx`, colunas: colsCmp(dimRot), linhas: linhasDet(rankCmp) })}>
+        <TabelaCmp itens={rankCmp.slice(0, 10)} rotA={rotA} rotB={rotB} rot={dimRot} />
       </CardC>
 
       {detalhe && <ModalDetalhe dados={detalhe} onClose={() => setDetalhe(null)} />}
@@ -1228,7 +1251,8 @@ function TabelaCmp({ itens, rotA, rotB, rot }: { itens: { nome: string; a: numbe
 const ABC_COR: Record<'A' | 'B' | 'C', string> = { A: '#E8420A', B: '#FB960E', C: '#FDC24C' }
 
 function AbcCurva({ rows }: { rows: Venda[] }) {
-  const [dim, setDim] = useState<'produto' | 'sku' | 'cliente'>('produto')
+  const [dim, setDim] = useState<'categoria' | 'produto' | 'sku' | 'cliente'>('categoria')
+  useEffect(() => { if (rows.length && !temCategoria(rows)) setDim('produto') }, [rows])
   const [dataDe, setDataDe] = useState(''); const [dataAte, setDataAte] = useState('')
   const [selCanais, setSelCanais] = useState<Set<string> | null>(null)
   const [detalhe, setDetalhe] = useState<Detalhe | null>(null)
@@ -1239,12 +1263,12 @@ function AbcCurva({ rows }: { rows: Venda[] }) {
     if (ds.length) { setDataDe(ds[0]); setDataAte(ds[ds.length - 1]) }
   }, [rows])
 
-  const rot = dim === 'produto' ? 'Produto' : dim === 'sku' ? 'SKU' : 'Cliente'
+  const rot = dim === 'categoria' ? 'Categoria' : dim === 'produto' ? 'Produto' : dim === 'sku' ? 'SKU' : 'Cliente'
   const abc = useMemo(() => {
     const canalOk = (c: string) => selCanais === null || selCanais.has(c)
     const de = dataDe || '0000-01-01', ate = dataAte || '9999-12-31'
     const f = rows.filter((r) => r.data >= de && r.data <= ate && canalOk(r.origem))
-    const keyf = (r: Venda) => (dim === 'produto' ? r.produto : dim === 'sku' ? r.sku : r.cliente) || `(sem ${rot.toLowerCase()})`
+    const keyf = (r: Venda) => (dim === 'categoria' ? r.categoria : dim === 'produto' ? r.produto : dim === 'sku' ? r.sku : r.cliente) || `(sem ${rot.toLowerCase()})`
     const acc = new Map<string, { fat: number; qtd: number }>()
     for (const r of f) { const k = keyf(r); const e = acc.get(k) || { fat: 0, qtd: 0 }; e.fat += r.qtd * r.unit; e.qtd += r.qtd; acc.set(k, e) }
     const arr = Array.from(acc.entries()).map(([nome, v]) => ({ nome, fat: v.fat, qtd: v.qtd })).filter((x) => x.fat > 0.005).sort((a, b) => b.fat - a.fat)
@@ -1273,7 +1297,7 @@ function AbcCurva({ rows }: { rows: Venda[] }) {
     <div className="flex flex-col gap-3 pb-4">
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2">
         <span className="text-[11px] font-bold uppercase tracking-wider text-muted">Classificar por</span>
-        <Toggle valor={dim} set={setDim} ops={[['produto', 'Produto'], ['sku', 'SKU'], ['cliente', 'Cliente']]} />
+        <Toggle valor={dim} set={setDim} ops={[['categoria', 'Categoria'], ['produto', 'Produto'], ['sku', 'SKU'], ['cliente', 'Cliente']]} />
         <div className="flex items-center gap-1.5 text-[12px]">
           <span className="text-muted">Período</span>
           <DateIn value={dataDe} onChange={setDataDe} /><span className="text-muted">até</span><DateIn value={dataAte} onChange={setDataAte} />
