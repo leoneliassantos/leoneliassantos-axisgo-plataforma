@@ -534,7 +534,7 @@ export function Vendas() {
                 <select
                   value={ano}
                   onChange={(e) => escolherAno(e.target.value)}
-                  className="rounded-md border border-line bg-white px-2 py-1 text-[12px] font-semibold text-ink outline-none focus:border-brand"
+                  className="rounded-md border border-line bg-white px-2 py-1 text-[12px] font-semibold text-ink outline-none focus:border-ink/40"
                 >
                   <option value="">Todos</option>
                   {anos.map((a) => <option key={a} value={a}>{a}</option>)}
@@ -546,7 +546,7 @@ export function Vendas() {
         )}
         <div className="flex flex-wrap items-center gap-2">
           <button
-            className="inline-flex items-center gap-1.5 rounded-lg border border-brand/30 bg-brand/10 px-3 py-2 text-[12px] font-bold text-brand transition hover:bg-brand/20 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-[12px] font-bold text-ink transition hover:bg-paper disabled:opacity-50"
             onClick={baixarBase} disabled={busy || vazio} title="Baixar a base atual em Excel"
           >
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></svg>
@@ -554,7 +554,7 @@ export function Vendas() {
           </button>
           {isAdmin && (
             <button
-              className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-2 text-[12px] font-bold text-white shadow-brand transition hover:opacity-90 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3 py-2 text-[12px] font-bold text-white shadow-brand transition hover:brightness-125 disabled:opacity-50"
               onClick={() => fileRef.current?.click()} disabled={busy} title="Enviar Excel do Olist ou PDF do Foodpro. Substitui só o canal e o período do arquivo; as demais datas e canais são mantidos."
             >
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21V9" /><path d="m7 14 5-5 5 5" /><path d="M5 3h14" /></svg>
@@ -588,9 +588,9 @@ export function Vendas() {
             <span className="text-[11px] font-bold uppercase tracking-wider text-muted">Filtros</span>
             <div className="flex items-center gap-1.5 text-[12px]">
               <span className="text-muted">Período</span>
-              <input type="date" value={dataDe} onChange={(e) => setDataDe(e.target.value)} className="rounded-md border border-line bg-white px-2 py-1 text-[12px] font-semibold text-ink outline-none focus:border-brand" />
+              <input type="date" value={dataDe} onChange={(e) => setDataDe(e.target.value)} className="rounded-md border border-line bg-white px-2 py-1 text-[12px] font-semibold text-ink outline-none focus:border-ink/40" />
               <span className="text-muted">até</span>
-              <input type="date" value={dataAte} onChange={(e) => setDataAte(e.target.value)} className="rounded-md border border-line bg-white px-2 py-1 text-[12px] font-semibold text-ink outline-none focus:border-brand" />
+              <input type="date" value={dataAte} onChange={(e) => setDataAte(e.target.value)} className="rounded-md border border-line bg-white px-2 py-1 text-[12px] font-semibold text-ink outline-none focus:border-ink/40" />
             </div>
             <MultiSelect label="Canal" opcoes={canais} value={selCanais} onChange={setSelCanais} />
             <div className="flex items-center gap-1 text-[12px]">
@@ -659,10 +659,10 @@ function Info({ tip }: { tip: string }) {
     setPos({ left: Math.max(8, Math.min(r.left + r.width / 2 - W / 2, window.innerWidth - W - 8)), top: below ? r.bottom + 6 : r.top - 6, below })
   }
   return (
-    <span ref={ref} onMouseEnter={show} onMouseLeave={() => setPos(null)} className="ml-1 inline-grid h-3.5 w-3.5 cursor-help place-items-center rounded-full border border-brand/50 align-middle text-[9px] font-bold text-brand">
+    <span ref={ref} onMouseEnter={show} onMouseLeave={() => setPos(null)} className="ml-1 inline-grid h-3.5 w-3.5 cursor-help place-items-center rounded-full border border-ink/30 align-middle text-[9px] font-bold text-muted">
       i
       {pos && createPortal(
-        <span style={{ position: 'fixed', left: pos.left, top: pos.top, width: W, transform: pos.below ? undefined : 'translateY(-100%)', background: '#FFF3EA', color: '#8A3F1C', borderColor: 'rgb(var(--brand) / 0.30)' }} className="pointer-events-none z-[100] rounded-lg border px-3 py-2 text-[11px] font-normal leading-snug shadow-xl">{tip}</span>,
+        <span style={{ position: 'fixed', left: pos.left, top: pos.top, width: W, transform: pos.below ? undefined : 'translateY(-100%)', background: '#EEF3F9', color: '#122238', borderColor: '#DBE4EF' }} className="pointer-events-none z-[100] rounded-lg border px-3 py-2 text-[11px] font-normal leading-snug shadow-xl">{tip}</span>,
         document.body,
       )}
     </span>
@@ -674,7 +674,7 @@ function Toggle<T extends string>({ valor, set, ops }: { valor: T; set: (v: T) =
   return (
     <div className="inline-flex overflow-hidden rounded-md border border-line">
       {ops.map(([v, txt]) => (
-        <button key={v} onClick={() => set(v)} className={`px-2 py-1 text-[11px] font-semibold transition ${valor === v ? 'bg-brand text-white' : 'bg-white text-muted hover:bg-paper'}`}>{txt}</button>
+        <button key={v} onClick={() => set(v)} className={`px-2 py-1 text-[11px] font-semibold transition ${valor === v ? 'bg-ink text-white' : 'bg-white text-muted hover:bg-paper'}`}>{txt}</button>
       ))}
     </div>
   )
@@ -701,12 +701,12 @@ function MultiSelect({ label, opcoes, value, onChange }: { label: string; opcoes
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div className="absolute left-0 top-8 z-50 max-h-[340px] w-56 overflow-auto rounded-lg border border-line bg-white p-2 shadow-xl">
             <div className="mb-1 flex gap-2 border-b border-line pb-1.5">
-              <button className="rounded px-2 py-0.5 text-[11px] font-semibold text-brand hover:bg-brand/10" onClick={() => onChange(null)}>Todos</button>
+              <button className="rounded px-2 py-0.5 text-[11px] font-semibold text-ink hover:bg-paper" onClick={() => onChange(null)}>Todos</button>
               <button className="rounded px-2 py-0.5 text-[11px] font-semibold text-muted hover:bg-paper" onClick={() => onChange(new Set())}>Nenhum</button>
             </div>
             {opcoes.map((c) => (
               <label key={c} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 hover:bg-paper">
-                <input type="checkbox" checked={has(c)} onChange={() => toggle(c)} className="accent-brand" />
+                <input type="checkbox" checked={has(c)} onChange={() => toggle(c)} className="accent-ink" />
                 <span className="truncate">{c}</span>
               </label>
             ))}
@@ -729,7 +729,7 @@ function Tile({ titulo, tip, sub, className, onDetalhes, acao, children }: { tit
         <div className="ml-auto flex items-center gap-1.5">
           {acao}
           {onDetalhes && (
-            <button onClick={onDetalhes} className="inline-flex items-center gap-1 rounded-md border border-brand/30 bg-brand/5 px-2 py-0.5 text-[10px] font-bold text-brand transition hover:bg-brand/15" title="Ver tabela detalhada">
+            <button onClick={onDetalhes} className="inline-flex items-center gap-1 rounded-md border border-line bg-surface px-2 py-0.5 text-[10px] font-bold text-ink transition hover:bg-paper" title="Ver tabela detalhada">
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M3 15h18M9 3v18" /></svg>
               Detalhes
             </button>
@@ -786,7 +786,7 @@ function ModalDetalhe({ dados, onClose }: { dados: Detalhe; onClose: () => void 
         </div>
         <div className="flex flex-none items-center justify-end gap-2 border-t border-line px-5 py-3">
           <button onClick={onClose} className="rounded-lg border border-line px-4 py-2 text-sm font-medium text-muted transition hover:bg-paper">Fechar</button>
-          <button onClick={exportar} className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-bold text-white shadow-brand transition hover:opacity-90">
+          <button onClick={exportar} className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2 text-sm font-bold text-white shadow-brand transition hover:brightness-125">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></svg>
             Exportar Excel
           </button>
@@ -1120,13 +1120,13 @@ function Comparativo({ rows }: { rows: Venda[] }) {
 
 function SelMes({ meses, value, onChange }: { meses: string[]; value: string; onChange: (v: string) => void }) {
   return (
-    <select value={value} onChange={(e) => onChange(e.target.value)} className="rounded-md border border-line bg-white px-2 py-1 text-[12px] font-semibold text-ink outline-none focus:border-brand">
+    <select value={value} onChange={(e) => onChange(e.target.value)} className="rounded-md border border-line bg-white px-2 py-1 text-[12px] font-semibold text-ink outline-none focus:border-ink/40">
       {meses.map((ym) => <option key={ym} value={ym}>{mesLabel(ym)}</option>)}
     </select>
   )
 }
 function DateIn({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return <input type="date" value={value} onChange={(e) => onChange(e.target.value)} className="rounded-md border border-line bg-white px-1.5 py-1 text-[12px] font-semibold text-ink outline-none focus:border-brand" />
+  return <input type="date" value={value} onChange={(e) => onChange(e.target.value)} className="rounded-md border border-line bg-white px-1.5 py-1 text-[12px] font-semibold text-ink outline-none focus:border-ink/40" />
 }
 function KpiCmp({ lbl, a, b, money, dec, rotA, rotB }: { lbl: string; a: number; b: number; money?: boolean; dec?: boolean; rotA: string; rotB: string }) {
   const cor = deltaCor(a, b)
@@ -1154,7 +1154,7 @@ function CardC({ titulo, sub, tip, acao, onDet, children }: { titulo: string; su
         <div className="ml-auto flex items-center gap-1.5">
           {acao}
           {onDet && (
-            <button onClick={onDet} className="inline-flex items-center gap-1 rounded-md border border-brand/30 bg-brand/5 px-2 py-0.5 text-[10px] font-bold text-brand transition hover:bg-brand/15" title="Ver tabela detalhada">
+            <button onClick={onDet} className="inline-flex items-center gap-1 rounded-md border border-line bg-surface px-2 py-0.5 text-[10px] font-bold text-ink transition hover:bg-paper" title="Ver tabela detalhada">
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" /><path d="M3 9h18M3 15h18M9 3v18" /></svg>
               Detalhes
             </button>

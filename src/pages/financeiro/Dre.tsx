@@ -442,7 +442,7 @@ export function Dre() {
           <div className="flex flex-wrap items-end gap-2">
             {isAdmin && (
               <button
-                className="inline-flex items-center gap-2 rounded-lg border border-brand/30 bg-brand/10 px-4 py-2.5 text-[13px] font-bold text-brand transition hover:bg-brand/20 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink transition hover:bg-paper disabled:opacity-50"
                 onClick={() => setModo('classificar')}
                 disabled={busy || vazio}
                 title="Definir grupos e subgrupos do DRE por conta"
@@ -452,7 +452,7 @@ export function Dre() {
               </button>
             )}
             <button
-              className="inline-flex items-center gap-2 rounded-lg border border-brand/30 bg-brand/10 px-4 py-2.5 text-[13px] font-bold text-brand transition hover:bg-brand/20 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink transition hover:bg-paper disabled:opacity-50"
               onClick={() => setModo('ddl')}
               disabled={busy || vazio}
               title="Antecipação de lucros dos sócios (DDL) — lançar/consultar por sócio"
@@ -461,7 +461,7 @@ export function Dre() {
               DDL
             </button>
             <button
-              className="inline-flex items-center gap-2 rounded-lg border border-brand/30 bg-brand/10 px-4 py-2.5 text-[13px] font-bold text-brand transition hover:bg-brand/20 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink transition hover:bg-paper disabled:opacity-50"
               onClick={() => setModo('reclass')}
               disabled={busy || vazio}
               title="Ajustes gerenciais — reclassificar valores entre contas/grupos (de-para)"
@@ -470,7 +470,7 @@ export function Dre() {
               Ajustes
             </button>
             <button
-              className="inline-flex items-center gap-2 rounded-lg border border-brand/30 bg-brand/10 px-4 py-2.5 text-[13px] font-bold text-brand transition hover:bg-brand/20 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink transition hover:bg-paper disabled:opacity-50"
               onClick={baixarBase}
               disabled={busy || vazio}
               title="Baixar a base atual em Excel"
@@ -480,7 +480,7 @@ export function Dre() {
             </button>
             {isAdmin && (
               <button
-                className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-[13px] font-bold text-white shadow-brand transition hover:opacity-90 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-[13px] font-bold text-white shadow-brand transition hover:brightness-125 disabled:opacity-50"
                 onClick={() => fileRef.current?.click()}
                 disabled={busy}
                 title="Enviar o Razão Contábil (.xls/.xlsx) de uma empresa"
@@ -529,10 +529,10 @@ export function Dre() {
               </div>
               {temEquiv && (
                 <label
-                  className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[12px] font-semibold text-muted transition hover:border-brand"
+                  className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[12px] font-semibold text-muted transition hover:border-ink/30"
                   title="A equivalência patrimonial (participação societária entre empresas do grupo) duplica o resultado no consolidado. Marque para excluí-la do DRE."
                 >
-                  <input type="checkbox" checked={semEquiv} onChange={(e) => setSemEquiv(e.target.checked)} style={{ accentColor: 'rgb(var(--brand))', width: 15, height: 15 }} />
+                  <input type="checkbox" checked={semEquiv} onChange={(e) => setSemEquiv(e.target.checked)} style={{ accentColor: '#122238', width: 15, height: 15 }} />
                   Sem equivalência patrimonial
                 </label>
               )}
@@ -628,7 +628,7 @@ export function Dre() {
             Período: {umMes ? MESES[mesDe] : `${MESES[mesDe]} a ${MESES[mesAte]}`}{anos.length ? ` / ${anos.join(', ')}` : ''}
           </span>
         )}
-        {semEquiv && <span className="rounded-full border border-brand/40 bg-brand/10 px-2.5 py-1 font-bold text-brand">Equivalência patrimonial excluída do resultado</span>}
+        {semEquiv && <span className="rounded-full border border-line bg-paper px-2.5 py-1 font-bold text-ink">Equivalência patrimonial excluída do resultado</span>}
         <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">Contas de Balanço (1 e 2) e Apuração (5.8) não entram no DRE</span>
         {isAdmin && <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">Admin: use “Reclassificar contas” para ajustar grupos e subgrupos</span>}
         {!isAdmin && <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">Somente administradores atualizam a base</span>}
@@ -749,12 +749,12 @@ function ScopedStyle() {
 .dre-mod table.dre tbody tr:last-child td:first-child{border-bottom-left-radius:15px}
 .dre-mod table.dre tbody tr:last-child td:last-child{border-bottom-right-radius:15px}
 .dre-mod table.dre th,.dre-mod table.dre td{padding:7px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid #F0EEEC;font-size:clamp(10px,0.9vw,13px);overflow:hidden}
-.dre-mod table.dre thead th{position:sticky;top:calc(var(--topo-h,150px) - 1px);z-index:3;background:#EEF3F9;color:#4B5563;font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;border-bottom:2px solid #E7E3DF}
-.dre-mod table.dre th.rowlabel,.dre-mod table.dre td.rowlabel{text-align:left;position:sticky;left:0;z-index:2;background:#fff;width:38%;white-space:normal;word-break:break-word;line-height:1.2;font-weight:600;box-shadow:1px 0 0 #E7E3DF}
+.dre-mod table.dre thead th{position:sticky;top:calc(var(--topo-h,150px) - 1px);z-index:3;background:#EEF3F9;color:#4B5563;font-size:11px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;border-bottom:2px solid #DBE4EF}
+.dre-mod table.dre th.rowlabel,.dre-mod table.dre td.rowlabel{text-align:left;position:sticky;left:0;z-index:2;background:#fff;width:38%;white-space:normal;word-break:break-word;line-height:1.2;font-weight:600;box-shadow:1px 0 0 #DBE4EF}
 .dre-mod table.dre.mensal th.rowlabel,.dre-mod table.dre.mensal td.rowlabel{width:24%}
 .dre-mod table.dre thead th.rowlabel{z-index:4;background:#EEF3F9}
-.dre-mod table.dre th.col-total,.dre-mod table.dre td.col-total{background:rgb(var(--brand)/0.06);font-weight:800;border-left:1px solid rgb(var(--brand)/0.18)}
-.dre-mod table.dre thead th.col-total{background:#FEE7DC;color:rgb(var(--brand))}
+.dre-mod table.dre th.col-total,.dre-mod table.dre td.col-total{background:rgb(18 34 56 / 0.05);font-weight:800;border-left:1px solid #DBE4EF}
+.dre-mod table.dre thead th.col-total{background:#E4ECF5;color:#122238}
 .dre-mod td.num{color:#1F2937}.dre-mod td.num.neg{color:#C0392B}.dre-mod td.num.zero{color:#C7C2BC}
 .dre-mod .op{display:inline-block;width:28px;color:#9aa0a6;font-weight:700}
 .dre-mod .op.pos{color:#15734F}
@@ -762,23 +762,23 @@ function ScopedStyle() {
 .dre-mod tr.grupo{cursor:pointer}
 .dre-mod tr.grupo.semdet{cursor:default}
 .dre-mod tr.grupo td{font-weight:600}
-.dre-mod tr.grupo:hover:not(.semdet) td{background:#FCFBFA}
-.dre-mod tr.grupo td.rowlabel .caret{display:inline-block;width:14px;color:rgb(var(--brand));font-size:10px;transition:transform .15s}
+.dre-mod tr.grupo:hover:not(.semdet) td{background:#F8FAFC}
+.dre-mod tr.grupo td.rowlabel .caret{display:inline-block;width:14px;color:#64748B;font-size:10px;transition:transform .15s}
 .dre-mod tr.grupo.open td.rowlabel .caret{transform:rotate(90deg)}
 /* Subgrupos (nível 2) */
 .dre-mod tr.subgrupo{cursor:pointer}
 .dre-mod tr.subgrupo td{background:#FFF8F3;font-weight:700;color:#8a5a3c;border-bottom:1px solid #F3E7DE}
 .dre-mod tr.subgrupo td.rowlabel{background:#FFF8F3;padding-left:24px}
 .dre-mod tr.subgrupo:hover td{background:#FEEFE4}
-.dre-mod tr.subgrupo td.rowlabel .caret{display:inline-block;width:14px;color:rgb(var(--brand));font-size:10px;transition:transform .15s}
+.dre-mod tr.subgrupo td.rowlabel .caret{display:inline-block;width:14px;color:#64748B;font-size:10px;transition:transform .15s}
 .dre-mod tr.subgrupo.open td.rowlabel .caret{transform:rotate(90deg)}
-.dre-mod tr.detail td{background:#FBFAF9;color:#4B5563;font-size:clamp(9px,0.8vw,12px);border-bottom:1px solid #F3F1EF}
-.dre-mod tr.detail td.rowlabel{background:#FBFAF9;padding-left:24px;font-weight:500;white-space:normal}
+.dre-mod tr.detail td{background:#F8FAFC;color:#4B5563;font-size:clamp(9px,0.8vw,12px);border-bottom:1px solid #EEF2F7}
+.dre-mod tr.detail td.rowlabel{background:#F8FAFC;padding-left:24px;font-weight:500;white-space:normal}
 .dre-mod tr.detail.n2 td.rowlabel{padding-left:44px}
 .dre-mod tr.detail td.rowlabel .cod{color:#9aa0a6;font-variant-numeric:tabular-nums;margin-right:6px;font-size:.92em}
 /* Subtotais (Receita líquida, Lucro bruto) */
-.dre-mod tr.sub td{background:#FFF1E8;font-weight:800;color:#9a4a24;border-top:1px solid #F6D9C9;border-bottom:1px solid #F6D9C9}
-.dre-mod tr.sub td.rowlabel{background:#FFF1E8}
+.dre-mod tr.sub td{background:#EEF3F9;font-weight:800;color:#122238;border-top:1px solid #DBE4EF;border-bottom:1px solid #DBE4EF}
+.dre-mod tr.sub td.rowlabel{background:#EEF3F9}
 /* Resultados (EBIT, LAIR) e Resultado líquido (final) */
 .dre-mod tr.result td{background:#F3F4F6;color:#0B2545;font-weight:800}
 .dre-mod tr.result td.rowlabel{background:#F3F4F6}
@@ -791,8 +791,8 @@ function ScopedStyle() {
 .dre-mod .seg{display:inline-flex;background:#EEEAE3;border-radius:9px;padding:3px;gap:2px}
 .dre-mod .seg button{border:0;background:transparent;font:inherit;font-size:12px;font-weight:700;color:#7a756c;padding:5px 13px;border-radius:7px;cursor:pointer;white-space:nowrap}
 .dre-mod .seg button.on{background:#fff;color:#1F2937;box-shadow:0 1px 2px rgba(0,0,0,.08)}
-.dre-mod .periodo-sel{font:inherit;font-size:12px;font-weight:700;color:#1F2937;background:#fff;border:1px solid #E7E3DF;border-radius:7px;padding:4px 6px;cursor:pointer}
-.dre-mod .periodo-sel:focus{outline:2px solid rgb(var(--brand));border-color:rgb(var(--brand))}
+.dre-mod .periodo-sel{font:inherit;font-size:12px;font-weight:700;color:#1F2937;background:#fff;border:1px solid #DBE4EF;border-radius:7px;padding:4px 6px;cursor:pointer}
+.dre-mod .periodo-sel:focus{outline:2px solid #122238;border-color:#122238}
 `}</style>
   )
 }

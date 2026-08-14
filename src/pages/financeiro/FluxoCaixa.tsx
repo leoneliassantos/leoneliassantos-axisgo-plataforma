@@ -407,7 +407,7 @@ export function FluxoCaixa() {
           <label className="flex flex-col gap-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Saldo inicial (jan)</span>
             <input
-              className="w-40 rounded-lg border border-line bg-white px-3 py-2 text-right text-[15px] font-bold text-ink tnum outline-none focus:border-brand disabled:opacity-60"
+              className="w-40 rounded-lg border border-line bg-white px-3 py-2 text-right text-[15px] font-bold text-ink tnum outline-none focus:border-ink/40 disabled:opacity-60"
               inputMode="decimal"
               disabled={!isAdmin || busy}
               value={saldoTexto}
@@ -418,7 +418,7 @@ export function FluxoCaixa() {
             />
           </label>
           <button
-            className="inline-flex items-center gap-2 rounded-lg border border-brand/30 bg-brand/10 px-4 py-2.5 text-[13px] font-bold text-brand transition hover:bg-brand/20 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink transition hover:bg-paper disabled:opacity-50"
             onClick={baixarBase}
             disabled={busy || vazio}
             title="Baixar a base atual em Excel"
@@ -428,7 +428,7 @@ export function FluxoCaixa() {
           </button>
           {isAdmin && (
             <button
-              className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-[13px] font-bold text-white shadow-brand transition hover:opacity-90 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-[13px] font-bold text-white shadow-brand transition hover:brightness-125 disabled:opacity-50"
               onClick={() => fileRef.current?.click()}
               disabled={busy}
               title="Enviar a planilha atualizada (substitui a base para todos)"
@@ -623,26 +623,26 @@ function ScopedStyle() {
 .fcx table.fc tbody tr:last-child td:first-child{border-bottom-left-radius:15px}
 .fcx table.fc tbody tr:last-child td:last-child{border-bottom-right-radius:15px}
 .fcx table.fc th,.fcx table.fc td{padding:6px 5px;text-align:right;white-space:nowrap;border-bottom:1px solid #F0EEEC;font-size:clamp(9px,0.86vw,13px);overflow:hidden}
-.fcx table.fc thead th{position:sticky;top:calc(var(--topo-h,150px) - 1px);z-index:3;background:#EEF3F9;color:#4B5563;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;border-bottom:2px solid #E7E3DF}
-.fcx table.fc th.rowlabel,.fcx table.fc td.rowlabel{text-align:left;position:sticky;left:0;z-index:2;background:#fff;width:16%;white-space:normal;word-break:break-word;line-height:1.2;font-weight:600;box-shadow:1px 0 0 #E7E3DF;font-size:clamp(10px,0.86vw,13px)}
+.fcx table.fc thead th{position:sticky;top:calc(var(--topo-h,150px) - 1px);z-index:3;background:#EEF3F9;color:#4B5563;font-size:11.5px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;border-bottom:2px solid #DBE4EF}
+.fcx table.fc th.rowlabel,.fcx table.fc td.rowlabel{text-align:left;position:sticky;left:0;z-index:2;background:#fff;width:16%;white-space:normal;word-break:break-word;line-height:1.2;font-weight:600;box-shadow:1px 0 0 #DBE4EF;font-size:clamp(10px,0.86vw,13px)}
 .fcx table.fc thead th.rowlabel{z-index:4;background:#EEF3F9}
-.fcx table.fc th.col-total,.fcx table.fc td.col-total{background:rgb(var(--brand)/0.06);font-weight:800;border-left:1px solid rgb(var(--brand)/0.18)}
-.fcx table.fc thead th.col-total{background:#FEE7DC;color:rgb(var(--brand))}
+.fcx table.fc th.col-total,.fcx table.fc td.col-total{background:rgb(18 34 56 / 0.05);font-weight:800;border-left:1px solid #DBE4EF}
+.fcx table.fc thead th.col-total{background:#E4ECF5;color:#122238}
 .fcx td.num{color:#1F2937}.fcx td.num.neg{color:#C0392B}.fcx td.num.zero{color:#C7C2BC}
-.fcx tr.section td{background:#FAF8F6;color:rgb(var(--brand));font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:800}
+.fcx tr.section td{background:#F4F7FB;color:#64748B;font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:800}
 .fcx tr.cat{cursor:pointer}
-.fcx tr.cat:hover td{background:#FCFBFA}
-.fcx tr.cat td.rowlabel .caret{display:inline-block;width:14px;color:rgb(var(--brand));font-size:10px;transition:transform .15s}
+.fcx tr.cat:hover td{background:#F8FAFC}
+.fcx tr.cat td.rowlabel .caret{display:inline-block;width:14px;color:#64748B;font-size:10px;transition:transform .15s}
 .fcx tr.cat.open td.rowlabel .caret{transform:rotate(90deg)}
 .fcx tr.cat.nested td.rowlabel{padding-left:26px}
 .fcx tr.detail.nested td.rowlabel{padding-left:40px}
 .fcx tr.grupo{cursor:pointer}
-.fcx tr.grupo td{background:#FFF1E8;font-weight:800;color:#9a4a24;border-top:1px solid #F6D9C9;border-bottom:1px solid #F6D9C9}
-.fcx tr.grupo:hover td{background:#FDE9DC}
-.fcx tr.grupo td.rowlabel .caret{display:inline-block;width:14px;color:rgb(var(--brand));font-size:10px;transition:transform .15s}
+.fcx tr.grupo td{background:#EEF3F9;font-weight:800;color:#122238;border-top:1px solid #DBE4EF;border-bottom:1px solid #DBE4EF}
+.fcx tr.grupo:hover td{background:#E4ECF5}
+.fcx tr.grupo td.rowlabel .caret{display:inline-block;width:14px;color:#64748B;font-size:10px;transition:transform .15s}
 .fcx tr.grupo.open td.rowlabel .caret{transform:rotate(90deg)}
-.fcx tr.detail td{background:#FBFAF9;color:#4B5563;font-size:clamp(8px,0.74vw,11px);font-style:italic;border-bottom:1px solid #F3F1EF}
-.fcx tr.detail td.rowlabel{background:#FBFAF9;padding-left:18px;font-weight:500;white-space:normal;font-size:clamp(8.5px,0.74vw,11.5px);font-style:italic}
+.fcx tr.detail td{background:#F8FAFC;color:#4B5563;font-size:clamp(8px,0.74vw,11px);font-style:italic;border-bottom:1px solid #EEF2F7}
+.fcx tr.detail td.rowlabel{background:#F8FAFC;padding-left:18px;font-weight:500;white-space:normal;font-size:clamp(8.5px,0.74vw,11.5px);font-style:italic}
 .fcx tr.detail td.rowlabel .dot{color:#9aa0a6}
 .fcx tr.total-receb td{background:#EAF6F0;font-weight:800;color:#14663f;border-top:1px solid #CDE9DC;border-bottom:1px solid #CDE9DC}
 .fcx tr.total-pag td{background:#FBECE9;font-weight:800;color:#8f2f22;border-top:1px solid #F1D2CB;border-bottom:1px solid #F1D2CB}
@@ -650,7 +650,7 @@ function ScopedStyle() {
 .fcx tr.sechead td.rowlabel .caret{display:inline-block;width:14px;font-size:10px;color:currentColor;transition:transform .15s}
 .fcx tr.sechead.open td.rowlabel .caret{transform:rotate(90deg)}
 .fcx tr.saldo-ant td{background:#F3F4F6;font-weight:700;color:#1F2937}
-.fcx tr.disponivel td{background:rgb(var(--brand)/0.08);font-weight:800;color:rgb(var(--brand));border-top:1px solid rgb(var(--brand)/0.18)}
+.fcx tr.disponivel td{background:rgb(18 34 56 / 0.06);font-weight:800;color:#122238;border-top:1px solid #DBE4EF}
 .fcx tr.saldo-caixa td{background:#0B2545;color:#fff;font-weight:800;font-size:14px}
 .fcx tr.saldo-caixa td.num.neg{color:#FF9B8A}
 .fcx tr.saldo-caixa td.col-total{background:#0a1f3d;border-left:1px solid #24406a}

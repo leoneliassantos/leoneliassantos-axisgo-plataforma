@@ -23,8 +23,10 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Títulos usam a MESMA sans do corpo (padrão minimalista, sem serifa) —
+   o token "serif" foi mantido só para não quebrar as classes existentes. */
 .font-serif {
-  font-family: Georgia, 'Iowan Old Style', 'Times New Roman', serif;
+  font-family: ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 
 .tnum {

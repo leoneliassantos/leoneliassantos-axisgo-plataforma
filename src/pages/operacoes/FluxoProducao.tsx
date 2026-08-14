@@ -145,7 +145,7 @@ export function FluxoProducao() {
       {/* Cabeçalho */}
       <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-brand">Operações · Produção</div>
+          <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">Operações · Produção</div>
           <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">Fluxo de Produção</h1>
         </div>
         <div className="flex items-center gap-2">
@@ -203,9 +203,9 @@ function ListaPedidos({
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[220px]">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"><circle cx="11" cy="11" r="7" strokeWidth="1.8" /><path d="M21 21l-4-4" strokeWidth="1.8" strokeLinecap="round" /></svg>
-          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por cliente, pedido ou uniforme…" className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm text-ink focus:border-brand focus:outline-none" />
+          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por cliente, pedido ou uniforme…" className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm text-ink focus:border-ink/40 focus:outline-none" />
         </div>
-        <select value={filtroSit} onChange={(e) => setFiltroSit(e.target.value as StatusProd | '')} className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none">
+        <select value={filtroSit} onChange={(e) => setFiltroSit(e.target.value as StatusProd | '')} className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-ink/40 focus:outline-none">
           <option value="">Todas as situações</option>
           <option value="ok">No prazo</option><option value="atrasado">Atrasado</option>
           <option value="alerta">Alerta</option><option value="aguardando">Aguardando</option>
@@ -232,7 +232,7 @@ function LinhaPedido({ ped, onAbrir }: { ped: Pedido; onAbrir: (id: string) => v
   const cont = contagemPorEtapa(ped)
   const sitTxt = r.situacao === 'atrasado' ? `${r.atrasados} atrasado(s)` : r.situacao === 'aguardando' ? `${r.aguardando} aguardando` : r.situacao === 'alerta' ? `${r.alertas} em alerta` : 'No prazo'
   return (
-    <button onClick={() => onAbrir(ped.id)} className="group grid grid-cols-1 items-center gap-3 rounded-xl border border-line bg-surface p-4 text-left transition hover:border-brand/40 hover:shadow-card md:grid-cols-[1.4fr_2fr_1fr]">
+    <button onClick={() => onAbrir(ped.id)} className="group grid grid-cols-1 items-center gap-3 rounded-xl border border-line bg-surface p-4 text-left transition hover:border-ink/20 hover:shadow-card md:grid-cols-[1.4fr_2fr_1fr]">
       <div>
         <div className="flex items-center gap-2">
           <span className="size-2.5 shrink-0 rounded-full" style={{ background: prioCor(r.prioridade) }} title={`Prioridade: ${PRIO_LABEL[r.prioridade]}`} />
@@ -260,10 +260,10 @@ function LinhaPedido({ ped, onAbrir }: { ped: Pedido; onAbrir: (id: string) => v
       <div className="flex items-center justify-end gap-3">
         <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${statusClasse(r.situacao)}`}>{sitTxt}</span>
         <div className="flex items-center gap-1.5">
-          <span className="h-1.5 w-20 overflow-hidden rounded-full bg-line"><span className="block h-full rounded-full bg-brand" style={{ width: `${r.progresso}%` }} /></span>
+          <span className="h-1.5 w-20 overflow-hidden rounded-full bg-line"><span className="block h-full rounded-full bg-ink" style={{ width: `${r.progresso}%` }} /></span>
           <span className="tnum w-9 text-right text-[12px] text-muted">{r.progresso}%</span>
         </div>
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" className="text-muted transition group-hover:translate-x-0.5 group-hover:text-brand"><path d="M9 6l6 6-6 6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" className="text-muted transition group-hover:translate-x-0.5 group-hover:text-ink"><path d="M9 6l6 6-6 6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </div>
     </button>
   )
@@ -283,7 +283,7 @@ function Quadro({
       <button
         type="button"
         onClick={onVoltar}
-        className="mb-3 inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink transition hover:border-brand/50 hover:bg-paper"
+        className="mb-3 inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink transition hover:border-ink/30 hover:bg-paper"
       >
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"><path d="M15 6l-6 6 6 6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
         Voltar aos pedidos
@@ -301,7 +301,7 @@ function Quadro({
         <div className="flex items-center gap-2">
           <div className="relative min-w-[200px]">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"><circle cx="11" cy="11" r="7" strokeWidth="1.8" /><path d="M21 21l-4-4" strokeWidth="1.8" strokeLinecap="round" /></svg>
-            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Filtrar itens…" className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm text-ink focus:border-brand focus:outline-none" />
+            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Filtrar itens…" className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm text-ink focus:border-ink/40 focus:outline-none" />
           </div>
           <BtnPrimary onClick={onAddItem}>
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14" strokeWidth="2" strokeLinecap="round" /></svg>
@@ -344,7 +344,7 @@ function CardItem({ it, onAbrir, dragId }: { it: Produto; onAbrir: (id: string) 
       onDragStart={() => { dragId.current = it.id }}
       onDragEnd={() => { dragId.current = null }}
       onClick={() => onAbrir(it.id)}
-      className="cursor-pointer rounded-lg border border-line bg-surface p-2.5 shadow-sm transition hover:border-brand/40 hover:shadow-card"
+      className="cursor-pointer rounded-lg border border-line bg-surface p-2.5 shadow-sm transition hover:border-ink/20 hover:shadow-card"
       style={{ borderLeft: `3px solid ${it.status === 'atrasado' ? '#e5484d' : it.status === 'alerta' ? '#f2a020' : it.status === 'aguardando' ? '#5f7180' : '#1f9d6b'}` }}
     >
       <div className="flex items-center justify-between">
@@ -355,7 +355,7 @@ function CardItem({ it, onAbrir, dragId }: { it: Produto; onAbrir: (id: string) 
       <div className="text-[12px] text-muted">Cor: <b className="text-ink/80">{it.corNome || '—'}</b>{it.tecidoNome ? <> · {it.tecidoNome}</> : null}</div>
       {it.logos.length > 0 && (
         <div className="mt-1 flex flex-wrap gap-1">
-          {it.logos.map((l, i) => <span key={i} className="rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-medium text-brand">{l.tipo}</span>)}
+          {it.logos.map((l, i) => <span key={i} className="rounded bg-paper px-1.5 py-0.5 text-[10px] font-medium text-ink">{l.tipo}</span>)}
         </div>
       )}
       <div className="mt-2 flex items-center justify-between">
@@ -372,7 +372,7 @@ function MoveModal({ alvo, saving, onConfirm, onClose }: { alvo: MoveAlvo; savin
   const [obs, setObs] = useState('')
   const de = ETAPAS.find((e) => e.id === alvo.de)?.label ?? alvo.de
   const para = ETAPAS.find((e) => e.id === alvo.para)?.label ?? alvo.para
-  const inp = 'w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none'
+  const inp = 'w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-ink/40 focus:outline-none'
   return (
     <Modal title="Concluir etapa" subtitle={`${de} → ${para}`} width={440} onClose={onClose}
       footer={<><BtnGhost onClick={onClose} disabled={saving}>Cancelar</BtnGhost><BtnPrimary onClick={() => onConfirm(data, obs.trim())} disabled={saving}>{saving ? 'Movendo…' : 'Confirmar'}</BtnPrimary></>}>

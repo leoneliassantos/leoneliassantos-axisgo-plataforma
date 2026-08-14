@@ -56,7 +56,7 @@ export function NovaOP({
   }
 
   const lab = 'block text-[12px] font-medium text-muted mb-1'
-  const inp = 'w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none'
+  const inp = 'w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-ink/40 focus:outline-none'
 
   return (
     <Modal

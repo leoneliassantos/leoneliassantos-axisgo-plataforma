@@ -50,7 +50,7 @@ export function BtnPrimary({ children, ...p }: React.ButtonHTMLAttributes<HTMLBu
   return (
     <button
       {...p}
-      className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:brightness-95 disabled:opacity-50"
+      className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2 text-sm font-semibold text-white transition hover:brightness-125 disabled:opacity-50"
     >
       {children}
     </button>

@@ -141,11 +141,11 @@ export function Ddl({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button className="rounded-lg border border-line bg-surface px-3 py-2 text-[13px] font-bold text-ink hover:border-brand" onClick={onFechar} disabled={salvando}>
+          <button className="rounded-lg border border-line bg-surface px-3 py-2 text-[13px] font-bold text-ink hover:border-ink/30" onClick={onFechar} disabled={salvando}>
             {somenteLeitura ? 'Voltar' : 'Fechar'}
           </button>
           {!somenteLeitura && (
-            <button className="rounded-lg bg-brand px-4 py-2 text-[13px] font-bold text-white shadow-brand hover:opacity-90 disabled:opacity-50" onClick={salvar} disabled={salvando || !dirty}>
+            <button className="rounded-lg bg-ink px-4 py-2 text-[13px] font-bold text-white shadow-brand hover:brightness-125 disabled:opacity-50" onClick={salvar} disabled={salvando || !dirty}>
               {salvando ? 'Salvando…' : 'Salvar'}
             </button>
           )}
@@ -235,7 +235,7 @@ export function Ddl({
 
       {!somenteLeitura && (
         <div className="flex flex-wrap items-center gap-3">
-          <button className="rounded-lg border border-brand/30 bg-brand/10 px-3 py-2 text-[13px] font-bold text-brand hover:bg-brand/20" onClick={addSocio}>
+          <button className="rounded-lg border border-line bg-surface px-3 py-2 text-[13px] font-bold text-ink hover:bg-paper" onClick={addSocio}>
             + Adicionar sócio
           </button>
           <p className="text-[12px] text-muted">
@@ -251,18 +251,18 @@ function ScopedStyle() {
   return (
     <style>{`
 .ddl table.ddltab{border-collapse:separate;border-spacing:0;width:100%;min-width:980px}
-.ddl table.ddltab th,.ddl table.ddltab td{padding:6px 8px;border-bottom:1px solid #F0EEEC;font-size:12.5px;text-align:right;white-space:nowrap;vertical-align:middle}
-.ddl table.ddltab th{position:sticky;top:0;background:#FAF8F5;color:#6E6960;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;z-index:1}
+.ddl table.ddltab th,.ddl table.ddltab td{padding:6px 8px;border-bottom:1px solid #EEF2F7;font-size:12.5px;text-align:right;white-space:nowrap;vertical-align:middle}
+.ddl table.ddltab th{position:sticky;top:0;background:#EEF3F9;color:#64748B;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;z-index:1}
 .ddl table.ddltab th.l,.ddl table.ddltab td.l,.ddl td.socio,.ddl th.socio{text-align:left}
-.ddl th.socio,.ddl td.socio{position:sticky;left:0;background:#fff;z-index:2;min-width:180px;box-shadow:1px 0 0 #EEE9E1}
-.ddl thead th.socio{z-index:3;background:#FAF8F5}
-.ddl td.tot,.ddl th.tot{background:rgb(var(--brand)/0.06);font-weight:800;border-left:1px solid rgb(var(--brand)/0.18)}
-.ddl thead th.tot{background:rgb(var(--brand)/0.14);color:rgb(var(--brand))}
-.ddl .nomeinp{width:100%;font:inherit;font-size:12.5px;font-weight:600;color:#1B1A16;background:#fff;border:1px solid #E6E1DA;border-radius:7px;padding:5px 7px}
-.ddl .nomeinp:focus{outline:2px solid rgb(var(--brand));border-color:rgb(var(--brand))}
-.ddl .nomero{font-weight:600;color:#1B1A16}
-.ddl .valinp{width:76px;font:inherit;font-size:12.5px;text-align:right;color:#1B1A16;background:#fff;border:1px solid #E6E1DA;border-radius:6px;padding:4px 6px;font-variant-numeric:tabular-nums}
-.ddl .valinp:focus{outline:2px solid rgb(var(--brand));border-color:rgb(var(--brand));background:#FFFDFB}
+.ddl th.socio,.ddl td.socio{position:sticky;left:0;background:#fff;z-index:2;min-width:180px;box-shadow:1px 0 0 #DBE4EF}
+.ddl thead th.socio{z-index:3;background:#EEF3F9}
+.ddl td.tot,.ddl th.tot{background:rgb(18 34 56 / 0.05);font-weight:800;border-left:1px solid #DBE4EF}
+.ddl thead th.tot{background:#E4ECF5;color:#122238}
+.ddl .nomeinp{width:100%;font:inherit;font-size:12.5px;font-weight:600;color:#122238;background:#fff;border:1px solid #DBE4EF;border-radius:7px;padding:5px 7px}
+.ddl .nomeinp:focus{outline:2px solid #122238;border-color:#122238}
+.ddl .nomero{font-weight:600;color:#122238}
+.ddl .valinp{width:76px;font:inherit;font-size:12.5px;text-align:right;color:#122238;background:#fff;border:1px solid #DBE4EF;border-radius:6px;padding:4px 6px;font-variant-numeric:tabular-nums}
+.ddl .valinp:focus{outline:2px solid #122238;border-color:#122238;background:#F8FAFC}
 .ddl .valinp::-webkit-outer-spin-button,.ddl .valinp::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .ddl .valinp{-moz-appearance:textfield}
 .ddl td.cel .zero{color:#C7C2BC}
@@ -270,14 +270,14 @@ function ScopedStyle() {
 .ddl td.acao,.ddl th.acao{width:34px;text-align:center}
 .ddl .del{border:0;background:transparent;color:#b9b3aa;font-size:13px;cursor:pointer;padding:2px 6px;border-radius:6px}
 .ddl .del:hover{background:#FCEEE5;color:#C0392B}
-.ddl tfoot tr.totrow td{background:#FFF1E8;color:#9a4a24;font-weight:800;border-top:1px solid #F6D9C9;border-bottom:none}
-.ddl tfoot tr.totrow td.socio{background:#FFF1E8}
-.ddl td.vazio{text-align:center;color:#6E6960;padding:24px}
-.ddl .seg{display:inline-flex;background:#EEEAE3;border-radius:9px;padding:3px;gap:2px}
-.ddl .seg button{border:0;background:transparent;font:inherit;font-size:12px;font-weight:700;color:#7a756c;padding:5px 13px;border-radius:7px;cursor:pointer;white-space:nowrap}
+.ddl tfoot tr.totrow td{background:#EEF3F9;color:#122238;font-weight:800;border-top:1px solid #DBE4EF;border-bottom:none}
+.ddl tfoot tr.totrow td.socio{background:#EEF3F9}
+.ddl td.vazio{text-align:center;color:#64748B;padding:24px}
+.ddl .seg{display:inline-flex;background:#EEF3F9;border-radius:9px;padding:3px;gap:2px}
+.ddl .seg button{border:0;background:transparent;font:inherit;font-size:12px;font-weight:700;color:#64748B;padding:5px 13px;border-radius:7px;cursor:pointer;white-space:nowrap}
 .ddl .seg button.on{background:#fff;color:#1F2937;box-shadow:0 1px 2px rgba(0,0,0,.08)}
-.ddl .anosel{font:inherit;font-size:12px;font-weight:700;color:#1F2937;background:#fff;border:1px solid #E7E3DF;border-radius:7px;padding:4px 8px;cursor:pointer}
-.ddl .anosel:focus{outline:2px solid rgb(var(--brand));border-color:rgb(var(--brand))}
+.ddl .anosel{font:inherit;font-size:12px;font-weight:700;color:#1F2937;background:#fff;border:1px solid #DBE4EF;border-radius:7px;padding:4px 8px;cursor:pointer}
+.ddl .anosel:focus{outline:2px solid #122238;border-color:#122238}
 `}</style>
   )
 }

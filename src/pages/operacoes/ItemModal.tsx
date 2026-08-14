@@ -88,7 +88,7 @@ export function ItemModal({
   }
 
   const lab = 'block text-[12px] font-medium text-muted mb-1'
-  const inp = 'w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none'
+  const inp = 'w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-ink/40 focus:outline-none'
 
   return (
     <Modal
@@ -114,7 +114,7 @@ export function ItemModal({
             key={t}
             type="button"
             onClick={() => setAba(t)}
-            className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition ${aba === t ? 'bg-surface text-brand shadow-sm' : 'text-muted hover:text-ink'}`}
+            className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition ${aba === t ? 'bg-surface text-ink shadow-sm' : 'text-muted hover:text-ink'}`}
           >
             {t === 'detalhes' ? 'Detalhes' : 'Movimentação'}
           </button>
@@ -158,7 +158,7 @@ export function ItemModal({
                 const atual = e.id === produto.etapaId
                 return (
                   <li key={e.id} className="flex items-center gap-3 text-sm">
-                    <span className={`grid size-5 shrink-0 place-items-center rounded-full text-[10px] font-bold ${data ? 'bg-pos text-white' : atual ? 'bg-brand text-white' : 'bg-line text-muted'}`}>
+                    <span className={`grid size-5 shrink-0 place-items-center rounded-full text-[10px] font-bold ${data ? 'bg-pos text-white' : atual ? 'bg-ink text-white' : 'bg-line text-muted'}`}>
                       {data ? '✓' : e.ordem}
                     </span>
                     <span className={`flex-1 ${atual ? 'font-semibold text-ink' : data ? 'text-ink' : 'text-muted'}`}>{e.label}{atual && ' (atual)'}</span>
@@ -197,7 +197,7 @@ export function ItemModal({
               <ol className="relative space-y-3 border-l border-line pl-4">
                 {historicoOrd.map((h, i) => (
                   <li key={h.id ?? i} className="relative">
-                    <span className="absolute -left-[21px] top-1 size-2.5 rounded-full bg-brand" />
+                    <span className="absolute -left-[21px] top-1 size-2.5 rounded-full bg-ink" />
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                       <span className="tnum text-[12px] font-semibold text-ink">{fmtBRfull(h.data)}</span>
                       {h.kind === 'mov' ? (

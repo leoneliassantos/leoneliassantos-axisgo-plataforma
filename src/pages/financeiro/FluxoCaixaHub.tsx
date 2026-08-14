@@ -40,7 +40,7 @@ function SubTab({ ativo, onClick, children }: { ativo: boolean; onClick: () => v
       onClick={onClick}
       aria-pressed={ativo}
       className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-[13px] font-bold transition ${
-        ativo ? 'bg-brand text-white shadow-brand' : 'text-muted hover:bg-brand/10 hover:text-brand'
+        ativo ? 'bg-ink text-white shadow-brand' : 'text-muted hover:bg-paper hover:text-ink'
       }`}
     >
       {children}

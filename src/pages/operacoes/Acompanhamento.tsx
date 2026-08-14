@@ -53,7 +53,7 @@ export function Acompanhamento() {
   return (
     <div>
       <div className="mb-5">
-        <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-brand">Operações · Produção</div>
+        <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">Operações · Produção</div>
         <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">Acompanhamento</h1>
       </div>
 
@@ -109,7 +109,7 @@ export function Acompanhamento() {
                         <span className={`rounded px-1.5 py-0.5 text-[12px] font-medium ${statusClasse(s)}`}>{STATUS_LABEL[s]}</span>
                         <span className="tnum text-muted">{n} · {pct}%</span>
                       </div>
-                      <div className="mt-1 h-2 overflow-hidden rounded-full bg-paper"><div className="h-full rounded-full bg-brand" style={{ width: `${pct}%` }} /></div>
+                      <div className="mt-1 h-2 overflow-hidden rounded-full bg-paper"><div className="h-full rounded-full bg-ink" style={{ width: `${pct}%` }} /></div>
                     </div>
                   )
                 })}
@@ -126,7 +126,7 @@ export function Acompanhamento() {
 }
 
 function Kpi({ titulo, valor, destaque }: { titulo: string; valor: number | string; destaque?: 'neg' | 'pos' | 'brand' }) {
-  const cor = destaque === 'neg' ? 'text-neg' : destaque === 'pos' ? 'text-pos' : destaque === 'brand' ? 'text-brand' : 'text-ink'
+  const cor = destaque === 'neg' ? 'text-neg' : destaque === 'pos' ? 'text-pos' : 'text-ink'
   return (
     <div className="rounded-2xl border border-line bg-surface p-5 shadow-card">
       <div className="text-[12px] uppercase tracking-wide text-muted">{titulo}</div>

@@ -22,13 +22,15 @@ export default {
         brand: 'rgb(var(--brand) / <alpha-value>)',
       },
       fontFamily: {
-        serif: ['Georgia', '"Iowan Old Style"', '"Times New Roman"', 'serif'],
+        // "serif" mantido por compatibilidade, mas aponta para a sans (sem serifa).
+        serif: ['ui-sans-serif', '-apple-system', '"Segoe UI"', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
         sans: ['ui-sans-serif', '-apple-system', '"Segoe UI"', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
       },
       boxShadow: {
-        // Sombras na cor da marca do cliente (via CSS var --brand)
-        card: '0 1px 2px rgb(var(--brand) / 0.05), 0 8px 24px rgb(var(--brand) / 0.08)',
-        brand: '0 10px 26px rgb(var(--brand) / 0.14)',
+        // Sombras NEUTRAS (grafite) — chrome minimalista. A cor da marca do
+        // cliente fica reservada aos indicadores/gráficos, não ao "chrome".
+        card: '0 1px 2px rgb(18 34 56 / 0.05), 0 8px 24px rgb(18 34 56 / 0.08)',
+        brand: '0 10px 26px rgb(18 34 56 / 0.12)',
       },
       maxWidth: {
         content: '1180px',

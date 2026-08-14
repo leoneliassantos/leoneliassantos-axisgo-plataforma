@@ -193,11 +193,11 @@ export function AjustesReclass({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button className="rounded-lg border border-line bg-surface px-3 py-2 text-[13px] font-bold text-ink hover:border-brand" onClick={onFechar} disabled={salvando}>
+          <button className="rounded-lg border border-line bg-surface px-3 py-2 text-[13px] font-bold text-ink hover:border-ink/30" onClick={onFechar} disabled={salvando}>
             {somenteLeitura ? 'Voltar' : 'Fechar'}
           </button>
           {!somenteLeitura && (
-            <button className="rounded-lg bg-brand px-4 py-2 text-[13px] font-bold text-white shadow-brand hover:opacity-90 disabled:opacity-50" onClick={salvar} disabled={salvando || !dirty}>
+            <button className="rounded-lg bg-ink px-4 py-2 text-[13px] font-bold text-white shadow-brand hover:brightness-125 disabled:opacity-50" onClick={salvar} disabled={salvando || !dirty}>
               {salvando ? 'Salvando…' : 'Salvar'}
             </button>
           )}
@@ -306,7 +306,7 @@ export function AjustesReclass({
 
       {!somenteLeitura && (
         <div className="flex flex-wrap items-center gap-3">
-          <button className="rounded-lg border border-brand/30 bg-brand/10 px-3 py-2 text-[13px] font-bold text-brand hover:bg-brand/20" onClick={addLinha}>
+          <button className="rounded-lg border border-line bg-surface px-3 py-2 text-[13px] font-bold text-ink hover:bg-paper" onClick={addLinha}>
             + Adicionar ajuste
           </button>
           <p className="text-[12px] text-muted">
@@ -354,22 +354,22 @@ function ScopedStyle() {
   return (
     <style>{`
 .rcl table.rcltab{border-collapse:separate;border-spacing:0;width:100%;min-width:1120px}
-.rcl table.rcltab th,.rcl table.rcltab td{padding:6px 8px;border-bottom:1px solid #F0EEEC;font-size:12.5px;text-align:right;white-space:nowrap;vertical-align:middle}
-.rcl table.rcltab th{position:sticky;top:0;background:#FAF8F5;color:#6E6960;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;z-index:1}
+.rcl table.rcltab th,.rcl table.rcltab td{padding:6px 8px;border-bottom:1px solid #EEF2F7;font-size:12.5px;text-align:right;white-space:nowrap;vertical-align:middle}
+.rcl table.rcltab th{position:sticky;top:0;background:#EEF3F9;color:#64748B;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;font-weight:700;z-index:1}
 .rcl table.rcltab th.l,.rcl table.rcltab td.l{text-align:left}
-.rcl th.origem,.rcl td.origem{position:sticky;left:0;background:#fff;z-index:2;min-width:220px;text-align:left;box-shadow:1px 0 0 #EEE9E1}
-.rcl thead th.origem{z-index:3;background:#FAF8F5}
+.rcl th.origem,.rcl td.origem{position:sticky;left:0;background:#fff;z-index:2;min-width:220px;text-align:left;box-shadow:1px 0 0 #DBE4EF}
+.rcl thead th.origem{z-index:3;background:#EEF3F9}
 .rcl th.destino,.rcl td.destino{text-align:left;min-width:260px}
-.rcl td.tot,.rcl th.tot{background:rgb(var(--brand)/0.06);font-weight:800;border-left:1px solid rgb(var(--brand)/0.18)}
-.rcl thead th.tot{background:rgb(var(--brand)/0.14);color:rgb(var(--brand))}
-.rcl .selorig,.rcl .selgrp{width:100%;font:inherit;font-size:12px;font-weight:600;color:#1B1A16;background:#fff;border:1px solid #E6E1DA;border-radius:7px;padding:5px 7px;cursor:pointer}
-.rcl .selorig:focus,.rcl .selgrp:focus{outline:2px solid rgb(var(--brand));border-color:rgb(var(--brand))}
+.rcl td.tot,.rcl th.tot{background:rgb(18 34 56 / 0.05);font-weight:800;border-left:1px solid #DBE4EF}
+.rcl thead th.tot{background:#E4ECF5;color:#122238}
+.rcl .selorig,.rcl .selgrp{width:100%;font:inherit;font-size:12px;font-weight:600;color:#122238;background:#fff;border:1px solid #DBE4EF;border-radius:7px;padding:5px 7px;cursor:pointer}
+.rcl .selorig:focus,.rcl .selgrp:focus{outline:2px solid #122238;border-color:#122238}
 .rcl .destwrap{display:flex;flex-direction:column;gap:4px}
-.rcl .subinp{width:100%;font:inherit;font-size:12px;color:#1B1A16;background:#fff;border:1px solid #E6E1DA;border-radius:7px;padding:4px 7px}
-.rcl .subinp:focus{outline:2px solid rgb(var(--brand));border-color:rgb(var(--brand))}
-.rcl .nomero{font-weight:600;color:#1B1A16}
-.rcl .valinp{width:76px;font:inherit;font-size:12.5px;text-align:right;color:#1B1A16;background:#fff;border:1px solid #E6E1DA;border-radius:6px;padding:4px 6px;font-variant-numeric:tabular-nums}
-.rcl .valinp:focus{outline:2px solid rgb(var(--brand));border-color:rgb(var(--brand));background:#FFFDFB}
+.rcl .subinp{width:100%;font:inherit;font-size:12px;color:#122238;background:#fff;border:1px solid #DBE4EF;border-radius:7px;padding:4px 7px}
+.rcl .subinp:focus{outline:2px solid #122238;border-color:#122238}
+.rcl .nomero{font-weight:600;color:#122238}
+.rcl .valinp{width:76px;font:inherit;font-size:12.5px;text-align:right;color:#122238;background:#fff;border:1px solid #DBE4EF;border-radius:6px;padding:4px 6px;font-variant-numeric:tabular-nums}
+.rcl .valinp:focus{outline:2px solid #122238;border-color:#122238;background:#F8FAFC}
 .rcl .valinp::-webkit-outer-spin-button,.rcl .valinp::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .rcl .valinp{-moz-appearance:textfield}
 .rcl td.cel .zero{color:#C7C2BC}
@@ -377,14 +377,14 @@ function ScopedStyle() {
 .rcl td.acao,.rcl th.acao{width:34px;text-align:center}
 .rcl .del{border:0;background:transparent;color:#b9b3aa;font-size:13px;cursor:pointer;padding:2px 6px;border-radius:6px}
 .rcl .del:hover{background:#FCEEE5;color:#C0392B}
-.rcl tfoot tr.totrow td{background:#FFF1E8;color:#9a4a24;font-weight:800;border-top:1px solid #F6D9C9;border-bottom:none}
-.rcl tfoot tr.totrow td.origem{background:#FFF1E8}
-.rcl td.vazio{text-align:center;color:#6E6960;padding:24px}
-.rcl .seg{display:inline-flex;background:#EEEAE3;border-radius:9px;padding:3px;gap:2px}
-.rcl .seg button{border:0;background:transparent;font:inherit;font-size:12px;font-weight:700;color:#7a756c;padding:5px 13px;border-radius:7px;cursor:pointer;white-space:nowrap}
+.rcl tfoot tr.totrow td{background:#EEF3F9;color:#122238;font-weight:800;border-top:1px solid #DBE4EF;border-bottom:none}
+.rcl tfoot tr.totrow td.origem{background:#EEF3F9}
+.rcl td.vazio{text-align:center;color:#64748B;padding:24px}
+.rcl .seg{display:inline-flex;background:#EEF3F9;border-radius:9px;padding:3px;gap:2px}
+.rcl .seg button{border:0;background:transparent;font:inherit;font-size:12px;font-weight:700;color:#64748B;padding:5px 13px;border-radius:7px;cursor:pointer;white-space:nowrap}
 .rcl .seg button.on{background:#fff;color:#1F2937;box-shadow:0 1px 2px rgba(0,0,0,.08)}
-.rcl .anosel{font:inherit;font-size:12px;font-weight:700;color:#1F2937;background:#fff;border:1px solid #E7E3DF;border-radius:7px;padding:4px 8px;cursor:pointer}
-.rcl .anosel:focus{outline:2px solid rgb(var(--brand));border-color:rgb(var(--brand))}
+.rcl .anosel{font:inherit;font-size:12px;font-weight:700;color:#1F2937;background:#fff;border:1px solid #DBE4EF;border-radius:7px;padding:4px 8px;cursor:pointer}
+.rcl .anosel:focus{outline:2px solid #122238;border-color:#122238}
 .rcl table.resumo{min-width:520px}
 .rcl table.resumo .mono{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;color:#6E6960}
 .rcl table.resumo tr.alerta td{background:#FCEEE5;color:#9a3412;font-weight:700}

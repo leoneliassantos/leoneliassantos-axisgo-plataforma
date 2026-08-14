@@ -43,7 +43,7 @@ export function Combobox({
       <button
         type="button"
         onClick={() => setAberto((v) => !v)}
-        className="flex w-full items-center justify-between rounded-lg border border-line bg-surface px-3 py-2 text-left text-sm text-ink transition hover:border-brand/50 focus:border-brand focus:outline-none"
+        className="flex w-full items-center justify-between rounded-lg border border-line bg-surface px-3 py-2 text-left text-sm text-ink transition hover:border-ink/30 focus:border-ink/40 focus:outline-none"
       >
         <span className={selecionado ? 'text-ink' : 'text-muted'}>{selecionado?.nome ?? placeholder}</span>
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" className="shrink-0 text-muted">
@@ -59,7 +59,7 @@ export function Combobox({
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Digite para buscar…"
-              className="w-full rounded-md border border-line px-2.5 py-1.5 text-sm text-ink focus:border-brand focus:outline-none"
+              className="w-full rounded-md border border-line px-2.5 py-1.5 text-sm text-ink focus:border-ink/40 focus:outline-none"
             />
           </div>
           <div className="max-h-56 overflow-y-auto py-1">
@@ -67,7 +67,7 @@ export function Combobox({
               <button
                 type="button"
                 onClick={() => { onAdd(busca.trim()); setBusca(''); setAberto(false) }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-brand hover:bg-brand/8"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-medium text-ink hover:bg-paper"
               >
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14" strokeWidth="2" strokeLinecap="round" /></svg>
                 {addLabel}: <b>{busca.trim()}</b>
@@ -78,7 +78,7 @@ export function Combobox({
                 key={o.id}
                 type="button"
                 onClick={() => { onSelect(o.id); setAberto(false); setBusca('') }}
-                className={`block w-full px-3 py-2 text-left text-sm hover:bg-paper ${o.id === value ? 'font-medium text-brand' : 'text-ink'}`}
+                className={`block w-full px-3 py-2 text-left text-sm hover:bg-paper ${o.id === value ? 'font-medium text-ink' : 'text-ink'}`}
               >
                 {o.nome}
               </button>

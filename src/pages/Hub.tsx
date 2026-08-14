@@ -9,7 +9,7 @@ export function Hub() {
   return (
     <div>
       <div className="mb-8">
-        <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-brand">Central de trabalho</div>
+        <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">Central de trabalho</div>
         <h1 className="mt-1 font-serif text-3xl font-semibold text-ink">Olá, {primeiroNome}</h1>
         <p className="mt-1 text-muted">Escolha uma frente para começar.</p>
       </div>
@@ -19,10 +19,10 @@ export function Hub() {
           <Link
             key={f.slug}
             to={`/${f.slug}`}
-            className="group relative flex flex-col rounded-2xl border border-line bg-surface p-6 shadow-card transition hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-brand"
+            className="group relative flex flex-col rounded-2xl border border-line bg-surface p-6 shadow-card transition hover:-translate-y-0.5 hover:border-ink/20 hover:shadow-brand"
           >
             <div className="flex items-center justify-between">
-              <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand/10 text-brand">
+              <span className="grid h-11 w-11 place-items-center rounded-xl bg-paper text-ink">
                 <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor">
                   {f.icon}
                 </svg>
@@ -49,7 +49,7 @@ export function Hub() {
               ))}
             </div>
 
-            <div className="mt-5 flex items-center gap-1 text-sm font-semibold text-brand">
+            <div className="mt-5 flex items-center gap-1 text-sm font-semibold text-ink">
               Abrir
               <svg
                 viewBox="0 0 24 24"

@@ -65,7 +65,7 @@ export function draftToInput(d: ProdutoDraft, opProposta: string, opPedido: stri
 }
 
 const lab = 'block text-[12px] font-medium text-muted mb-1'
-const inp = 'w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-brand focus:outline-none'
+const inp = 'w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-ink/40 focus:outline-none'
 
 /** Campos de UM produto — usado na Nova OP e no "Acrescentar item". */
 export function ProdutoFields({
@@ -129,7 +129,7 @@ export function ProdutoFields({
       </div>
 
       <label className="mt-3 flex items-center gap-2 text-sm text-ink">
-        <input type="checkbox" checked={draft.temLogo} onChange={(e) => onChange({ temLogo: e.target.checked })} className="accent-brand" />
+        <input type="checkbox" checked={draft.temLogo} onChange={(e) => onChange({ temLogo: e.target.checked })} className="accent-ink" />
         Tem aplicação de logomarca?
       </label>
       {draft.temLogo && (
@@ -137,7 +137,7 @@ export function ProdutoFields({
           {TIPOS_LOGO.map((t) => (
             <div key={t} className="rounded-lg border border-line bg-surface p-2.5">
               <label className="flex items-center gap-2 text-sm font-medium text-ink">
-                <input type="checkbox" checked={draft.logos[t].ativo} onChange={(e) => updLogo(t, { ativo: e.target.checked })} className="accent-brand" />
+                <input type="checkbox" checked={draft.logos[t].ativo} onChange={(e) => updLogo(t, { ativo: e.target.checked })} className="accent-ink" />
                 {t}
               </label>
               {draft.logos[t].ativo && (

@@ -15,7 +15,7 @@ interface Props {
 const CORES: Record<string, string> = {
   vazia: 'bg-line',
   fraca: 'bg-neg',
-  media: 'bg-brand',
+  media: 'bg-amber-400',
   forte: 'bg-pos',
 }
 const ROTULO: Record<string, string> = {
@@ -48,7 +48,7 @@ export function PasswordInput({
           autoComplete={autoComplete}
           placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 pr-11 text-ink outline-none transition focus:border-brand focus:ring-2 focus:ring-brand/20"
+          className="w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 pr-11 text-ink outline-none transition focus:border-ink/40 focus:ring-2 focus:ring-ink/10"
         />
         <button
           type="button"
@@ -90,7 +90,7 @@ export function PasswordInput({
             </div>
             <span
               className={`text-[11px] font-semibold ${
-                forca.nivel === 'forte' ? 'text-pos' : forca.nivel === 'media' ? 'text-brand' : 'text-neg'
+                forca.nivel === 'forte' ? 'text-pos' : forca.nivel === 'media' ? 'text-amber-500' : 'text-neg'
               }`}
             >
               {ROTULO[forca.nivel]}

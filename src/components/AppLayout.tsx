@@ -116,7 +116,7 @@ export function AppLayout() {
   )
 
   const bannerDemo = mode === 'demo' && (
-    <div className="bg-brand/8 text-center text-[12px] text-brand">
+    <div className="bg-paper text-center text-[12px] text-muted">
       <div className="mx-auto max-w-content px-5 py-1.5">
         Modo demonstração — dados salvos apenas neste navegador. Configure o Supabase para persistir em produção.
       </div>
@@ -166,7 +166,7 @@ export function AppLayout() {
   /* ==================== Dentro de um ambiente — sidebar do ambiente ==================== */
   const itemClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition ${
-      isActive ? 'bg-brand/10 text-brand' : 'text-muted hover:bg-paper hover:text-ink'
+      isActive ? 'bg-paper font-semibold text-ink' : 'text-muted hover:bg-paper hover:text-ink'
     } ${recolhida ? 'md:justify-center md:px-0' : ''}`
 
   const renderModulo = (m: Modulo, indent: boolean) => (
@@ -177,7 +177,7 @@ export function AppLayout() {
       title={m.label}
       className={({ isActive }) =>
         `flex items-center gap-2.5 rounded-md py-2 text-sm transition ${indent ? 'pl-9 pr-3' : 'px-3'} ${
-          isActive ? 'bg-brand/10 font-medium text-brand' : 'text-muted hover:bg-paper hover:text-ink'
+          isActive ? 'bg-paper font-semibold text-ink' : 'text-muted hover:bg-paper hover:text-ink'
         } ${recolhida ? 'md:justify-center md:px-0' : ''}`
       }
     >
@@ -207,7 +207,7 @@ export function AppLayout() {
           <Link
             to="/"
             onClick={fechaMobile}
-            className={`hidden size-8 items-center justify-center rounded-md bg-brand/10 font-serif text-sm font-bold text-brand ${recolhida ? 'md:flex' : ''}`}
+            className={`hidden size-8 items-center justify-center rounded-md bg-paper font-serif text-sm font-bold text-ink ${recolhida ? 'md:flex' : ''}`}
           >
             {(CLIENT.nome || '?').trim().charAt(0).toUpperCase()}
           </Link>
