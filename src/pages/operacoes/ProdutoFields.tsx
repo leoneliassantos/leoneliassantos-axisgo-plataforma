@@ -140,7 +140,7 @@ export function ProdutoFields({
             onSelect={(id) => onChange({ tecidoId: id })} onAdd={(nome) => addAndSelect('tecidos', nome, (id) => onChange({ tecidoId: id }))} />
         </div>
         <div>
-          <label className={lab}>Nº da Proposta</label>
+          <label className={lab}>Pedido de Compra Cliente</label>
           <input className={inp} value={propostaEfetiva(draft, opProposta)} onChange={(e) => onChange({ numeroProposta: e.target.value, propostaEdit: true })} placeholder="Herdado da OP" />
         </div>
         <div>

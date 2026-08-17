@@ -38,7 +38,7 @@ export function NovoItem({
   return (
     <Modal
       title="Acrescentar item"
-      subtitle="Complementa esta OP com mais um produto (Nº Proposta/Pedido já vêm da OP)."
+      subtitle="Complementa esta OP com mais um produto (Pedido de Compra e Nº do Pedido já vêm da OP)."
       width={780}
       onClose={onClose}
       footer={

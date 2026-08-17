@@ -100,8 +100,8 @@ export function NovaOP({
           />
         </div>
         <div>
-          <label className={lab}>Nº da Proposta</label>
-          <input className={inp} value={numeroProposta} onChange={(e) => setNumeroProposta(e.target.value)} placeholder="Ex.: ORÇA 514" />
+          <label className={lab}>Pedido de Compra Cliente</label>
+          <input className={inp} value={numeroProposta} onChange={(e) => setNumeroProposta(e.target.value)} placeholder="Nº do pedido de compra do cliente (se houver)" />
         </div>
         <div>
           <label className={lab}>Nº do Pedido</label>

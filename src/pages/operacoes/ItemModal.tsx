@@ -61,7 +61,7 @@ export function ItemModal({
     if (draft.uniformeId !== produto.uniformeId) ch.push(`Uniforme: "${produto.uniformeNome || '—'}" → "${nomeDe(cadastros.uniformes, draft.uniformeId) || '—'}"`)
     if (draft.corId !== produto.corId) ch.push(`Cor: "${produto.corNome || '—'}" → "${nomeDe(cadastros.cores, draft.corId) || '—'}"`)
     if (draft.tecidoId !== produto.tecidoId) ch.push(`Tecido: "${produto.tecidoNome || '—'}" → "${nomeDe(cadastros.tecidos, draft.tecidoId) || '—'}"`)
-    if (prop !== (produto.numeroProposta || '')) ch.push(`Nº Proposta: "${produto.numeroProposta || '—'}" → "${prop || '—'}"`)
+    if (prop !== (produto.numeroProposta || '')) ch.push(`Pedido de Compra Cliente: "${produto.numeroProposta || '—'}" → "${prop || '—'}"`)
     if (ped !== (produto.numeroPedido || '')) ch.push(`Nº Pedido: "${produto.numeroPedido || '—'}" → "${ped || '—'}"`)
     const qtd = Number(draft.qtd) || 0
     if (qtd !== produto.qtd) ch.push(`Quantidade: ${produto.qtd} → ${qtd}`)

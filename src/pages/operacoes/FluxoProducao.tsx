@@ -252,7 +252,7 @@ function LinhaPedido({ ped, onAbrir }: { ped: Pedido; onAbrir: (id: string) => v
           <span className="font-medium text-ink">{ped.clienteNome || '—'}</span>
         </div>
         <div className="mt-0.5 text-[13px] text-muted">
-          {ped.numeroProposta && <>Proposta <b className="text-ink/80">{ped.numeroProposta}</b> · </>}
+          {ped.numeroProposta && <>PC Cliente <b className="text-ink/80">{ped.numeroProposta}</b> · </>}
           {ped.numeroPedido && <>Pedido <b className="text-ink/80">{ped.numeroPedido}</b> · </>}
           {fmtBR(ped.dataPedido)} · <b className="text-ink/80">{r.total}</b> itens · {r.entregues}/{r.total} entregues
         </div>
@@ -412,7 +412,7 @@ function Quadro({
           <div>
             <div className="font-serif text-lg font-semibold leading-tight text-ink">{order.clienteNome}</div>
             <div className="text-[13px] text-muted">
-              {order.numeroProposta && <>Proposta <b className="text-ink/80">{order.numeroProposta}</b> · </>}
+              {order.numeroProposta && <>PC Cliente <b className="text-ink/80">{order.numeroProposta}</b> · </>}
               {order.numeroPedido && <>Pedido <b className="text-ink/80">{order.numeroPedido}</b> · </>}
               {r.total} itens · {r.entregues} entregues · {r.progresso}%
             </div>
