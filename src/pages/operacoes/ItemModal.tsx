@@ -215,7 +215,12 @@ export function ItemModal({
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                       <span className="tnum text-[12px] font-semibold text-ink">{fmtBRfull(h.data)}</span>
                       {h.kind === 'mov' ? (
-                        <span className="text-sm text-ink">{h.etapaDe ? etapaLabel(h.etapaDe) : ''} → <b>{h.etapaPara ? etapaLabel(h.etapaPara) : ''}</b></span>
+                        <span className="flex items-center gap-1.5 text-sm text-ink">
+                          <span>{h.etapaDe ? etapaLabel(h.etapaDe) : ''} → <b>{h.etapaPara ? etapaLabel(h.etapaPara) : ''}</b></span>
+                          {h.etapaDe && h.etapaPara && ETAPAS.findIndex((e) => e.id === h.etapaPara) < ETAPAS.findIndex((e) => e.id === h.etapaDe) && (
+                            <span className="rounded bg-amber-500/12 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">retorno</span>
+                          )}
+                        </span>
                       ) : (
                         <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${statusClasse('alerta')}`}>Alteração</span>
                       )}

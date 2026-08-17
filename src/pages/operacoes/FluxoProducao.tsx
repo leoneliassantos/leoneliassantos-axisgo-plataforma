@@ -372,14 +372,16 @@ function MoveModal({ alvo, saving, onConfirm, onClose }: { alvo: MoveAlvo; savin
   const [obs, setObs] = useState('')
   const de = ETAPAS.find((e) => e.id === alvo.de)?.label ?? alvo.de
   const para = ETAPAS.find((e) => e.id === alvo.para)?.label ?? alvo.para
+  const avanco = ETAPAS.findIndex((e) => e.id === alvo.para) > ETAPAS.findIndex((e) => e.id === alvo.de)
   const inp = 'w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-ink/40 focus:outline-none'
   return (
-    <Modal title="Concluir etapa" subtitle={`${de} → ${para}`} width={440} onClose={onClose}
+    <Modal title={avanco ? 'Concluir etapa' : 'Retornar etapa'} subtitle={`${de} → ${para}`} width={440} onClose={onClose}
       footer={<><BtnGhost onClick={onClose} disabled={saving}>Cancelar</BtnGhost><BtnPrimary onClick={() => onConfirm(data, obs.trim())} disabled={saving}>{saving ? 'Movendo…' : 'Confirmar'}</BtnPrimary></>}>
-      <label className="block text-[12px] font-medium text-muted mb-1">Data de conclusão de “{de}”</label>
+      {!avanco && <p className="mb-3 rounded-lg bg-amber-500/10 px-3 py-2 text-[12px] text-amber-700">O item está voltando de <b>{de}</b> para <b>{para}</b>. A movimentação será registrada no histórico.</p>}
+      <label className="block text-[12px] font-medium text-muted mb-1">{avanco ? `Data de conclusão de “${de}”` : 'Data da movimentação'}</label>
       <input type="date" className={inp} value={data} onChange={(e) => setData(e.target.value)} />
       <label className="mt-3 block text-[12px] font-medium text-muted mb-1">Observação (opcional)</label>
-      <input className={inp} value={obs} onChange={(e) => setObs(e.target.value)} placeholder="Ex.: enviado para a oficina" />
+      <input className={inp} value={obs} onChange={(e) => setObs(e.target.value)} placeholder={avanco ? 'Ex.: enviado para a oficina' : 'Ex.: retornou para ajuste de modelagem'} />
     </Modal>
   )
 }

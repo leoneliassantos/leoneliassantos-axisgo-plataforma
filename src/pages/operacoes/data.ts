@@ -559,9 +559,25 @@ export async function setProdutoLogos(produtoId: string, logos: { tipo: TipoLogo
   }
 }
 
-/** Move um item de etapa: grava histórico, data de conclusão da etapa de origem e recalcula o progresso. */
+/** Ordem (índice) de uma etapa no fluxo. -1 se desconhecida. */
+function ordemEtapa(id: string): number {
+  return ETAPAS.findIndex((e) => e.id === id)
+}
+
+/**
+ * Move um item de etapa (para FRENTE ou para TRÁS). Registra SEMPRE o histórico
+ * da movimentação (é o registro completo pedido). A linha do tempo acompanha o
+ * sentido: avançar marca a etapa de origem como concluída; retroceder desfaz as
+ * conclusões da etapa de destino em diante (o item ainda não as cumpriu de novo).
+ */
 export async function moveProduto(id: string, de: string, para: string, data: string, obs: string, usuario = ''): Promise<void> {
   const prog = progressoDaEtapa(para)
+  const oDe = ordemEtapa(de)
+  const oPara = ordemEtapa(para)
+  const avanco = oPara > oDe
+  // Ao retroceder, as etapas de "para" em diante deixam de estar concluídas.
+  const etapasADesfazer = ETAPAS.filter((_, i) => i >= oPara).map((e) => e.id)
+
   if (isDemo) {
     const db = demoLoad()
     for (const ped of db.pedidos) {
@@ -569,20 +585,30 @@ export async function moveProduto(id: string, de: string, para: string, data: st
       if (prod) {
         prod.etapaId = para
         prod.progresso = prog
-        prod.datas[de] = data
+        // Log SEMPRE (frente ou trás).
         prod.historico.push({ kind: 'mov', etapaDe: de, etapaPara: para, data, texto: obs || null, usuario: usuario || null })
+        if (avanco) prod.datas[de] = data
+        else for (const eid of etapasADesfazer) delete prod.datas[eid]
         break
       }
     }
     demoSave(db)
     return
   }
+  // 1) O movimento em si.
   const up = await supabase!.from('op_produtos').update({ etapa_id: para, progresso: prog }).eq('id', id)
   if (up.error) throw new Error(up.error.message)
-  const ed = await supabase!.from('op_produto_etapa').upsert({ produto_id: id, etapa_id: de, data_conclusao: data }, { onConflict: 'produto_id,etapa_id' })
-  if (ed.error) throw new Error(ed.error.message)
+  // 2) O LOG — gravado antes do passo da linha do tempo, para nunca ser suprimido.
   const h = await supabase!.from('op_etapa_historico').insert({ produto_id: id, kind: 'mov', etapa_de: de, etapa_para: para, data, texto: obs || null, usuario: usuario || null })
   if (h.error) throw new Error(h.error.message)
+  // 3) Linha do tempo (data de conclusão) coerente com o sentido.
+  if (avanco) {
+    const ed = await supabase!.from('op_produto_etapa').upsert({ produto_id: id, etapa_id: de, data_conclusao: data }, { onConflict: 'produto_id,etapa_id' })
+    if (ed.error) throw new Error(ed.error.message)
+  } else if (etapasADesfazer.length) {
+    const ed = await supabase!.from('op_produto_etapa').delete().eq('produto_id', id).in('etapa_id', etapasADesfazer)
+    if (ed.error) throw new Error(ed.error.message)
+  }
 }
 
 export async function addObservacao(id: string, data: string, texto: string, usuario = ''): Promise<void> {
