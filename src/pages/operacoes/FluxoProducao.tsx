@@ -276,6 +276,75 @@ function LinhaPedido({ ped, onAbrir }: { ped: Pedido; onAbrir: (id: string) => v
   )
 }
 
+/** Ícone por etapa (para a linha do tempo). */
+function EtapaIcon({ id }: { id: string }) {
+  const p = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  const inner = (() => {
+    switch (id) {
+      case 'pedido': return <><path d="M6 7h12l-1 13H7z" /><path d="M9 7a3 3 0 0 1 6 0" /></>
+      case 'ficha': return <><path d="M7 3h7l4 4v14H7z" /><path d="M14 3v4h4" /><path d="M9.5 12h5M9.5 16h5" /></>
+      case 'modelagem': return <><path d="M4 14 14 4l6 6L10 20z" /><path d="m8 10 2 2m1-5 2 2" /></>
+      case 'compra': return <><circle cx="9" cy="20" r="1.2" /><circle cx="17" cy="20" r="1.2" /><path d="M3 4h2l2.2 11h9.5L19 8H6.2" /></>
+      case 'corte': return <><circle cx="6" cy="7" r="2" /><circle cx="6" cy="17" r="2" /><path d="M7.7 8.3 20 18M7.7 15.7 20 6" /></>
+      case 'logo': return <><path d="M4 4h7l9 9-7 7-9-9z" /><circle cx="8" cy="8" r="1.2" /></>
+      case 'oficina': return <><path d="M8 4 4 7l2 3 2-1v10h8V9l2 1 2-3-4-3-3 2z" /></>
+      case 'acabamento': return <><path d="M12 4l1.4 4L18 9.4 13.4 11 12 15l-1.4-4L6 9.4 10.6 8z" /><path d="M18.5 15l.6 1.7 1.7.6-1.7.6-.6 1.7-.6-1.7-1.7-.6 1.7-.6z" /></>
+      case 'finalizada': return <><circle cx="12" cy="12" r="8.5" /><path d="m8.5 12.5 2.5 2.5 4.5-5" /></>
+      case 'entrega': return <><path d="M3 6h10v9H3z" /><path d="M13 9h4l3 3v3h-7z" /><circle cx="7" cy="18" r="1.5" /><circle cx="17" cy="18" r="1.5" /></>
+      case 'entregue': return <><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" /><path d="M4 7.5 12 12l8-4.5M12 12v9" /></>
+      default: return <circle cx="12" cy="12" r="8" />
+    }
+  })()
+  return <svg viewBox="0 0 24 24" width="20" height="20" {...p}>{inner}</svg>
+}
+
+/** Linha do tempo da produção: stepper com todas as etapas e a contagem de itens em cada uma. */
+function LinhaTempoProducao({ order }: { order: Pedido }) {
+  const cont = contagemPorEtapa(order)
+  const ultima = ETAPAS[ETAPAS.length - 1].id
+  const ativas = order.produtos.filter((p) => p.etapaId !== ultima).length
+  const atrasadas = order.produtos.filter((p) => p.status === 'atrasado').length
+  const maisAvancada = ETAPAS.reduce((m, e, i) => ((cont[e.id] ?? 0) > 0 ? i : m), -1)
+  const W = 108
+  return (
+    <div className="mb-5 rounded-2xl border border-line bg-surface p-4">
+      <div className="mb-4 flex flex-wrap items-center gap-2.5">
+        <h3 className="mr-1 font-serif text-base font-semibold text-ink">Linha do Tempo · Produção</h3>
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-band/10 px-2.5 py-1 text-[12px] font-medium text-band">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" /><path d="M4 7.5 12 12l8-4.5M12 12v9" /></svg>
+          {ativas} ativa{ativas === 1 ? '' : 's'}
+        </span>
+        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-medium ${atrasadas ? 'bg-neg/10 text-neg' : 'bg-pos/10 text-pos'}`}>
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 4 22 20H2z" /><path d="M12 10v4M12 17h.01" /></svg>
+          {atrasadas} atrasada{atrasadas === 1 ? '' : 's'}
+        </span>
+      </div>
+      <div className="overflow-x-auto pb-1">
+        <div className="relative" style={{ width: ETAPAS.length * W }}>
+          {/* trilho */}
+          <div className="absolute h-[3px] rounded bg-line" style={{ left: W / 2, right: W / 2, top: 21 }} />
+          {maisAvancada > 0 && <div className="absolute h-[3px] rounded bg-pos/40" style={{ left: W / 2, width: maisAvancada * W, top: 21 }} />}
+          <div className="relative flex">
+            {ETAPAS.map((e) => {
+              const n = cont[e.id] ?? 0
+              const on = n > 0
+              return (
+                <div key={e.id} style={{ width: W }} className="z-10 flex flex-col items-center gap-2">
+                  <div className="relative grid size-11 place-items-center rounded-full" style={{ background: on ? `${ETAPA_COR[e.id]}18` : '#f1f4f7', border: `${on ? 1.6 : 1}px solid ${on ? ETAPA_COR[e.id] : '#e2e8ee'}`, color: on ? ETAPA_COR[e.id] : '#c2cbd4' }}>
+                    <EtapaIcon id={e.id} />
+                    {on && <span className="tnum absolute -right-1.5 -top-1.5 grid min-w-[18px] place-items-center rounded-full px-1 text-[10px] font-bold text-white" style={{ height: 18, background: ETAPA_COR[e.id] }}>{n}</span>}
+                  </div>
+                  <span className={`px-1 text-center text-[11px] leading-tight ${on ? 'font-semibold text-ink' : 'text-muted'}`}>{e.label}</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /** Ícone "i" que sinaliza um tooltip (a explicação vem do atributo title do elemento pai). */
 function IconInfo() {
   return (
@@ -341,6 +410,8 @@ function Quadro({
           </BtnPrimary>
         </div>
       </div>
+
+      <LinhaTempoProducao order={order} />
 
       <div className="overflow-x-auto pb-3">
         <div className="flex gap-3" style={{ minWidth: 'min-content' }}>
