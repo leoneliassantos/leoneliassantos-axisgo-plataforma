@@ -101,7 +101,9 @@ export interface Produto {
   numeroPedido: string
   qtd: number
   prioridade: Prioridade
-  status: StatusProd
+  status: StatusProd // situação EFETIVA (automática ou manual) — usada em toda exibição/resumo
+  situacaoAuto: boolean // true = situação calculada pela data de entrega; false = manual
+  situacaoManual: StatusProd // valor manual escolhido (usado quando situacaoAuto = false)
   etapaId: string
   progresso: number
   responsavel: string
@@ -164,6 +166,37 @@ export interface NovoPedidoInput {
 }
 
 export const isDemo = !isSupabaseConfigured
+
+/** Dias entre hoje (00h local) e uma data ISO (alvo - hoje). Vazio → 0. */
+function diasAte(iso: string): number {
+  if (!iso) return 0
+  const hoje = new Date()
+  hoje.setHours(0, 0, 0, 0)
+  const alvo = new Date(`${iso}T00:00:00`)
+  return Math.round((alvo.getTime() - hoje.getTime()) / 86400000)
+}
+
+/** Nº de dias para disparar o "Alerta" automático antes da entrega. */
+export const ALERTA_DIAS = 3
+
+/**
+ * Situação AUTOMÁTICA de um item pela previsão de entrega:
+ * já saiu para entrega/entregue → No prazo; vencida → Atrasado;
+ * faltando ≤ ALERTA_DIAS → Alerta; senão → No prazo. Sem data → No prazo.
+ */
+export function situacaoAutomatica(previsaoEntrega: string, etapaId: string): StatusProd {
+  if (isProduzido(etapaId)) return 'ok'
+  if (!previsaoEntrega) return 'ok'
+  const dias = diasAte(previsaoEntrega)
+  if (dias < 0) return 'atrasado'
+  if (dias <= ALERTA_DIAS) return 'alerta'
+  return 'ok'
+}
+
+/** Devolve a situação EFETIVA do item (automática quando situacaoAuto, senão a manual). */
+export function situacaoEfetiva(p: { situacaoAuto: boolean; situacaoManual: StatusProd; previsaoEntrega: string; etapaId: string }): StatusProd {
+  return p.situacaoAuto ? situacaoAutomatica(p.previsaoEntrega, p.etapaId) : p.situacaoManual
+}
 
 /** Progresso (0-100) a partir da etapa atual. */
 export function progressoDaEtapa(etapaId: string): number {
@@ -306,10 +339,19 @@ export async function setBloqueado(tabela: TabelaCadastro, id: string, bloqueado
 }
 
 export async function loadPedidos(): Promise<Pedido[]> {
-  if (isDemo) return demoLoad().pedidos
+  if (isDemo) {
+    return demoLoad().pedidos.map((ped) => ({
+      ...ped,
+      produtos: ped.produtos.map((p) => {
+        const situacaoAuto = p.situacaoAuto ?? true
+        const situacaoManual = p.situacaoManual ?? p.status ?? 'ok'
+        return { ...p, situacaoAuto, situacaoManual, status: situacaoEfetiva({ situacaoAuto, situacaoManual, previsaoEntrega: p.previsaoEntrega, etapaId: p.etapaId }) }
+      }),
+    }))
+  }
   const [ops, prods, logos, datas, hist] = await Promise.all([
     supabase!.from('op').select('id, cliente_id, numero_proposta, numero_pedido, data_pedido, prioridade, evento, amostra, data_entrega, observacao, clientes(nome)').order('data_pedido', { ascending: false }),
-    supabase!.from('op_produtos').select('id, op_id, uniforme_id, cor_id, tecido_id, numero_proposta, numero_pedido, qtd, prioridade, status, etapa_id, progresso, responsavel, previsao_entrega, observacao, grade, uniformes(nome), cores(nome), tecidos(nome)'),
+    supabase!.from('op_produtos').select('id, op_id, uniforme_id, cor_id, tecido_id, numero_proposta, numero_pedido, qtd, prioridade, status, situacao_auto, etapa_id, progresso, responsavel, previsao_entrega, observacao, grade, uniformes(nome), cores(nome), tecidos(nome)'),
     supabase!.from('op_produto_logo').select('produto_id, tipo, fornecedor_id, fornecedores(nome)'),
     supabase!.from('op_produto_etapa').select('produto_id, etapa_id, data_conclusao'),
     supabase!.from('op_etapa_historico').select('id, produto_id, kind, etapa_de, etapa_para, data, texto, usuario').order('created_at'),
@@ -343,6 +385,10 @@ export async function loadPedidos(): Promise<Pedido[]> {
   const prodsByOp = new Map<string, Produto[]>()
   for (const p of (prods.data ?? []) as Array<Record<string, unknown>>) {
     const arr = prodsByOp.get(p.op_id as string) ?? []
+    const manual = (p.status as StatusProd) ?? 'ok'
+    const auto = p.situacao_auto !== false // default: automático
+    const etapa = (p.etapa_id as string) ?? 'pedido'
+    const prev = p.previsao_entrega ? (p.previsao_entrega as string).slice(0, 10) : ''
     arr.push({
       id: p.id as string, opId: p.op_id as string,
       uniformeId: (p.uniforme_id as string) ?? null, uniformeNome: rel(p.uniformes),
@@ -350,9 +396,11 @@ export async function loadPedidos(): Promise<Pedido[]> {
       tecidoId: (p.tecido_id as string) ?? null, tecidoNome: rel(p.tecidos),
       numeroProposta: (p.numero_proposta as string) ?? '', numeroPedido: (p.numero_pedido as string) ?? '',
       qtd: Number(p.qtd) || 0, prioridade: (p.prioridade as Prioridade) ?? 'media',
-      status: (p.status as StatusProd) ?? 'ok', etapaId: (p.etapa_id as string) ?? 'pedido',
+      status: situacaoEfetiva({ situacaoAuto: auto, situacaoManual: manual, previsaoEntrega: prev, etapaId: etapa }),
+      situacaoAuto: auto, situacaoManual: manual,
+      etapaId: etapa,
       progresso: Number(p.progresso) || 0, responsavel: (p.responsavel as string) ?? '',
-      previsaoEntrega: p.previsao_entrega ? (p.previsao_entrega as string).slice(0, 10) : '',
+      previsaoEntrega: prev,
       observacao: (p.observacao as string) ?? '',
       grade: (p.grade as Grade) ?? {},
       logos: logosByProd.get(p.id as string) ?? [],
@@ -393,7 +441,7 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
         id: uid(), opId, uniformeId: p.uniformeId, uniformeNome: uni?.nome ?? '',
         corId: p.corId, corNome: cor?.nome ?? '', tecidoId: p.tecidoId, tecidoNome: tec?.nome ?? '',
         numeroProposta: p.numeroProposta || input.numeroProposta,
-        numeroPedido: p.numeroPedido, qtd: p.qtd, prioridade: p.prioridade, status: 'ok',
+        numeroPedido: p.numeroPedido, qtd: p.qtd, prioridade: p.prioridade, status: 'ok', situacaoAuto: true, situacaoManual: 'ok',
         etapaId: 'pedido', progresso: progressoDaEtapa('pedido'), responsavel: '',
         previsaoEntrega: p.previsaoEntrega, observacao: p.observacao, grade: p.grade ?? {},
         logos: p.logos.map((l) => ({ tipo: l.tipo, fornecedorId: l.fornecedorId, fornecedorNome: db.fornecedores.find((f) => f.id === l.fornecedorId)?.nome })),
@@ -422,7 +470,7 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
       .insert({
         op_id: opId, uniforme_id: p.uniformeId, cor_id: p.corId, tecido_id: p.tecidoId,
         numero_proposta: p.numeroProposta || input.numeroProposta || null, numero_pedido: p.numeroPedido || input.numeroPedido || null,
-        qtd: p.qtd, prioridade: p.prioridade, status: 'ok', etapa_id: 'pedido', progresso: progressoDaEtapa('pedido'),
+        qtd: p.qtd, prioridade: p.prioridade, status: 'ok', situacao_auto: true, etapa_id: 'pedido', progresso: progressoDaEtapa('pedido'),
         previsao_entrega: p.previsaoEntrega || null, observacao: p.observacao || null, grade: p.grade ?? {},
       })
       .select('id')
@@ -453,7 +501,7 @@ export async function addProduto(opId: string, p: NovoProdutoInput): Promise<voi
       id: uid(), opId, uniformeId: p.uniformeId, uniformeNome: uni?.nome ?? '',
       corId: p.corId, corNome: cor?.nome ?? '', tecidoId: p.tecidoId, tecidoNome: tec?.nome ?? '',
       numeroProposta: p.numeroProposta, numeroPedido: p.numeroPedido, qtd: p.qtd,
-      prioridade: p.prioridade, status: 'ok', etapaId: 'pedido', progresso: progressoDaEtapa('pedido'),
+      prioridade: p.prioridade, status: 'ok', situacaoAuto: true, situacaoManual: 'ok', etapaId: 'pedido', progresso: progressoDaEtapa('pedido'),
       responsavel: '', previsaoEntrega: p.previsaoEntrega, observacao: p.observacao, grade: p.grade ?? {},
       logos: p.logos.map((l) => ({ tipo: l.tipo, fornecedorId: l.fornecedorId, fornecedorNome: db.fornecedores.find((f) => f.id === l.fornecedorId)?.nome })),
       datas: {}, historico: [],
@@ -466,7 +514,7 @@ export async function addProduto(opId: string, p: NovoProdutoInput): Promise<voi
     .insert({
       op_id: opId, uniforme_id: p.uniformeId, cor_id: p.corId, tecido_id: p.tecidoId,
       numero_proposta: p.numeroProposta || null, numero_pedido: p.numeroPedido || null,
-      qtd: p.qtd, prioridade: p.prioridade, status: 'ok', etapa_id: 'pedido', progresso: progressoDaEtapa('pedido'),
+      qtd: p.qtd, prioridade: p.prioridade, status: 'ok', situacao_auto: true, etapa_id: 'pedido', progresso: progressoDaEtapa('pedido'),
       previsao_entrega: p.previsaoEntrega || null, observacao: p.observacao || null, grade: p.grade ?? {},
     })
     .select('id')
@@ -489,7 +537,8 @@ export interface ProdutoPatch {
   numeroPedido?: string
   qtd?: number
   prioridade?: Prioridade
-  status?: StatusProd
+  situacaoAuto?: boolean
+  situacaoManual?: StatusProd
   responsavel?: string
   previsaoEntrega?: string
   observacao?: string
@@ -509,11 +558,13 @@ export async function updateProduto(id: string, patch: ProdutoPatch): Promise<vo
         if (patch.numeroPedido !== undefined) prod.numeroPedido = patch.numeroPedido
         if (patch.qtd !== undefined) prod.qtd = patch.qtd
         if (patch.prioridade !== undefined) prod.prioridade = patch.prioridade
-        if (patch.status !== undefined) prod.status = patch.status
+        if (patch.situacaoAuto !== undefined) prod.situacaoAuto = patch.situacaoAuto
+        if (patch.situacaoManual !== undefined) prod.situacaoManual = patch.situacaoManual
         if (patch.responsavel !== undefined) prod.responsavel = patch.responsavel
         if (patch.previsaoEntrega !== undefined) prod.previsaoEntrega = patch.previsaoEntrega
         if (patch.observacao !== undefined) prod.observacao = patch.observacao
         if (patch.grade !== undefined) prod.grade = patch.grade
+        prod.status = situacaoEfetiva(prod) // recalcula a efetiva após a edição
         break
       }
     }
@@ -528,7 +579,8 @@ export async function updateProduto(id: string, patch: ProdutoPatch): Promise<vo
   if (patch.numeroPedido !== undefined) payload.numero_pedido = patch.numeroPedido || null
   if (patch.qtd !== undefined) payload.qtd = patch.qtd
   if (patch.prioridade !== undefined) payload.prioridade = patch.prioridade
-  if (patch.status !== undefined) payload.status = patch.status
+  if (patch.situacaoAuto !== undefined) payload.situacao_auto = patch.situacaoAuto
+  if (patch.situacaoManual !== undefined) payload.status = patch.situacaoManual
   if (patch.responsavel !== undefined) payload.responsavel = patch.responsavel || null
   if (patch.previsaoEntrega !== undefined) payload.previsao_entrega = patch.previsaoEntrega || null
   if (patch.observacao !== undefined) payload.observacao = patch.observacao || null

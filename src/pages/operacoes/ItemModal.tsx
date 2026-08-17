@@ -4,7 +4,7 @@ import { fmtBRfull, hojeISO, daysBetween, statusClasse } from './helpers'
 import { ProdutoFields, produtoToDraft, gradeErro, TIPOS_LOGO, type ProdutoDraft, type TabCad } from './ProdutoFields'
 import {
   type Produto, type ProdutoPatch, type StatusProd, type TipoLogo, type Cadastro, type Cadastros, type Grade,
-  ETAPAS, etapaLabel, PRIO_LABEL, STATUS_LABEL, TAMANHOS,
+  ETAPAS, etapaLabel, PRIO_LABEL, STATUS_LABEL, TAMANHOS, situacaoAutomatica,
 } from './data'
 
 const nomeDe = (list: Cadastro[], id: string | null) => (id ? list.find((c) => c.id === id)?.nome ?? '' : '')
@@ -36,7 +36,7 @@ export function ItemModal({
   const [aba, setAba] = useState<'detalhes' | 'mov'>('detalhes')
   const [draft, setDraft] = useState<ProdutoDraft>(() => produtoToDraft(produto))
   const [responsavel, setResponsavel] = useState(produto.responsavel)
-  const [status, setStatus] = useState<StatusProd>(produto.status)
+  const [sitSel, setSitSel] = useState<'auto' | StatusProd>(produto.situacaoAuto ? 'auto' : produto.situacaoManual)
   const [erro, setErro] = useState<string | null>(null)
 
   const [obsData, setObsData] = useState(hojeISO())
@@ -66,7 +66,12 @@ export function ItemModal({
     const qtd = Number(draft.qtd) || 0
     if (qtd !== produto.qtd) ch.push(`Quantidade: ${produto.qtd} → ${qtd}`)
     if (draft.prioridade !== produto.prioridade) ch.push(`Prioridade: ${PRIO_LABEL[produto.prioridade]} → ${PRIO_LABEL[draft.prioridade]}`)
-    if (status !== produto.status) ch.push(`Situação: ${STATUS_LABEL[produto.status]} → ${STATUS_LABEL[status]}`)
+    const novaAuto = sitSel === 'auto'
+    if (novaAuto !== produto.situacaoAuto || (!novaAuto && sitSel !== produto.situacaoManual)) {
+      const antes = produto.situacaoAuto ? 'Automática' : STATUS_LABEL[produto.situacaoManual]
+      const depois = novaAuto ? 'Automática' : STATUS_LABEL[sitSel]
+      ch.push(`Situação: ${antes} → ${depois}`)
+    }
     if (responsavel.trim() !== (produto.responsavel || '')) ch.push(`Responsável: "${produto.responsavel || '—'}" → "${responsavel.trim() || '—'}"`)
     if (draft.previsaoEntrega !== produto.previsaoEntrega) ch.push(`Previsão: ${fmtBRfull(produto.previsaoEntrega) || '—'} → ${fmtBRfull(draft.previsaoEntrega) || '—'}`)
     if (draft.observacao.trim() !== (produto.observacao || '')) ch.push(`Observação do item: "${produto.observacao || '—'}" → "${draft.observacao.trim() || '—'}"`)
@@ -92,7 +97,8 @@ export function ItemModal({
     const patch: ProdutoPatch = {
       uniformeId: draft.uniformeId, corId: draft.corId, tecidoId: draft.tecidoId,
       numeroProposta: draft.numeroProposta.trim(), numeroPedido: draft.numeroPedido.trim(),
-      qtd: Number(draft.qtd) || 0, prioridade: draft.prioridade, status, responsavel: responsavel.trim(), previsaoEntrega: draft.previsaoEntrega,
+      qtd: Number(draft.qtd) || 0, prioridade: draft.prioridade, responsavel: responsavel.trim(), previsaoEntrega: draft.previsaoEntrega,
+      situacaoAuto: sitSel === 'auto', situacaoManual: sitSel === 'auto' ? produto.situacaoManual : sitSel,
       observacao: draft.observacao.trim(), grade: draft.grade,
     }
     onSaveItem(patch, logos, mudancas.join('; '))
@@ -146,10 +152,12 @@ export function ItemModal({
             </div>
             <div>
               <label className={lab}>Situação</label>
-              <select className={inp} value={status} onChange={(e) => setStatus(e.target.value as StatusProd)}>
+              <select className={inp} value={sitSel} onChange={(e) => setSitSel(e.target.value as 'auto' | StatusProd)}>
+                <option value="auto">Automático (pela data)</option>
                 <option value="ok">No prazo</option><option value="atrasado">Atrasado</option>
                 <option value="alerta">Alerta</option><option value="aguardando">Aguardando</option>
               </select>
+              {sitSel === 'auto' && <span className="mt-1 block text-[11px] text-muted">Agora: <b>{STATUS_LABEL[situacaoAutomatica(draft.previsaoEntrega, produto.etapaId)]}</b></span>}
             </div>
             <div>
               <label className={lab}>Etapa atual</label>
