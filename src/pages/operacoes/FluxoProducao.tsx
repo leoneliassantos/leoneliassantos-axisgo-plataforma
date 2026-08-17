@@ -55,14 +55,19 @@ export function FluxoProducao() {
 
   useEffect(() => { carregar() }, [carregar])
 
-  // Abertura direta pelo link vindo de "Ordens de Produção" (?op=<id>&item=<id>).
+  // A URL é a fonte da verdade da visão: ?op=<id> = quadro; sem op = lista (hub).
+  // Assim o link "Fluxo de Produção" do menu (rota sem query) volta pra lista.
   useEffect(() => {
     const op = searchParams.get('op')
     const item = searchParams.get('item')
-    if (op && pedidos.some((p) => p.id === op)) {
-      setOrderId(op); setView('board'); setBusca(''); setFiltroSit('')
-      if (item && pedidos.some((p) => p.produtos.some((x) => x.id === item))) setItemId(item)
-      const next = new URLSearchParams(searchParams); next.delete('op'); next.delete('item'); setSearchParams(next, { replace: true })
+    if (op) {
+      if (pedidos.some((p) => p.id === op)) { setOrderId(op); setView('board') }
+      if (item && pedidos.some((p) => p.produtos.some((x) => x.id === item))) {
+        setItemId(item)
+        const next = new URLSearchParams(searchParams); next.delete('item'); setSearchParams(next, { replace: true })
+      }
+    } else {
+      setView('list'); setOrderId(null)
     }
   }, [pedidos, searchParams, setSearchParams])
 
@@ -137,7 +142,8 @@ export function FluxoProducao() {
     finally { setSaving(false) }
   }
 
-  function abrirBoard(id: string) { setOrderId(id); setView('board'); setBusca(''); setFiltroSit('') }
+  function abrirBoard(id: string) { setSearchParams({ op: id }); setOrderId(id); setView('board'); setBusca(''); setFiltroSit('') }
+  function voltarLista() { setSearchParams({}); setView('list'); setOrderId(null); setBusca('') }
   function pedirMove(produtoId: string, de: string, para: string) {
     if (de === para) return
     setMoveAlvo({ produtoId, de, para })
@@ -174,7 +180,7 @@ export function FluxoProducao() {
 
       {view === 'list'
         ? <ListaPedidos pedidos={pedidos} busca={busca} setBusca={setBusca} filtroSit={filtroSit} setFiltroSit={setFiltroSit} onAbrir={abrirBoard} onNova={() => setShowNova(true)} />
-        : currentOrder && <Quadro order={currentOrder} busca={busca} setBusca={setBusca} onVoltar={() => setView('list')} onAbrirItem={setItemId} onAddItem={() => setAddItemOpId(currentOrder.id)} dragId={dragId} onSoltar={pedirMove} />}
+        : currentOrder && <Quadro order={currentOrder} busca={busca} setBusca={setBusca} onVoltar={voltarLista} onAbrirItem={setItemId} onAddItem={() => setAddItemOpId(currentOrder.id)} dragId={dragId} onSoltar={pedirMove} />}
 
       {showNova && (
         <NovaOP cadastros={cadastros} saving={saving} onAddCadastro={handleAddCadastro} onCreate={handleCreate} onClose={() => setShowNova(false)} />
@@ -435,7 +441,7 @@ function Quadro({
       <LinhaTempoProducao order={order} />
 
       {/* Kanban — ocupa o restante da altura da tela para caber mais cards */}
-      <div className="overflow-x-auto pb-3" style={{ height: 'calc(100vh - 320px)', minHeight: 360 }}>
+      <div className="overflow-x-auto pb-2" style={{ height: 'calc(100vh - 288px)', minHeight: 360, marginBottom: '-1.5rem' }}>
         <div className="flex h-full gap-3" style={{ minWidth: 'min-content' }}>
           {ETAPAS.map((e) => {
             const itens = order.produtos.filter((it) => it.etapaId === e.id && itemFiltraTexto(it, busca))
