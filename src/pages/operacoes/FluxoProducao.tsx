@@ -5,7 +5,7 @@ import { NovoItem } from './NovoItem'
 import { ItemModal } from './ItemModal'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
 import {
-  resumoPedido, contagemPorEtapa, statusClasse, prioCor, fmtBR, hojeISO, itemFiltraTexto,
+  resumoPedido, contagemPorEtapa, statusClasse, prioCor, fmtBR, fmtBRfull, hojeISO, daysBetween, itemFiltraTexto,
 } from './helpers'
 import {
   loadCadastros, loadPedidos, addCadastro, createPedido, addProduto, updateProduto, setProdutoLogos, moveProduto, addObservacao,
@@ -243,6 +243,10 @@ function LinhaPedido({ ped, onAbrir }: { ped: Pedido; onAbrir: (id: string) => v
           {ped.numeroPedido && <>Pedido <b className="text-ink/80">{ped.numeroPedido}</b> · </>}
           {fmtBR(ped.dataPedido)} · <b className="text-ink/80">{r.total}</b> itens · {r.entregues}/{r.total} entregues
         </div>
+        <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[13px] text-muted">
+          <span>Entrega: <b className="tnum text-ink/80">{ped.dataEntrega ? fmtBRfull(ped.dataEntrega) : '—'}</b></span>
+          <AlertaEntrega ped={ped} concluido={r.entregues === r.total && r.total > 0} />
+        </div>
       </div>
 
       {/* mini-mapa das 10 etapas */}
@@ -267,6 +271,20 @@ function LinhaPedido({ ped, onAbrir }: { ped: Pedido; onAbrir: (id: string) => v
       </div>
     </button>
   )
+}
+
+/** Alerta de prazo de entrega: mostra quantos dias faltam (ou de atraso), com cor. */
+function AlertaEntrega({ ped, concluido }: { ped: Pedido; concluido: boolean }) {
+  if (concluido) return <span className="rounded-full bg-pos/10 px-2 py-0.5 text-[11px] font-medium text-pos">Pedido entregue</span>
+  if (!ped.dataEntrega) return <span className="rounded-full bg-slate-500/10 px-2 py-0.5 text-[11px] font-medium text-slate-500">Sem data de entrega</span>
+  const dias = daysBetween(hojeISO(), ped.dataEntrega)
+  let txt: string
+  let cls: string
+  if (dias < 0) { txt = `Atrasada ${Math.abs(dias)} dia${Math.abs(dias) === 1 ? '' : 's'}`; cls = 'bg-neg/10 text-neg' }
+  else if (dias === 0) { txt = 'Entrega hoje'; cls = 'bg-neg/10 text-neg' }
+  else if (dias <= 3) { txt = `Faltam ${dias} dia${dias === 1 ? '' : 's'}`; cls = 'bg-amber-500/12 text-amber-700' }
+  else { txt = `Faltam ${dias} dias`; cls = 'bg-pos/10 text-pos' }
+  return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${cls}`}>{txt}</span>
 }
 
 /* =========================== Quadro (Kanban do pedido) =========================== */
