@@ -1,5 +1,5 @@
 import { Combobox } from './Combobox'
-import { TAMANHOS_LINHA1, TAMANHOS_LINHA2, somaGrade } from './data'
+import { TAMANHOS_LINHA1, TAMANHOS_LINHA2, TAMANHOS_LINHA3, somaGrade } from './data'
 import type { Cadastro, Cadastros, NovoProdutoInput, Prioridade, TipoLogo, Produto, Grade } from './data'
 
 export type TabCad = 'clientes' | 'uniformes' | 'cores' | 'tecidos' | 'fornecedores'
@@ -177,7 +177,7 @@ export function ProdutoFields({
         </div>
         <div className="overflow-x-auto">
           <div className="min-w-[520px] space-y-2">
-            {[TAMANHOS_LINHA1, TAMANHOS_LINHA2].map((linha, li) => (
+            {[TAMANHOS_LINHA1, TAMANHOS_LINHA2, TAMANHOS_LINHA3].map((linha, li) => (
               <div key={li} className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${linha.length}, minmax(0, 1fr))` }}>
                 {linha.map((t) => (
                   <div key={t} className="text-center">
