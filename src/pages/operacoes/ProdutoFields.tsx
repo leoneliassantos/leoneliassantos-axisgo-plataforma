@@ -22,6 +22,10 @@ export interface ProdutoDraft {
   previsaoEdit: boolean
   prioridade: Prioridade
   prioridadeEdit: boolean
+  evento: boolean
+  eventoEdit: boolean
+  amostra: boolean
+  amostraEdit: boolean
   observacao: string
   grade: Grade
   temLogo: boolean
@@ -34,7 +38,8 @@ export const novaLinha = (): ProdutoDraft => ({
   key: Math.random().toString(36).slice(2),
   uniformeId: null, corId: null, tecidoId: null,
   numeroProposta: '', numeroPedido: '', propostaEdit: false, pedidoEdit: false,
-  qtd: '', previsaoEntrega: '', previsaoEdit: false, prioridade: 'media', prioridadeEdit: false, observacao: '', grade: {}, temLogo: false,
+  qtd: '', previsaoEntrega: '', previsaoEdit: false, prioridade: 'media', prioridadeEdit: false,
+  evento: false, eventoEdit: false, amostra: false, amostraEdit: false, observacao: '', grade: {}, temLogo: false,
   logos: { Bordado: { ativo: false, fornecedorId: null }, Silk: { ativo: false, fornecedorId: null }, DTF: { ativo: false, fornecedorId: null } },
 })
 
@@ -46,6 +51,7 @@ export function produtoToDraft(p: Produto): ProdutoDraft {
     uniformeId: p.uniformeId, corId: p.corId, tecidoId: p.tecidoId,
     numeroProposta: p.numeroProposta, numeroPedido: p.numeroPedido, propostaEdit: true, pedidoEdit: true,
     qtd: String(p.qtd), previsaoEntrega: p.previsaoEntrega, previsaoEdit: true, prioridade: p.prioridade, prioridadeEdit: true,
+    evento: p.evento, eventoEdit: true, amostra: p.amostra, amostraEdit: true,
     observacao: p.observacao ?? '', grade: { ...(p.grade ?? {}) },
     temLogo: p.logos.length > 0,
     logos: {
@@ -63,16 +69,32 @@ export const pedidoEfetivo = (d: ProdutoDraft, opPedido: string) => (d.pedidoEdi
 export const previsaoEfetiva = (d: ProdutoDraft, opPrevisao: string) => (d.previsaoEdit ? d.previsaoEntrega : opPrevisao)
 /** Prioridade efetiva: usa a do item se foi trocada; senão herda a prioridade do pedido. */
 export const prioridadeEfetiva = (d: ProdutoDraft, opPrioridade: Prioridade): Prioridade => (d.prioridadeEdit ? d.prioridade : opPrioridade)
+/** Evento/Amostra efetivos: usam o do item se foram trocados; senão herdam os do pedido. */
+export const eventoEfetivo = (d: ProdutoDraft, opEvento: boolean) => (d.eventoEdit ? d.evento : opEvento)
+export const amostraEfetiva = (d: ProdutoDraft, opAmostra: boolean) => (d.amostraEdit ? d.amostra : opAmostra)
 
-export function draftToInput(d: ProdutoDraft, opProposta: string, opPedido: string, opPrevisao = '', opPrioridade: Prioridade = 'media'): NovoProdutoInput {
+export function draftToInput(d: ProdutoDraft, opProposta: string, opPedido: string, opPrevisao = '', opPrioridade: Prioridade = 'media', opEvento = false, opAmostra = false): NovoProdutoInput {
   return {
     uniformeId: d.uniformeId, corId: d.corId, tecidoId: d.tecidoId,
     numeroProposta: propostaEfetiva(d, opProposta).trim(),
     numeroPedido: pedidoEfetivo(d, opPedido).trim(),
     qtd: Number(d.qtd), prioridade: prioridadeEfetiva(d, opPrioridade), previsaoEntrega: previsaoEfetiva(d, opPrevisao),
-    observacao: d.observacao.trim(), grade: d.grade,
+    observacao: d.observacao.trim(), evento: eventoEfetivo(d, opEvento), amostra: amostraEfetiva(d, opAmostra), grade: d.grade,
     logos: d.temLogo ? TIPOS_LOGO.filter((t) => d.logos[t].ativo).map((t) => ({ tipo: t, fornecedorId: d.logos[t].fornecedorId })) : [],
   }
+}
+
+/** Alternador Sim/Não (chrome neutro; ativo em tom escuro). Compartilhado com a Nova OP. */
+export function FlagSimNao({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+  const base = 'flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition'
+  const on = 'border-ink bg-ink text-surface'
+  const off = 'border-line bg-surface text-muted hover:border-ink/30'
+  return (
+    <div className="flex gap-2">
+      <button type="button" onClick={() => onChange(true)} className={`${base} ${value ? on : off}`}>Sim</button>
+      <button type="button" onClick={() => onChange(false)} className={`${base} ${!value ? on : off}`}>Não</button>
+    </div>
+  )
 }
 
 /**
@@ -94,7 +116,7 @@ const inp = 'w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm t
 
 /** Campos de UM produto — usado na Nova OP e no "Acrescentar item". */
 export function ProdutoFields({
-  draft, ativos, opProposta, opPedido, opPrevisao = '', opPrioridade = 'media', onChange, onAddCadastro,
+  draft, ativos, opProposta, opPedido, opPrevisao = '', opPrioridade = 'media', opEvento = false, opAmostra = false, onChange, onAddCadastro,
 }: {
   draft: ProdutoDraft
   ativos: Cadastros
@@ -102,6 +124,8 @@ export function ProdutoFields({
   opPedido: string
   opPrevisao?: string
   opPrioridade?: Prioridade
+  opEvento?: boolean
+  opAmostra?: boolean
   onChange: (patch: Partial<ProdutoDraft>) => void
   onAddCadastro: (tabela: TabCad, nome: string) => Promise<Cadastro>
 }) {
@@ -164,6 +188,20 @@ export function ProdutoFields({
             <option value="baixa">Baixa</option>
           </select>
           {!draft.prioridadeEdit && <span className="mt-1 block text-[11px] text-muted">Herda a prioridade do pedido</span>}
+        </div>
+      </div>
+
+      {/* Evento / Amostra — herdam do pedido, mas podem ser diferentes por item */}
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <div>
+          <label className={lab}>Evento</label>
+          <FlagSimNao value={eventoEfetivo(draft, opEvento)} onChange={(v) => onChange({ evento: v, eventoEdit: true })} />
+          {!draft.eventoEdit && <span className="mt-1 block text-[11px] text-muted">Herda do pedido</span>}
+        </div>
+        <div>
+          <label className={lab}>Amostra</label>
+          <FlagSimNao value={amostraEfetiva(draft, opAmostra)} onChange={(v) => onChange({ amostra: v, amostraEdit: true })} />
+          {!draft.amostraEdit && <span className="mt-1 block text-[11px] text-muted">Herda do pedido</span>}
         </div>
       </div>
 

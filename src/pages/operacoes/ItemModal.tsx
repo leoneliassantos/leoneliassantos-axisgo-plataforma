@@ -74,6 +74,8 @@ export function ItemModal({
     }
     if (responsavel.trim() !== (produto.responsavel || '')) ch.push(`Responsável: "${produto.responsavel || '—'}" → "${responsavel.trim() || '—'}"`)
     if (draft.previsaoEntrega !== produto.previsaoEntrega) ch.push(`Previsão: ${fmtBRfull(produto.previsaoEntrega) || '—'} → ${fmtBRfull(draft.previsaoEntrega) || '—'}`)
+    if (draft.evento !== produto.evento) ch.push(`Evento: ${produto.evento ? 'Sim' : 'Não'} → ${draft.evento ? 'Sim' : 'Não'}`)
+    if (draft.amostra !== produto.amostra) ch.push(`Amostra: ${produto.amostra ? 'Sim' : 'Não'} → ${draft.amostra ? 'Sim' : 'Não'}`)
     if (draft.observacao.trim() !== (produto.observacao || '')) ch.push(`Observação do item: "${produto.observacao || '—'}" → "${draft.observacao.trim() || '—'}"`)
     if (gradeResumo(draft.grade) !== gradeResumo(produto.grade)) ch.push(`Grade de tamanhos: ${gradeResumo(produto.grade)} → ${gradeResumo(draft.grade)}`)
     for (const t of TIPOS_LOGO) {
@@ -99,6 +101,7 @@ export function ItemModal({
       numeroProposta: draft.numeroProposta.trim(), numeroPedido: draft.numeroPedido.trim(),
       qtd: Number(draft.qtd) || 0, prioridade: draft.prioridade, responsavel: responsavel.trim(), previsaoEntrega: draft.previsaoEntrega,
       situacaoAuto: sitSel === 'auto', situacaoManual: sitSel === 'auto' ? produto.situacaoManual : sitSel,
+      evento: draft.evento, amostra: draft.amostra,
       observacao: draft.observacao.trim(), grade: draft.grade,
     }
     onSaveItem(patch, logos, mudancas.join('; '))

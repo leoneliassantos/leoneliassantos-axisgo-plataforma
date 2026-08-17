@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
 import { Combobox } from './Combobox'
 import { hojeISO } from './helpers'
-import { ProdutoFields, novaLinha, draftToInput, gradeErro, type ProdutoDraft, type TabCad } from './ProdutoFields'
+import { ProdutoFields, FlagSimNao, novaLinha, draftToInput, gradeErro, type ProdutoDraft, type TabCad } from './ProdutoFields'
 import { type Cadastro, type Cadastros, type NovoPedidoInput, type Prioridade, PRIO_LABEL } from './data'
 
 export function NovaOP({
@@ -65,7 +65,7 @@ export function NovaOP({
     const input: NovoPedidoInput = {
       clienteId, numeroProposta: numeroProposta.trim(), numeroPedido: numeroPedido.trim(), dataPedido, prioridade,
       evento, amostra, dataEntrega, observacao: observacao.trim(),
-      produtos: validos.map((p) => draftToInput(p, numeroProposta, numeroPedido, dataEntrega, prioridade)),
+      produtos: validos.map((p) => draftToInput(p, numeroProposta, numeroPedido, dataEntrega, prioridade, evento, amostra)),
     }
     onCreate(input)
   }
@@ -165,7 +165,7 @@ export function NovaOP({
                 </button>
               )}
             </div>
-            <ProdutoFields draft={p} ativos={ativos} opProposta={numeroProposta} opPedido={numeroPedido} opPrevisao={dataEntrega} opPrioridade={prioridade} onChange={(patch) => upd(p.key, patch)} onAddCadastro={onAddCadastro} />
+            <ProdutoFields draft={p} ativos={ativos} opProposta={numeroProposta} opPedido={numeroPedido} opPrevisao={dataEntrega} opPrioridade={prioridade} opEvento={evento} opAmostra={amostra} onChange={(patch) => upd(p.key, patch)} onAddCadastro={onAddCadastro} />
           </div>
         ))}
       </div>
@@ -175,15 +175,3 @@ export function NovaOP({
   )
 }
 
-/** Alternador Sim/Não (chrome neutro; ativo em tom escuro). */
-function FlagSimNao({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
-  const base = 'flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition'
-  const on = 'border-ink bg-ink text-surface'
-  const off = 'border-line bg-surface text-muted hover:border-ink/30'
-  return (
-    <div className="flex gap-2">
-      <button type="button" onClick={() => onChange(true)} className={`${base} ${value ? on : off}`}>Sim</button>
-      <button type="button" onClick={() => onChange(false)} className={`${base} ${!value ? on : off}`}>Não</button>
-    </div>
-  )
-}
