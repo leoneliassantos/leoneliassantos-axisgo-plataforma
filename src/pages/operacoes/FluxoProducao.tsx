@@ -142,20 +142,22 @@ export function FluxoProducao() {
 
   return (
     <div>
-      {/* Cabeçalho */}
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">Operações · Produção</div>
-          <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">Fluxo de Produção</h1>
+      {/* Cabeçalho — só na lista; no quadro dá lugar ao Kanban */}
+      {view === 'list' && (
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">Operações · Produção</div>
+            <h1 className="mt-0.5 font-serif text-xl font-semibold text-ink">Fluxo de Produção</h1>
+          </div>
+          <div className="flex items-center gap-2">
+            {isDemo && <span className="rounded-full bg-amber-500/12 px-2.5 py-1 text-[11px] font-medium text-amber-700">Modo demonstração</span>}
+            <BtnPrimary onClick={() => setShowNova(true)}>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14" strokeWidth="2" strokeLinecap="round" /></svg>
+              Nova OP
+            </BtnPrimary>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {isDemo && <span className="rounded-full bg-amber-500/12 px-2.5 py-1 text-[11px] font-medium text-amber-700">Modo demonstração</span>}
-          <BtnPrimary onClick={() => setShowNova(true)}>
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14" strokeWidth="2" strokeLinecap="round" /></svg>
-            Nova OP
-          </BtnPrimary>
-        </div>
-      </div>
+      )}
 
       {view === 'list'
         ? <ListaPedidos pedidos={pedidos} busca={busca} setBusca={setBusca} filtroSit={filtroSit} setFiltroSit={setFiltroSit} onAbrir={abrirBoard} onNova={() => setShowNova(true)} />
@@ -307,8 +309,8 @@ function LinhaTempoProducao({ order }: { order: Pedido }) {
   const maisAvancada = ETAPAS.reduce((m, e, i) => ((cont[e.id] ?? 0) > 0 ? i : m), -1)
   const W = 108
   return (
-    <div className="mb-5 rounded-2xl border border-line bg-surface p-4">
-      <div className="mb-4 flex flex-wrap items-center gap-2.5">
+    <div className="mb-3 rounded-2xl border border-line bg-surface px-4 py-3">
+      <div className="mb-2 flex flex-wrap items-center gap-2.5">
         <h3 className="mr-1 font-serif text-base font-semibold text-ink">Linha do Tempo · Produção</h3>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-band/10 px-2.5 py-1 text-[12px] font-medium text-band">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" /><path d="M4 7.5 12 12l8-4.5M12 12v9" /></svg>
@@ -319,7 +321,7 @@ function LinhaTempoProducao({ order }: { order: Pedido }) {
           {atrasadas} atrasada{atrasadas === 1 ? '' : 's'}
         </span>
       </div>
-      <div className="overflow-x-auto pb-1">
+      <div className="overflow-x-auto pt-2.5 pb-1">
         <div className="relative" style={{ width: ETAPAS.length * W }}>
           {/* trilho */}
           <div className="absolute h-[3px] rounded bg-line" style={{ left: W / 2, right: W / 2, top: 21 }} />
@@ -381,22 +383,24 @@ function Quadro({
   const r = resumoPedido(order)
   return (
     <div>
-      <button
-        type="button"
-        onClick={onVoltar}
-        className="mb-3 inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-medium text-ink transition hover:border-ink/30 hover:bg-paper"
-      >
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"><path d="M15 6l-6 6 6 6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
-        Voltar aos pedidos
-      </button>
-
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="font-serif text-lg font-semibold text-ink">{order.clienteNome}</div>
-          <div className="text-[13px] text-muted">
-            {order.numeroProposta && <>Proposta <b className="text-ink/80">{order.numeroProposta}</b> · </>}
-            {order.numeroPedido && <>Pedido <b className="text-ink/80">{order.numeroPedido}</b> · </>}
-            {r.total} itens · {r.entregues} entregues · {r.progresso}%
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={onVoltar}
+            title="Voltar aos pedidos"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-sm font-medium text-ink transition hover:border-ink/30 hover:bg-paper"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"><path d="M15 6l-6 6 6 6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            Voltar
+          </button>
+          <div>
+            <div className="font-serif text-lg font-semibold leading-tight text-ink">{order.clienteNome}</div>
+            <div className="text-[13px] text-muted">
+              {order.numeroProposta && <>Proposta <b className="text-ink/80">{order.numeroProposta}</b> · </>}
+              {order.numeroPedido && <>Pedido <b className="text-ink/80">{order.numeroPedido}</b> · </>}
+              {r.total} itens · {r.entregues} entregues · {r.progresso}%
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -413,8 +417,9 @@ function Quadro({
 
       <LinhaTempoProducao order={order} />
 
-      <div className="overflow-x-auto pb-3">
-        <div className="flex gap-3" style={{ minWidth: 'min-content' }}>
+      {/* Kanban — ocupa o restante da altura da tela para caber mais cards */}
+      <div className="overflow-x-auto pb-3" style={{ height: 'calc(100vh - 320px)', minHeight: 360 }}>
+        <div className="flex h-full gap-3" style={{ minWidth: 'min-content' }}>
           {ETAPAS.map((e) => {
             const itens = order.produtos.filter((it) => it.etapaId === e.id && itemFiltraTexto(it, busca))
             return (
@@ -422,13 +427,13 @@ function Quadro({
                 key={e.id}
                 onDragOver={(ev) => ev.preventDefault()}
                 onDrop={() => { if (dragId.current) { const id = dragId.current; const it = order.produtos.find((x) => x.id === id); if (it) onSoltar(id, it.etapaId, e.id); dragId.current = null } }}
-                className="flex w-64 shrink-0 flex-col rounded-xl bg-paper"
+                className="flex h-full w-64 shrink-0 flex-col rounded-xl bg-paper"
               >
                 <div className="flex items-center justify-between rounded-t-xl px-3 py-2" style={{ background: `${ETAPA_COR[e.id]}18` }}>
                   <span className="text-[13px] font-semibold" style={{ color: ETAPA_COR[e.id] }}>{e.label}</span>
                   <span className="tnum rounded-full bg-surface px-1.5 text-[11px] font-semibold text-muted">{itens.length}</span>
                 </div>
-                <div className="flex min-h-[80px] flex-col gap-2 p-2">
+                <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2">
                   {itens.map((it) => <CardItem key={it.id} it={it} onAbrir={onAbrirItem} dragId={dragId} />)}
                 </div>
               </div>
