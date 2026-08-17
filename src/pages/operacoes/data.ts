@@ -198,6 +198,14 @@ export function situacaoEfetiva(p: { situacaoAuto: boolean; situacaoManual: Stat
   return p.situacaoAuto ? situacaoAutomatica(p.previsaoEntrega, p.etapaId) : p.situacaoManual
 }
 
+/** Texto explicativo da regra da situação (para tooltips). */
+export const SITUACAO_REGRA =
+  'Situação calculada pela previsão de entrega:\n' +
+  '• Atrasado — a previsão já venceu e o item não saiu para entrega\n' +
+  `• Alerta — faltam ${ALERTA_DIAS} dias ou menos para a entrega\n` +
+  `• No prazo — mais de ${ALERTA_DIAS} dias, sem data, ou item já entregue\n` +
+  'Pode ser definida manualmente no detalhe do item.'
+
 /** Progresso (0-100) a partir da etapa atual. */
 export function progressoDaEtapa(etapaId: string): number {
   const idx = ETAPAS.findIndex((e) => e.id === etapaId)

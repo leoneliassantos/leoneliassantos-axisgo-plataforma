@@ -4,7 +4,7 @@ import { fmtBRfull, hojeISO, daysBetween, statusClasse } from './helpers'
 import { ProdutoFields, produtoToDraft, gradeErro, TIPOS_LOGO, type ProdutoDraft, type TabCad } from './ProdutoFields'
 import {
   type Produto, type ProdutoPatch, type StatusProd, type TipoLogo, type Cadastro, type Cadastros, type Grade,
-  ETAPAS, etapaLabel, PRIO_LABEL, STATUS_LABEL, TAMANHOS, situacaoAutomatica,
+  ETAPAS, etapaLabel, PRIO_LABEL, STATUS_LABEL, TAMANHOS, situacaoAutomatica, SITUACAO_REGRA,
 } from './data'
 
 const nomeDe = (list: Cadastro[], id: string | null) => (id ? list.find((c) => c.id === id)?.nome ?? '' : '')
@@ -151,7 +151,9 @@ export function ItemModal({
               <input className={inp} value={responsavel} onChange={(e) => setResponsavel(e.target.value)} placeholder="Ex.: AL" />
             </div>
             <div>
-              <label className={lab}>Situação</label>
+              <label className={`${lab} inline-flex cursor-help items-center gap-1`} title={SITUACAO_REGRA}>Situação
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" className="text-muted/70" aria-hidden="true"><circle cx="12" cy="12" r="9" strokeWidth="1.7" /><path d="M12 11.5v4.5" strokeWidth="1.7" strokeLinecap="round" /><circle cx="12" cy="7.9" r="0.95" fill="currentColor" stroke="none" /></svg>
+              </label>
               <select className={inp} value={sitSel} onChange={(e) => setSitSel(e.target.value as 'auto' | StatusProd)}>
                 <option value="auto">Automático (pela data)</option>
                 <option value="ok">No prazo</option><option value="atrasado">Atrasado</option>

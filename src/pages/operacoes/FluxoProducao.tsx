@@ -9,7 +9,7 @@ import {
 } from './helpers'
 import {
   loadCadastros, loadPedidos, addCadastro, createPedido, addProduto, updateProduto, setProdutoLogos, moveProduto, addObservacao,
-  isDemo, ETAPAS, ETAPA_COR, STATUS_LABEL, PRIO_LABEL,
+  isDemo, ETAPAS, ETAPA_COR, STATUS_LABEL, PRIO_LABEL, SITUACAO_REGRA,
   type Cadastros, type Pedido, type Produto, type ProdutoPatch, type NovoPedidoInput, type NovoProdutoInput, type StatusProd, type TipoLogo,
 } from './data'
 
@@ -262,7 +262,10 @@ function LinhaPedido({ ped, onAbrir }: { ped: Pedido; onAbrir: (id: string) => v
       </div>
 
       <div className="flex items-center justify-end gap-3">
-        <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${statusClasse(r.situacao)}`}>{sitTxt}</span>
+        <span className="inline-flex items-center gap-1" title={SITUACAO_REGRA}>
+          <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${statusClasse(r.situacao)}`}>{sitTxt}</span>
+          <IconInfo />
+        </span>
         <div className="flex items-center gap-1.5">
           <span className="h-1.5 w-20 overflow-hidden rounded-full bg-line"><span className="block h-full rounded-full bg-ink" style={{ width: `${r.progresso}%` }} /></span>
           <span className="tnum w-9 text-right text-[12px] text-muted">{r.progresso}%</span>
@@ -270,6 +273,17 @@ function LinhaPedido({ ped, onAbrir }: { ped: Pedido; onAbrir: (id: string) => v
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" className="text-muted transition group-hover:translate-x-0.5 group-hover:text-ink"><path d="M9 6l6 6-6 6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </div>
     </button>
+  )
+}
+
+/** Ícone "i" que sinaliza um tooltip (a explicação vem do atributo title do elemento pai). */
+function IconInfo() {
+  return (
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" className="cursor-help text-muted/70" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" strokeWidth="1.7" />
+      <path d="M12 11.5v4.5" strokeWidth="1.7" strokeLinecap="round" />
+      <circle cx="12" cy="7.9" r="0.95" fill="currentColor" stroke="none" />
+    </svg>
   )
 }
 
@@ -377,7 +391,7 @@ function CardItem({ it, onAbrir, dragId }: { it: Produto; onAbrir: (id: string) 
         </div>
       )}
       <div className="mt-2 flex items-center justify-between">
-        <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${statusClasse(it.status)}`}>{STATUS_LABEL[it.status]}</span>
+        <span className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${statusClasse(it.status)}`} title={SITUACAO_REGRA}>{STATUS_LABEL[it.status]}</span>
         {it.previsaoEntrega && <span className="tnum text-[11px] text-muted">{fmtBR(it.previsaoEntrega)}</span>}
       </div>
     </div>
