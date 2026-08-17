@@ -65,7 +65,7 @@ export function NovaOP({
     const input: NovoPedidoInput = {
       clienteId, numeroProposta: numeroProposta.trim(), numeroPedido: numeroPedido.trim(), dataPedido, prioridade,
       evento, amostra, dataEntrega, observacao: observacao.trim(),
-      produtos: validos.map((p) => draftToInput(p, numeroProposta, numeroPedido, dataEntrega)),
+      produtos: validos.map((p) => draftToInput(p, numeroProposta, numeroPedido, dataEntrega, prioridade)),
     }
     onCreate(input)
   }
@@ -165,7 +165,7 @@ export function NovaOP({
                 </button>
               )}
             </div>
-            <ProdutoFields draft={p} ativos={ativos} opProposta={numeroProposta} opPedido={numeroPedido} opPrevisao={dataEntrega} onChange={(patch) => upd(p.key, patch)} onAddCadastro={onAddCadastro} />
+            <ProdutoFields draft={p} ativos={ativos} opProposta={numeroProposta} opPedido={numeroPedido} opPrevisao={dataEntrega} opPrioridade={prioridade} onChange={(patch) => upd(p.key, patch)} onAddCadastro={onAddCadastro} />
           </div>
         ))}
       </div>

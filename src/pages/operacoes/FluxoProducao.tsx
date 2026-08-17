@@ -165,7 +165,7 @@ export function FluxoProducao() {
         <NovaOP cadastros={cadastros} saving={saving} onAddCadastro={handleAddCadastro} onCreate={handleCreate} onClose={() => setShowNova(false)} />
       )}
       {addItemOpId && currentOrder && (
-        <NovoItem cadastros={cadastros} opProposta={currentOrder.numeroProposta} opPedido={currentOrder.numeroPedido} opPrevisao={currentOrder.dataEntrega} saving={saving} onAddCadastro={handleAddCadastro} onCreate={handleAddItem} onClose={() => setAddItemOpId(null)} />
+        <NovoItem cadastros={cadastros} opProposta={currentOrder.numeroProposta} opPedido={currentOrder.numeroPedido} opPrevisao={currentOrder.dataEntrega} opPrioridade={currentOrder.prioridade} saving={saving} onAddCadastro={handleAddCadastro} onCreate={handleAddItem} onClose={() => setAddItemOpId(null)} />
       )}
       {itemAberto && (
         <ItemModal key={itemAberto.id} produto={itemAberto} cadastros={cadastros} saving={saving} onSaveItem={handleSaveItem} onMover={(para) => pedirMove(itemAberto.id, itemAberto.etapaId, para)} onAddObs={handleAddObs} onAddCadastro={handleAddCadastro} onClose={() => setItemId(null)} />

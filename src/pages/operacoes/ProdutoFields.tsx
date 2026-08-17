@@ -21,6 +21,7 @@ export interface ProdutoDraft {
   previsaoEntrega: string
   previsaoEdit: boolean
   prioridade: Prioridade
+  prioridadeEdit: boolean
   observacao: string
   grade: Grade
   temLogo: boolean
@@ -33,7 +34,7 @@ export const novaLinha = (): ProdutoDraft => ({
   key: Math.random().toString(36).slice(2),
   uniformeId: null, corId: null, tecidoId: null,
   numeroProposta: '', numeroPedido: '', propostaEdit: false, pedidoEdit: false,
-  qtd: '', previsaoEntrega: '', previsaoEdit: false, prioridade: 'media', observacao: '', grade: {}, temLogo: false,
+  qtd: '', previsaoEntrega: '', previsaoEdit: false, prioridade: 'media', prioridadeEdit: false, observacao: '', grade: {}, temLogo: false,
   logos: { Bordado: { ativo: false, fornecedorId: null }, Silk: { ativo: false, fornecedorId: null }, DTF: { ativo: false, fornecedorId: null } },
 })
 
@@ -44,7 +45,7 @@ export function produtoToDraft(p: Produto): ProdutoDraft {
     key: p.id,
     uniformeId: p.uniformeId, corId: p.corId, tecidoId: p.tecidoId,
     numeroProposta: p.numeroProposta, numeroPedido: p.numeroPedido, propostaEdit: true, pedidoEdit: true,
-    qtd: String(p.qtd), previsaoEntrega: p.previsaoEntrega, previsaoEdit: true, prioridade: p.prioridade,
+    qtd: String(p.qtd), previsaoEntrega: p.previsaoEntrega, previsaoEdit: true, prioridade: p.prioridade, prioridadeEdit: true,
     observacao: p.observacao ?? '', grade: { ...(p.grade ?? {}) },
     temLogo: p.logos.length > 0,
     logos: {
@@ -60,29 +61,31 @@ export const propostaEfetiva = (d: ProdutoDraft, opProposta: string) => (d.propo
 export const pedidoEfetivo = (d: ProdutoDraft, opPedido: string) => (d.pedidoEdit ? d.numeroPedido : opPedido)
 /** Previsão efetiva: usa a do item se foi editada; senão herda a data de entrega da OP. */
 export const previsaoEfetiva = (d: ProdutoDraft, opPrevisao: string) => (d.previsaoEdit ? d.previsaoEntrega : opPrevisao)
+/** Prioridade efetiva: usa a do item se foi trocada; senão herda a prioridade do pedido. */
+export const prioridadeEfetiva = (d: ProdutoDraft, opPrioridade: Prioridade): Prioridade => (d.prioridadeEdit ? d.prioridade : opPrioridade)
 
-export function draftToInput(d: ProdutoDraft, opProposta: string, opPedido: string, opPrevisao = ''): NovoProdutoInput {
+export function draftToInput(d: ProdutoDraft, opProposta: string, opPedido: string, opPrevisao = '', opPrioridade: Prioridade = 'media'): NovoProdutoInput {
   return {
     uniformeId: d.uniformeId, corId: d.corId, tecidoId: d.tecidoId,
     numeroProposta: propostaEfetiva(d, opProposta).trim(),
     numeroPedido: pedidoEfetivo(d, opPedido).trim(),
-    qtd: Number(d.qtd), prioridade: d.prioridade, previsaoEntrega: previsaoEfetiva(d, opPrevisao),
+    qtd: Number(d.qtd), prioridade: prioridadeEfetiva(d, opPrioridade), previsaoEntrega: previsaoEfetiva(d, opPrevisao),
     observacao: d.observacao.trim(), grade: d.grade,
     logos: d.temLogo ? TIPOS_LOGO.filter((t) => d.logos[t].ativo).map((t) => ({ tipo: t, fornecedorId: d.logos[t].fornecedorId })) : [],
   }
 }
 
 /**
- * Valida a grade de tamanhos contra a quantidade. Só cobra quando a grade foi
- * usada (soma > 0): se a soma não bater com a quantidade, devolve o texto do erro.
- * Grade vazia é permitida (ainda não distribuída).
+ * Valida a grade de tamanhos contra a quantidade. A grade é OBRIGATÓRIA: o total
+ * distribuído deve ser igual à quantidade de peças do item. (Só não valida quando
+ * ainda não há quantidade — o submit já cobra a quantidade separadamente.)
  */
 export function gradeErro(d: ProdutoDraft): string | null {
-  const soma = somaGrade(d.grade)
   const qtd = Number(d.qtd) || 0
-  if (soma > 0 && soma !== qtd) {
-    return `A quantidade de peças (${qtd}) não bate com a soma da grade de tamanhos (${soma}).`
-  }
+  if (qtd <= 0) return null
+  const soma = somaGrade(d.grade)
+  if (soma === 0) return `Preencha a grade de tamanhos: distribua as ${qtd} peça(s) entre os tamanhos.`
+  if (soma !== qtd) return `A quantidade de peças (${qtd}) não bate com a soma da grade de tamanhos (${soma}).`
   return null
 }
 
@@ -91,13 +94,14 @@ const inp = 'w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm t
 
 /** Campos de UM produto — usado na Nova OP e no "Acrescentar item". */
 export function ProdutoFields({
-  draft, ativos, opProposta, opPedido, opPrevisao = '', onChange, onAddCadastro,
+  draft, ativos, opProposta, opPedido, opPrevisao = '', opPrioridade = 'media', onChange, onAddCadastro,
 }: {
   draft: ProdutoDraft
   ativos: Cadastros
   opProposta: string
   opPedido: string
   opPrevisao?: string
+  opPrioridade?: Prioridade
   onChange: (patch: Partial<ProdutoDraft>) => void
   onAddCadastro: (tabela: TabCad, nome: string) => Promise<Cadastro>
 }) {
@@ -154,11 +158,12 @@ export function ProdutoFields({
         </div>
         <div>
           <label className={lab}>Prioridade do produto</label>
-          <select className={inp} value={draft.prioridade} onChange={(e) => onChange({ prioridade: e.target.value as Prioridade })}>
+          <select className={inp} value={prioridadeEfetiva(draft, opPrioridade)} onChange={(e) => onChange({ prioridade: e.target.value as Prioridade, prioridadeEdit: true })}>
             <option value="alta">Alta</option>
             <option value="media">Média</option>
             <option value="baixa">Baixa</option>
           </select>
+          {!draft.prioridadeEdit && <span className="mt-1 block text-[11px] text-muted">Herda a prioridade do pedido</span>}
         </div>
       </div>
 

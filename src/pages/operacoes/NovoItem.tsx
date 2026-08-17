@@ -1,15 +1,16 @@
 import { useState } from 'react'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
 import { ProdutoFields, novaLinha, draftToInput, gradeErro, type ProdutoDraft, type TabCad } from './ProdutoFields'
-import type { Cadastro, Cadastros, NovoProdutoInput } from './data'
+import type { Cadastro, Cadastros, NovoProdutoInput, Prioridade } from './data'
 
 export function NovoItem({
-  cadastros, opProposta, opPedido, opPrevisao = '', saving, onAddCadastro, onCreate, onClose,
+  cadastros, opProposta, opPedido, opPrevisao = '', opPrioridade = 'media', saving, onAddCadastro, onCreate, onClose,
 }: {
   cadastros: Cadastros
   opProposta: string
   opPedido: string
   opPrevisao?: string
+  opPrioridade?: Prioridade
   saving: boolean
   onAddCadastro: (tabela: TabCad, nome: string) => Promise<Cadastro>
   onCreate: (input: NovoProdutoInput) => void
@@ -31,7 +32,7 @@ export function NovoItem({
     if (!draft.uniformeId || !(Number(draft.qtd) > 0)) { setErro('Informe o uniforme e a quantidade.'); return }
     const ge = gradeErro(draft)
     if (ge) { setErro(ge); return }
-    onCreate(draftToInput(draft, opProposta, opPedido, opPrevisao))
+    onCreate(draftToInput(draft, opProposta, opPedido, opPrevisao, opPrioridade))
   }
 
   return (
@@ -47,7 +48,7 @@ export function NovoItem({
         </>
       }
     >
-      <ProdutoFields draft={draft} ativos={ativos} opProposta={opProposta} opPedido={opPedido} opPrevisao={opPrevisao} onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))} onAddCadastro={onAddCadastro} />
+      <ProdutoFields draft={draft} ativos={ativos} opProposta={opProposta} opPedido={opPedido} opPrevisao={opPrevisao} opPrioridade={opPrioridade} onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))} onAddCadastro={onAddCadastro} />
       {erro && <p className="mt-4 rounded-lg bg-neg/10 px-3 py-2 text-sm text-neg">{erro}</p>}
     </Modal>
   )
