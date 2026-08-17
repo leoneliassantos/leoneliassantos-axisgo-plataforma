@@ -55,12 +55,14 @@ export function FluxoProducao() {
 
   useEffect(() => { carregar() }, [carregar])
 
-  // Abertura direta pelo link vindo de "Ordens de Produção" (?op=<id>).
+  // Abertura direta pelo link vindo de "Ordens de Produção" (?op=<id>&item=<id>).
   useEffect(() => {
     const op = searchParams.get('op')
+    const item = searchParams.get('item')
     if (op && pedidos.some((p) => p.id === op)) {
       setOrderId(op); setView('board'); setBusca(''); setFiltroSit('')
-      const next = new URLSearchParams(searchParams); next.delete('op'); setSearchParams(next, { replace: true })
+      if (item && pedidos.some((p) => p.produtos.some((x) => x.id === item))) setItemId(item)
+      const next = new URLSearchParams(searchParams); next.delete('op'); next.delete('item'); setSearchParams(next, { replace: true })
     }
   }, [pedidos, searchParams, setSearchParams])
 

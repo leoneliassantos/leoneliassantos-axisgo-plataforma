@@ -6,6 +6,7 @@ import { loadPedidos, deletePedido, etapaLabel, ETAPAS, STATUS_LABEL, PRIO_LABEL
 
 interface LinhaProduto {
   pedidoId: string
+  produtoId: string
   cliente: string
   uniforme: string
   cor: string
@@ -43,6 +44,11 @@ export function OrdensProducao() {
     navigate(`/operacoes/fluxo-producao?op=${pedidoId}`)
   }
 
+  function editarItem(e: React.MouseEvent, l: LinhaProduto) {
+    e.stopPropagation()
+    navigate(`/operacoes/fluxo-producao?op=${l.pedidoId}&item=${l.produtoId}`)
+  }
+
   async function excluirOP(e: React.MouseEvent, l: LinhaProduto) {
     e.stopPropagation()
     if (!isAdmin) return
@@ -60,7 +66,7 @@ export function OrdensProducao() {
     const out: LinhaProduto[] = []
     for (const p of pedidos) for (const it of p.produtos) {
       out.push({
-        pedidoId: p.id, cliente: p.clienteNome, uniforme: it.uniformeNome, cor: it.corNome, tecido: it.tecidoNome, qtd: it.qtd,
+        pedidoId: p.id, produtoId: it.id, cliente: p.clienteNome, uniforme: it.uniformeNome, cor: it.corNome, tecido: it.tecidoNome, qtd: it.qtd,
         numeroPedido: it.numeroPedido || p.numeroProposta, etapaId: it.etapaId, status: it.status,
         prioridade: it.prioridade, previsao: it.previsaoEntrega, responsavel: it.responsavel,
       })
@@ -107,7 +113,7 @@ export function OrdensProducao() {
         </select>
         <span className="text-sm text-muted">{visiveis.length} itens</span>
       </div>
-      <p className="mb-3 text-[12px] text-muted">Clique numa linha para abrir o fluxo de produção daquele pedido.</p>
+      <p className="mb-3 text-[12px] text-muted">Clique numa linha para abrir o fluxo do pedido, ou use o lápis para alterar todos os dados do item.</p>
 
       {visiveis.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-line bg-surface p-12 text-center text-muted">Nenhum item {busca || filtroEtapa || filtroSit ? 'com esse filtro' : 'ainda'}.</div>
@@ -119,7 +125,7 @@ export function OrdensProducao() {
                 <th className={th}>Cliente</th><th className={th}>Uniforme</th><th className={th}>Cor</th><th className={th}>Tecido</th>
                 <th className={`${th} text-right`}>Qtd</th><th className={th}>Nº Pedido</th><th className={th}>Etapa atual</th>
                 <th className={th}>Situação</th><th className={th}>Prioridade</th><th className={th}>Previsão</th><th className={th}>Resp.</th>
-                {isAdmin && <th className={`${th} text-right`}>Ações</th>}
+                <th className={`${th} text-right`}>Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -141,20 +147,31 @@ export function OrdensProducao() {
                   <td className={td}><span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full" style={{ background: prioCor(l.prioridade) }} />{PRIO_LABEL[l.prioridade]}</span></td>
                   <td className={`${td} tnum text-muted`}>{fmtBR(l.previsao) || '—'}</td>
                   <td className={`${td} text-muted`}>{l.responsavel || '—'}</td>
-                  {isAdmin && (
-                    <td className={`${td} text-right`}>
+                  <td className={`${td} text-right`}>
+                    <div className="flex items-center justify-end gap-1">
                       <button
                         type="button"
-                        onClick={(e) => excluirOP(e, l)}
-                        disabled={excluindo}
-                        title="Excluir esta OP"
-                        className="rounded-md p-1.5 text-muted transition hover:bg-neg/10 hover:text-neg disabled:opacity-50"
-                        aria-label="Excluir OP"
+                        onClick={(e) => editarItem(e, l)}
+                        title="Alterar os dados desta OP"
+                        className="rounded-md p-1.5 text-muted transition hover:bg-ink/5 hover:text-ink"
+                        aria-label="Alterar OP"
                       >
-                        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /><path d="M13.5 6.5l3 3" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
                       </button>
-                    </td>
-                  )}
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={(e) => excluirOP(e, l)}
+                          disabled={excluindo}
+                          title="Excluir esta OP"
+                          className="rounded-md p-1.5 text-muted transition hover:bg-neg/10 hover:text-neg disabled:opacity-50"
+                          aria-label="Excluir OP"
+                        >
+                          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                        </button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
