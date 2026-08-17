@@ -23,8 +23,18 @@ export function NovaOP({
   const [numeroPedido, setNumeroPedido] = useState('')
   const [dataPedido, setDataPedido] = useState(hojeISO())
   const [prioridade, setPrioridade] = useState<Prioridade>('media')
+  const [evento, setEvento] = useState(false)
+  const [amostra, setAmostra] = useState(false)
+  const [dataEntrega, setDataEntrega] = useState('')
+  const [observacao, setObservacao] = useState('')
   const [produtos, setProdutos] = useState<ProdutoDraft[]>([novaLinha()])
   const [erro, setErro] = useState<string | null>(null)
+
+  // Evento marcado como "Sim" força a prioridade do pedido para Alta.
+  function setEventoFlag(v: boolean) {
+    setEvento(v)
+    if (v) setPrioridade('alta')
+  }
 
   // No lançamento só aparecem cadastros ATIVOS (bloqueados ficam de fora).
   const ativos: Cadastros = {
@@ -50,7 +60,8 @@ export function NovaOP({
     if (!validos.length) { setErro('Adicione ao menos um produto com uniforme e quantidade.'); return }
     const input: NovoPedidoInput = {
       clienteId, numeroProposta: numeroProposta.trim(), numeroPedido: numeroPedido.trim(), dataPedido, prioridade,
-      produtos: validos.map((p) => draftToInput(p, numeroProposta, numeroPedido)),
+      evento, amostra, dataEntrega, observacao: observacao.trim(),
+      produtos: validos.map((p) => draftToInput(p, numeroProposta, numeroPedido, dataEntrega)),
     }
     onCreate(input)
   }
@@ -106,6 +117,30 @@ export function NovaOP({
         </div>
       </div>
 
+      {/* Controle do processo */}
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div>
+          <label className={lab}>Evento</label>
+          <FlagSimNao value={evento} onChange={setEventoFlag} />
+          {evento && <span className="mt-1 block text-[11px] text-muted">Prioridade definida como Alta.</span>}
+        </div>
+        <div>
+          <label className={lab}>Amostra</label>
+          <FlagSimNao value={amostra} onChange={setAmostra} />
+        </div>
+        <div>
+          <label className={lab}>Data de entrega do pedido</label>
+          <input type="date" className={inp} value={dataEntrega} onChange={(e) => setDataEntrega(e.target.value)} />
+          <span className="mt-1 block text-[11px] text-muted">Preenche a previsão dos itens (editável em cada um).</span>
+        </div>
+      </div>
+
+      {/* Observação do pedido */}
+      <div className="mt-4">
+        <label className={lab}>Observação</label>
+        <textarea className={`${inp} min-h-[64px] resize-y`} value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Observação livre sobre o pedido (opcional)" />
+      </div>
+
       {/* Produtos */}
       <div className="mt-6 flex items-center justify-between">
         <h3 className="font-serif text-base font-semibold text-ink">Produtos do pedido</h3>
@@ -126,12 +161,25 @@ export function NovaOP({
                 </button>
               )}
             </div>
-            <ProdutoFields draft={p} ativos={ativos} opProposta={numeroProposta} opPedido={numeroPedido} onChange={(patch) => upd(p.key, patch)} onAddCadastro={onAddCadastro} />
+            <ProdutoFields draft={p} ativos={ativos} opProposta={numeroProposta} opPedido={numeroPedido} opPrevisao={dataEntrega} onChange={(patch) => upd(p.key, patch)} onAddCadastro={onAddCadastro} />
           </div>
         ))}
       </div>
 
       {erro && <p className="mt-4 rounded-lg bg-neg/10 px-3 py-2 text-sm text-neg">{erro}</p>}
     </Modal>
+  )
+}
+
+/** Alternador Sim/Não (chrome neutro; ativo em tom escuro). */
+function FlagSimNao({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+  const base = 'flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition'
+  const on = 'border-ink bg-ink text-surface'
+  const off = 'border-line bg-surface text-muted hover:border-ink/30'
+  return (
+    <div className="flex gap-2">
+      <button type="button" onClick={() => onChange(true)} className={`${base} ${value ? on : off}`}>Sim</button>
+      <button type="button" onClick={() => onChange(false)} className={`${base} ${!value ? on : off}`}>Não</button>
+    </div>
   )
 }

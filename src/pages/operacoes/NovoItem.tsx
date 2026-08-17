@@ -4,11 +4,12 @@ import { ProdutoFields, novaLinha, draftToInput, type ProdutoDraft, type TabCad 
 import type { Cadastro, Cadastros, NovoProdutoInput } from './data'
 
 export function NovoItem({
-  cadastros, opProposta, opPedido, saving, onAddCadastro, onCreate, onClose,
+  cadastros, opProposta, opPedido, opPrevisao = '', saving, onAddCadastro, onCreate, onClose,
 }: {
   cadastros: Cadastros
   opProposta: string
   opPedido: string
+  opPrevisao?: string
   saving: boolean
   onAddCadastro: (tabela: TabCad, nome: string) => Promise<Cadastro>
   onCreate: (input: NovoProdutoInput) => void
@@ -28,7 +29,7 @@ export function NovoItem({
   function submit() {
     setErro(null)
     if (!draft.uniformeId || !(Number(draft.qtd) > 0)) { setErro('Informe o uniforme e a quantidade.'); return }
-    onCreate(draftToInput(draft, opProposta, opPedido))
+    onCreate(draftToInput(draft, opProposta, opPedido, opPrevisao))
   }
 
   return (
@@ -44,7 +45,7 @@ export function NovoItem({
         </>
       }
     >
-      <ProdutoFields draft={draft} ativos={ativos} opProposta={opProposta} opPedido={opPedido} onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))} onAddCadastro={onAddCadastro} />
+      <ProdutoFields draft={draft} ativos={ativos} opProposta={opProposta} opPedido={opPedido} opPrevisao={opPrevisao} onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))} onAddCadastro={onAddCadastro} />
       {erro && <p className="mt-4 rounded-lg bg-neg/10 px-3 py-2 text-sm text-neg">{erro}</p>}
     </Modal>
   )

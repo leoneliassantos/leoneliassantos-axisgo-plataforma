@@ -18,6 +18,7 @@ export interface ProdutoDraft {
   pedidoEdit: boolean
   qtd: string
   previsaoEntrega: string
+  previsaoEdit: boolean
   prioridade: Prioridade
   temLogo: boolean
   logos: Record<TipoLogo, LogoDraft>
@@ -29,7 +30,7 @@ export const novaLinha = (): ProdutoDraft => ({
   key: Math.random().toString(36).slice(2),
   uniformeId: null, corId: null, tecidoId: null,
   numeroProposta: '', numeroPedido: '', propostaEdit: false, pedidoEdit: false,
-  qtd: '', previsaoEntrega: '', prioridade: 'media', temLogo: false,
+  qtd: '', previsaoEntrega: '', previsaoEdit: false, prioridade: 'media', temLogo: false,
   logos: { Bordado: { ativo: false, fornecedorId: null }, Silk: { ativo: false, fornecedorId: null }, DTF: { ativo: false, fornecedorId: null } },
 })
 
@@ -40,7 +41,7 @@ export function produtoToDraft(p: Produto): ProdutoDraft {
     key: p.id,
     uniformeId: p.uniformeId, corId: p.corId, tecidoId: p.tecidoId,
     numeroProposta: p.numeroProposta, numeroPedido: p.numeroPedido, propostaEdit: true, pedidoEdit: true,
-    qtd: String(p.qtd), previsaoEntrega: p.previsaoEntrega, prioridade: p.prioridade,
+    qtd: String(p.qtd), previsaoEntrega: p.previsaoEntrega, previsaoEdit: true, prioridade: p.prioridade,
     temLogo: p.logos.length > 0,
     logos: {
       Bordado: { ativo: !!logoOf('Bordado'), fornecedorId: logoOf('Bordado')?.fornecedorId ?? null },
@@ -53,13 +54,15 @@ export function produtoToDraft(p: Produto): ProdutoDraft {
 /** Nº efetivo: usa o do item se foi editado; senão herda o da OP. */
 export const propostaEfetiva = (d: ProdutoDraft, opProposta: string) => (d.propostaEdit ? d.numeroProposta : opProposta)
 export const pedidoEfetivo = (d: ProdutoDraft, opPedido: string) => (d.pedidoEdit ? d.numeroPedido : opPedido)
+/** Previsão efetiva: usa a do item se foi editada; senão herda a data de entrega da OP. */
+export const previsaoEfetiva = (d: ProdutoDraft, opPrevisao: string) => (d.previsaoEdit ? d.previsaoEntrega : opPrevisao)
 
-export function draftToInput(d: ProdutoDraft, opProposta: string, opPedido: string): NovoProdutoInput {
+export function draftToInput(d: ProdutoDraft, opProposta: string, opPedido: string, opPrevisao = ''): NovoProdutoInput {
   return {
     uniformeId: d.uniformeId, corId: d.corId, tecidoId: d.tecidoId,
     numeroProposta: propostaEfetiva(d, opProposta).trim(),
     numeroPedido: pedidoEfetivo(d, opPedido).trim(),
-    qtd: Number(d.qtd), prioridade: d.prioridade, previsaoEntrega: d.previsaoEntrega,
+    qtd: Number(d.qtd), prioridade: d.prioridade, previsaoEntrega: previsaoEfetiva(d, opPrevisao),
     logos: d.temLogo ? TIPOS_LOGO.filter((t) => d.logos[t].ativo).map((t) => ({ tipo: t, fornecedorId: d.logos[t].fornecedorId })) : [],
   }
 }
@@ -69,12 +72,13 @@ const inp = 'w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm t
 
 /** Campos de UM produto — usado na Nova OP e no "Acrescentar item". */
 export function ProdutoFields({
-  draft, ativos, opProposta, opPedido, onChange, onAddCadastro,
+  draft, ativos, opProposta, opPedido, opPrevisao = '', onChange, onAddCadastro,
 }: {
   draft: ProdutoDraft
   ativos: Cadastros
   opProposta: string
   opPedido: string
+  opPrevisao?: string
   onChange: (patch: Partial<ProdutoDraft>) => void
   onAddCadastro: (tabela: TabCad, nome: string) => Promise<Cadastro>
 }) {
@@ -116,7 +120,8 @@ export function ProdutoFields({
         </div>
         <div>
           <label className={lab}>Previsão de entrega</label>
-          <input type="date" className={inp} value={draft.previsaoEntrega} onChange={(e) => onChange({ previsaoEntrega: e.target.value })} />
+          <input type="date" className={inp} value={previsaoEfetiva(draft, opPrevisao)} onChange={(e) => onChange({ previsaoEntrega: e.target.value, previsaoEdit: true })} />
+          {opPrevisao && !draft.previsaoEdit && <span className="mt-1 block text-[11px] text-muted">Herdada da entrega do pedido</span>}
         </div>
         <div>
           <label className={lab}>Prioridade do produto</label>
