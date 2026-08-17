@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
 import { Combobox } from './Combobox'
 import { hojeISO } from './helpers'
-import { ProdutoFields, novaLinha, draftToInput, type ProdutoDraft, type TabCad } from './ProdutoFields'
+import { ProdutoFields, novaLinha, draftToInput, gradeErro, type ProdutoDraft, type TabCad } from './ProdutoFields'
 import { type Cadastro, type Cadastros, type NovoPedidoInput, type Prioridade, PRIO_LABEL } from './data'
 
 export function NovaOP({
@@ -58,6 +58,10 @@ export function NovaOP({
     if (!clienteId) { setErro('Selecione o cliente do pedido.'); return }
     const validos = produtos.filter((p) => p.uniformeId && Number(p.qtd) > 0)
     if (!validos.length) { setErro('Adicione ao menos um produto com uniforme e quantidade.'); return }
+    for (let i = 0; i < produtos.length; i++) {
+      const ge = gradeErro(produtos[i])
+      if (ge) { setErro(`Produto ${i + 1}: ${ge}`); return }
+    }
     const input: NovoPedidoInput = {
       clienteId, numeroProposta: numeroProposta.trim(), numeroPedido: numeroPedido.trim(), dataPedido, prioridade,
       evento, amostra, dataEntrega, observacao: observacao.trim(),

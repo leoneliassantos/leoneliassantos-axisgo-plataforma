@@ -1,13 +1,18 @@
 import { useMemo, useState } from 'react'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
 import { fmtBRfull, hojeISO, daysBetween, statusClasse } from './helpers'
-import { ProdutoFields, produtoToDraft, TIPOS_LOGO, type ProdutoDraft, type TabCad } from './ProdutoFields'
+import { ProdutoFields, produtoToDraft, gradeErro, TIPOS_LOGO, type ProdutoDraft, type TabCad } from './ProdutoFields'
 import {
-  type Produto, type ProdutoPatch, type StatusProd, type TipoLogo, type Cadastro, type Cadastros,
-  ETAPAS, etapaLabel, PRIO_LABEL, STATUS_LABEL,
+  type Produto, type ProdutoPatch, type StatusProd, type TipoLogo, type Cadastro, type Cadastros, type Grade,
+  ETAPAS, etapaLabel, PRIO_LABEL, STATUS_LABEL, TAMANHOS,
 } from './data'
 
 const nomeDe = (list: Cadastro[], id: string | null) => (id ? list.find((c) => c.id === id)?.nome ?? '' : '')
+/** Resumo estável da grade ("G:5 GG:3") para comparar e registrar mudanças. */
+const gradeResumo = (g: Grade): string => {
+  const parts = TAMANHOS.filter((t) => (g?.[t] ?? 0) > 0).map((t) => `${t}:${g[t]}`)
+  return parts.length ? parts.join(' ') : '—'
+}
 
 export function ItemModal({
   produto,
@@ -32,6 +37,7 @@ export function ItemModal({
   const [draft, setDraft] = useState<ProdutoDraft>(() => produtoToDraft(produto))
   const [responsavel, setResponsavel] = useState(produto.responsavel)
   const [status, setStatus] = useState<StatusProd>(produto.status)
+  const [erro, setErro] = useState<string | null>(null)
 
   const [obsData, setObsData] = useState(hojeISO())
   const [obsTexto, setObsTexto] = useState('')
@@ -63,6 +69,8 @@ export function ItemModal({
     if (status !== produto.status) ch.push(`Situação: ${STATUS_LABEL[produto.status]} → ${STATUS_LABEL[status]}`)
     if (responsavel.trim() !== (produto.responsavel || '')) ch.push(`Responsável: "${produto.responsavel || '—'}" → "${responsavel.trim() || '—'}"`)
     if (draft.previsaoEntrega !== produto.previsaoEntrega) ch.push(`Previsão: ${fmtBRfull(produto.previsaoEntrega) || '—'} → ${fmtBRfull(draft.previsaoEntrega) || '—'}`)
+    if (draft.observacao.trim() !== (produto.observacao || '')) ch.push(`Observação do item: "${produto.observacao || '—'}" → "${draft.observacao.trim() || '—'}"`)
+    if (gradeResumo(draft.grade) !== gradeResumo(produto.grade)) ch.push(`Grade de tamanhos: ${gradeResumo(produto.grade)} → ${gradeResumo(draft.grade)}`)
     for (const t of TIPOS_LOGO) {
       const old = produto.logos.find((l) => l.tipo === t)
       const novoAtivo = draft.temLogo && draft.logos[t].ativo
@@ -75,6 +83,9 @@ export function ItemModal({
   }
 
   function salvar() {
+    setErro(null)
+    const ge = gradeErro(draft)
+    if (ge) { setErro(ge); return }
     const mudancas = calcularMudancas()
     if (mudancas.length === 0) { onClose(); return }
     const logos = draft.temLogo ? TIPOS_LOGO.filter((t) => draft.logos[t].ativo).map((t) => ({ tipo: t, fornecedorId: draft.logos[t].fornecedorId })) : []
@@ -82,6 +93,7 @@ export function ItemModal({
       uniformeId: draft.uniformeId, corId: draft.corId, tecidoId: draft.tecidoId,
       numeroProposta: draft.numeroProposta.trim(), numeroPedido: draft.numeroPedido.trim(),
       qtd: Number(draft.qtd) || 0, prioridade: draft.prioridade, status, responsavel: responsavel.trim(), previsaoEntrega: draft.previsaoEntrega,
+      observacao: draft.observacao.trim(), grade: draft.grade,
     }
     onSaveItem(patch, logos, mudancas.join('; '))
     setAba('mov') // mostra o log registrado
@@ -148,6 +160,8 @@ export function ItemModal({
           </div>
 
           <p className="mt-3 text-[12px] text-muted">Toda alteração salva aqui é registrada na aba <b>Movimentação</b> (o quê, quando e por quem). Mudar a <b>etapa</b> pede a data de conclusão.</p>
+
+          {erro && <p className="mt-3 rounded-lg bg-neg/10 px-3 py-2 text-sm font-medium text-neg">{erro}</p>}
 
           {/* Linha do tempo do item */}
           <div className="mt-5">

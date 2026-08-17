@@ -53,6 +53,17 @@ export const STATUS_LABEL: Record<StatusProd, string> = {
   ok: 'No prazo', atrasado: 'Atrasado', alerta: 'Alerta', aguardando: 'Aguardando',
 }
 
+/** Grade de tamanhos: tamanho -> quantidade de peças (só guarda os > 0). */
+export type Grade = Record<string, number>
+/** Tamanhos da grade, em duas linhas (espelham a tela). */
+export const TAMANHOS_LINHA1 = ['PP', 'P', 'M', 'G', 'GG', 'EXG', 'SGG', 'E', 'TU']
+export const TAMANHOS_LINHA2 = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']
+export const TAMANHOS = [...TAMANHOS_LINHA1, ...TAMANHOS_LINHA2]
+/** Soma das peças distribuídas na grade. */
+export function somaGrade(g: Grade): number {
+  return Object.values(g || {}).reduce((s, n) => s + (Number(n) || 0), 0)
+}
+
 export interface Cadastro {
   id: string
   nome: string
@@ -96,6 +107,7 @@ export interface Produto {
   responsavel: string
   previsaoEntrega: string // YYYY-MM-DD | ''
   observacao: string
+  grade: Grade
   logos: LogoItem[]
   datas: Record<string, string> // etapaId -> data conclusão
   historico: HistEntry[]
@@ -133,6 +145,8 @@ export interface NovoProdutoInput {
   qtd: number
   prioridade: Prioridade
   previsaoEntrega: string
+  observacao: string
+  grade: Grade
   logos: { tipo: TipoLogo; fornecedorId: string | null }[]
 }
 
@@ -295,7 +309,7 @@ export async function loadPedidos(): Promise<Pedido[]> {
   if (isDemo) return demoLoad().pedidos
   const [ops, prods, logos, datas, hist] = await Promise.all([
     supabase!.from('op').select('id, cliente_id, numero_proposta, numero_pedido, data_pedido, prioridade, evento, amostra, data_entrega, observacao, clientes(nome)').order('data_pedido', { ascending: false }),
-    supabase!.from('op_produtos').select('id, op_id, uniforme_id, cor_id, tecido_id, numero_proposta, numero_pedido, qtd, prioridade, status, etapa_id, progresso, responsavel, previsao_entrega, observacao, uniformes(nome), cores(nome), tecidos(nome)'),
+    supabase!.from('op_produtos').select('id, op_id, uniforme_id, cor_id, tecido_id, numero_proposta, numero_pedido, qtd, prioridade, status, etapa_id, progresso, responsavel, previsao_entrega, observacao, grade, uniformes(nome), cores(nome), tecidos(nome)'),
     supabase!.from('op_produto_logo').select('produto_id, tipo, fornecedor_id, fornecedores(nome)'),
     supabase!.from('op_produto_etapa').select('produto_id, etapa_id, data_conclusao'),
     supabase!.from('op_etapa_historico').select('id, produto_id, kind, etapa_de, etapa_para, data, texto, usuario').order('created_at'),
@@ -340,6 +354,7 @@ export async function loadPedidos(): Promise<Pedido[]> {
       progresso: Number(p.progresso) || 0, responsavel: (p.responsavel as string) ?? '',
       previsaoEntrega: p.previsao_entrega ? (p.previsao_entrega as string).slice(0, 10) : '',
       observacao: (p.observacao as string) ?? '',
+      grade: (p.grade as Grade) ?? {},
       logos: logosByProd.get(p.id as string) ?? [],
       datas: datasByProd.get(p.id as string) ?? {},
       historico: histByProd.get(p.id as string) ?? [],
@@ -380,7 +395,7 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
         numeroProposta: p.numeroProposta || input.numeroProposta,
         numeroPedido: p.numeroPedido, qtd: p.qtd, prioridade: p.prioridade, status: 'ok',
         etapaId: 'pedido', progresso: progressoDaEtapa('pedido'), responsavel: '',
-        previsaoEntrega: p.previsaoEntrega, observacao: '',
+        previsaoEntrega: p.previsaoEntrega, observacao: p.observacao, grade: p.grade ?? {},
         logos: p.logos.map((l) => ({ tipo: l.tipo, fornecedorId: l.fornecedorId, fornecedorNome: db.fornecedores.find((f) => f.id === l.fornecedorId)?.nome })),
         datas: {}, historico: [],
       }
@@ -408,7 +423,7 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
         op_id: opId, uniforme_id: p.uniformeId, cor_id: p.corId, tecido_id: p.tecidoId,
         numero_proposta: p.numeroProposta || input.numeroProposta || null, numero_pedido: p.numeroPedido || input.numeroPedido || null,
         qtd: p.qtd, prioridade: p.prioridade, status: 'ok', etapa_id: 'pedido', progresso: progressoDaEtapa('pedido'),
-        previsao_entrega: p.previsaoEntrega || null,
+        previsao_entrega: p.previsaoEntrega || null, observacao: p.observacao || null, grade: p.grade ?? {},
       })
       .select('id')
       .single()
@@ -439,7 +454,7 @@ export async function addProduto(opId: string, p: NovoProdutoInput): Promise<voi
       corId: p.corId, corNome: cor?.nome ?? '', tecidoId: p.tecidoId, tecidoNome: tec?.nome ?? '',
       numeroProposta: p.numeroProposta, numeroPedido: p.numeroPedido, qtd: p.qtd,
       prioridade: p.prioridade, status: 'ok', etapaId: 'pedido', progresso: progressoDaEtapa('pedido'),
-      responsavel: '', previsaoEntrega: p.previsaoEntrega, observacao: '',
+      responsavel: '', previsaoEntrega: p.previsaoEntrega, observacao: p.observacao, grade: p.grade ?? {},
       logos: p.logos.map((l) => ({ tipo: l.tipo, fornecedorId: l.fornecedorId, fornecedorNome: db.fornecedores.find((f) => f.id === l.fornecedorId)?.nome })),
       datas: {}, historico: [],
     })
@@ -452,7 +467,7 @@ export async function addProduto(opId: string, p: NovoProdutoInput): Promise<voi
       op_id: opId, uniforme_id: p.uniformeId, cor_id: p.corId, tecido_id: p.tecidoId,
       numero_proposta: p.numeroProposta || null, numero_pedido: p.numeroPedido || null,
       qtd: p.qtd, prioridade: p.prioridade, status: 'ok', etapa_id: 'pedido', progresso: progressoDaEtapa('pedido'),
-      previsao_entrega: p.previsaoEntrega || null,
+      previsao_entrega: p.previsaoEntrega || null, observacao: p.observacao || null, grade: p.grade ?? {},
     })
     .select('id')
     .single()
@@ -478,6 +493,7 @@ export interface ProdutoPatch {
   responsavel?: string
   previsaoEntrega?: string
   observacao?: string
+  grade?: Grade
 }
 
 export async function updateProduto(id: string, patch: ProdutoPatch): Promise<void> {
@@ -497,6 +513,7 @@ export async function updateProduto(id: string, patch: ProdutoPatch): Promise<vo
         if (patch.responsavel !== undefined) prod.responsavel = patch.responsavel
         if (patch.previsaoEntrega !== undefined) prod.previsaoEntrega = patch.previsaoEntrega
         if (patch.observacao !== undefined) prod.observacao = patch.observacao
+        if (patch.grade !== undefined) prod.grade = patch.grade
         break
       }
     }
@@ -515,6 +532,7 @@ export async function updateProduto(id: string, patch: ProdutoPatch): Promise<vo
   if (patch.responsavel !== undefined) payload.responsavel = patch.responsavel || null
   if (patch.previsaoEntrega !== undefined) payload.previsao_entrega = patch.previsaoEntrega || null
   if (patch.observacao !== undefined) payload.observacao = patch.observacao || null
+  if (patch.grade !== undefined) payload.grade = patch.grade ?? {}
   const { error } = await supabase!.from('op_produtos').update(payload).eq('id', id)
   if (error) throw new Error(error.message)
 }

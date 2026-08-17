@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
-import { ProdutoFields, novaLinha, draftToInput, type ProdutoDraft, type TabCad } from './ProdutoFields'
+import { ProdutoFields, novaLinha, draftToInput, gradeErro, type ProdutoDraft, type TabCad } from './ProdutoFields'
 import type { Cadastro, Cadastros, NovoProdutoInput } from './data'
 
 export function NovoItem({
@@ -29,6 +29,8 @@ export function NovoItem({
   function submit() {
     setErro(null)
     if (!draft.uniformeId || !(Number(draft.qtd) > 0)) { setErro('Informe o uniforme e a quantidade.'); return }
+    const ge = gradeErro(draft)
+    if (ge) { setErro(ge); return }
     onCreate(draftToInput(draft, opProposta, opPedido, opPrevisao))
   }
 
