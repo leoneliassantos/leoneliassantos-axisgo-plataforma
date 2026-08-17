@@ -57,9 +57,10 @@ export const STATUS_LABEL: Record<StatusProd, string> = {
 export type Grade = Record<string, number>
 /** Tamanhos da grade, em duas linhas (espelham a tela). */
 export const TAMANHOS_LINHA1 = ['PP', 'P', 'M', 'G', 'GG', 'EXG', 'SGG', 'E', 'TU']
-export const TAMANHOS_LINHA2 = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']
+export const TAMANHOS_LINHA2 = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11']
 export const TAMANHOS_LINHA3 = ['E1', 'E2', 'E3', 'E4', 'E5']
-export const TAMANHOS = [...TAMANHOS_LINHA1, ...TAMANHOS_LINHA2, ...TAMANHOS_LINHA3]
+export const TAMANHOS_LINHA4 = ['34', '36', '38', '40', '42', '44', '46', '48', '50', '52', '54', '56', '58', '60']
+export const TAMANHOS = [...TAMANHOS_LINHA1, ...TAMANHOS_LINHA2, ...TAMANHOS_LINHA3, ...TAMANHOS_LINHA4]
 /** Soma das peças distribuídas na grade. */
 export function somaGrade(g: Grade): number {
   return Object.values(g || {}).reduce((s, n) => s + (Number(n) || 0), 0)
