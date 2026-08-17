@@ -684,3 +684,27 @@ export async function addObservacao(id: string, data: string, texto: string, usu
   const { error } = await supabase!.from('op_etapa_historico').insert({ produto_id: id, kind: 'obs', data, texto, usuario: usuario || null })
   if (error) throw new Error(error.message)
 }
+
+/** Exclui uma OP inteira (o pedido, seus itens e tudo relacionado). Irreversível. */
+export async function deletePedido(opId: string): Promise<void> {
+  if (isDemo) {
+    const db = demoLoad()
+    db.pedidos = db.pedidos.filter((p) => p.id !== opId)
+    demoSave(db)
+    return
+  }
+  // Busca os itens da OP para apagar os relacionados (caso o banco não tenha cascade).
+  const { data: prods, error: e0 } = await supabase!.from('op_produtos').select('id').eq('op_id', opId)
+  if (e0) throw new Error(e0.message)
+  const ids = ((prods ?? []) as Array<{ id: string }>).map((p) => p.id)
+  if (ids.length) {
+    for (const tabela of ['op_produto_logo', 'op_produto_etapa', 'op_etapa_historico'] as const) {
+      const del = await supabase!.from(tabela).delete().in('produto_id', ids)
+      if (del.error) throw new Error(del.error.message)
+    }
+    const delProd = await supabase!.from('op_produtos').delete().eq('op_id', opId)
+    if (delProd.error) throw new Error(delProd.error.message)
+  }
+  const delOp = await supabase!.from('op').delete().eq('id', opId)
+  if (delOp.error) throw new Error(delOp.error.message)
+}

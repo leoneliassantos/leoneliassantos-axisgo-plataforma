@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
 import { NovaOP } from './NovaOP'
 import { NovoItem } from './NovoItem'
@@ -29,6 +30,7 @@ export function FluxoProducao() {
   const [orderId, setOrderId] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
   const [filtroSit, setFiltroSit] = useState<StatusProd | ''>('')
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const [showNova, setShowNova] = useState(false)
   const [itemId, setItemId] = useState<string | null>(null)
@@ -52,6 +54,15 @@ export function FluxoProducao() {
   }, [])
 
   useEffect(() => { carregar() }, [carregar])
+
+  // Abertura direta pelo link vindo de "Ordens de Produção" (?op=<id>).
+  useEffect(() => {
+    const op = searchParams.get('op')
+    if (op && pedidos.some((p) => p.id === op)) {
+      setOrderId(op); setView('board'); setBusca(''); setFiltroSit('')
+      const next = new URLSearchParams(searchParams); next.delete('op'); setSearchParams(next, { replace: true })
+    }
+  }, [pedidos, searchParams, setSearchParams])
 
   const refreshPedidos = useCallback(async () => { setPedidos(await loadPedidos()) }, [])
 

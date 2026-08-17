@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../../auth/AuthContext'
 import { fmtBR, statusClasse, prioCor } from './helpers'
-import { loadPedidos, etapaLabel, ETAPAS, STATUS_LABEL, PRIO_LABEL, type Pedido, type StatusProd } from './data'
+import { loadPedidos, deletePedido, etapaLabel, ETAPAS, STATUS_LABEL, PRIO_LABEL, type Pedido, type StatusProd } from './data'
 
 interface LinhaProduto {
   pedidoId: string
@@ -18,12 +20,16 @@ interface LinhaProduto {
 }
 
 export function OrdensProducao() {
+  const navigate = useNavigate()
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const [pedidos, setPedidos] = useState<Pedido[]>([])
   const [busca, setBusca] = useState('')
   const [filtroEtapa, setFiltroEtapa] = useState('')
   const [filtroSit, setFiltroSit] = useState<StatusProd | ''>('')
+  const [excluindo, setExcluindo] = useState(false)
 
   const carregar = useCallback(async () => {
     setLoading(true); setErro(null)
@@ -32,6 +38,23 @@ export function OrdensProducao() {
     finally { setLoading(false) }
   }, [])
   useEffect(() => { carregar() }, [carregar])
+
+  function abrirFluxo(pedidoId: string) {
+    navigate(`/operacoes/fluxo-producao?op=${pedidoId}`)
+  }
+
+  async function excluirOP(e: React.MouseEvent, l: LinhaProduto) {
+    e.stopPropagation()
+    if (!isAdmin) return
+    const ped = pedidos.find((p) => p.id === l.pedidoId)
+    const n = ped?.produtos.length ?? 1
+    const ok = window.confirm(`Excluir a Ordem de Produção de "${l.cliente || 'cliente'}"?\n\nIsso remove a OP e todos os seus ${n} ${n === 1 ? 'item' : 'itens'}. Esta ação não pode ser desfeita.`)
+    if (!ok) return
+    setExcluindo(true)
+    try { await deletePedido(l.pedidoId); await carregar() }
+    catch (err) { alert('Não foi possível excluir a OP: ' + (err instanceof Error ? err.message : '')) }
+    finally { setExcluindo(false) }
+  }
 
   const linhas = useMemo<LinhaProduto[]>(() => {
     const out: LinhaProduto[] = []
@@ -84,6 +107,7 @@ export function OrdensProducao() {
         </select>
         <span className="text-sm text-muted">{visiveis.length} itens</span>
       </div>
+      <p className="mb-3 text-[12px] text-muted">Clique numa linha para abrir o fluxo de produção daquele pedido.</p>
 
       {visiveis.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-line bg-surface p-12 text-center text-muted">Nenhum item {busca || filtroEtapa || filtroSit ? 'com esse filtro' : 'ainda'}.</div>
@@ -95,12 +119,18 @@ export function OrdensProducao() {
                 <th className={th}>Cliente</th><th className={th}>Uniforme</th><th className={th}>Cor</th><th className={th}>Tecido</th>
                 <th className={`${th} text-right`}>Qtd</th><th className={th}>Nº Pedido</th><th className={th}>Etapa atual</th>
                 <th className={th}>Situação</th><th className={th}>Prioridade</th><th className={th}>Previsão</th><th className={th}>Resp.</th>
+                {isAdmin && <th className={`${th} text-right`}>Ações</th>}
               </tr>
             </thead>
             <tbody>
               {visiveis.map((l, i) => (
-                <tr key={i} className="border-t border-line-2 hover:bg-paper">
-                  <td className={`${td} font-medium`}>{l.cliente || '—'}</td>
+                <tr
+                  key={i}
+                  onClick={() => abrirFluxo(l.pedidoId)}
+                  title="Abrir o fluxo de produção deste pedido"
+                  className="cursor-pointer border-t border-line-2 hover:bg-paper"
+                >
+                  <td className={`${td} font-medium text-ink underline-offset-2 hover:underline`}>{l.cliente || '—'}</td>
                   <td className={td}>{l.uniforme}</td>
                   <td className={td}>{l.cor || '—'}</td>
                   <td className={td}>{l.tecido || '—'}</td>
@@ -111,6 +141,20 @@ export function OrdensProducao() {
                   <td className={td}><span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full" style={{ background: prioCor(l.prioridade) }} />{PRIO_LABEL[l.prioridade]}</span></td>
                   <td className={`${td} tnum text-muted`}>{fmtBR(l.previsao) || '—'}</td>
                   <td className={`${td} text-muted`}>{l.responsavel || '—'}</td>
+                  {isAdmin && (
+                    <td className={`${td} text-right`}>
+                      <button
+                        type="button"
+                        onClick={(e) => excluirOP(e, l)}
+                        disabled={excluindo}
+                        title="Excluir esta OP"
+                        className="rounded-md p-1.5 text-muted transition hover:bg-neg/10 hover:text-neg disabled:opacity-50"
+                        aria-label="Excluir OP"
+                      >
+                        <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
