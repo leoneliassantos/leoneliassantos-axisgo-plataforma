@@ -251,14 +251,18 @@ function LinhaPedido({ ped, onAbrir }: { ped: Pedido; onAbrir: (id: string) => v
         </div>
       </div>
 
-      {/* mini-mapa das 10 etapas */}
-      <div className="flex items-center gap-1">
+      {/* mini-mapa das etapas — mesmos ícones da linha do tempo, com a contagem embaixo */}
+      <div className="flex items-end gap-0.5">
         {ETAPAS.map((e) => {
           const n = cont[e.id] ?? 0
+          const on = n > 0
           return (
-            <span key={e.id} title={`${e.label}: ${n}`} className="grid h-6 flex-1 place-items-center rounded text-[11px] font-semibold tnum" style={{ background: n ? `${ETAPA_COR[e.id]}22` : '#f1f4f7', color: n ? ETAPA_COR[e.id] : '#c2cbd4' }}>
-              {n || ''}
-            </span>
+            <div key={e.id} title={`${e.label}: ${n} ${n === 1 ? 'item' : 'itens'}`} className="flex flex-1 flex-col items-center gap-0.5">
+              <div className="grid size-6 place-items-center rounded-full" style={{ background: on ? `${ETAPA_COR[e.id]}18` : '#f1f4f7', border: `1px solid ${on ? ETAPA_COR[e.id] : '#e6ebf0'}`, color: on ? ETAPA_COR[e.id] : '#c2cbd4' }}>
+                <EtapaIcon id={e.id} size={14} />
+              </div>
+              <span className="tnum h-3 text-[10px] font-bold leading-3" style={{ color: on ? ETAPA_COR[e.id] : 'transparent' }}>{on ? n : ''}</span>
+            </div>
           )
         })}
       </div>
@@ -278,8 +282,8 @@ function LinhaPedido({ ped, onAbrir }: { ped: Pedido; onAbrir: (id: string) => v
   )
 }
 
-/** Ícone por etapa (para a linha do tempo). */
-function EtapaIcon({ id }: { id: string }) {
+/** Ícone por etapa (para a linha do tempo e o mini-mapa da lista). */
+function EtapaIcon({ id, size = 20 }: { id: string; size?: number }) {
   const p = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
   const inner = (() => {
     switch (id) {
@@ -297,7 +301,7 @@ function EtapaIcon({ id }: { id: string }) {
       default: return <circle cx="12" cy="12" r="8" />
     }
   })()
-  return <svg viewBox="0 0 24 24" width="20" height="20" {...p}>{inner}</svg>
+  return <svg viewBox="0 0 24 24" width={size} height={size} {...p}>{inner}</svg>
 }
 
 /** Linha do tempo da produção: stepper com todas as etapas e a contagem de itens em cada uma. */
