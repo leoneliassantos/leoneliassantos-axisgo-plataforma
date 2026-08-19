@@ -148,6 +148,7 @@ export type Papel =
   | 'receita_bruta'
   | 'deducao'
   | 'custo'
+  | 'pessoal_direto'
   | 'despesa_op'
   | 'outra_desp_op'
   | 'outra_rec_op'
@@ -169,6 +170,7 @@ export const CATALOGO_PADRAO: GrupoDef[] = [
   { nome: 'Receita Operacional Bruta', papel: 'receita_bruta' },
   { nome: 'Deduções da Receita Bruta', papel: 'deducao' },
   { nome: 'Custos dos Serviços Prestados', papel: 'custo' },
+  { nome: 'Pessoal Direto', papel: 'pessoal_direto' },
   { nome: 'Despesas Operacionais', papel: 'despesa_op' },
   { nome: 'Outras Despesas Operacionais', papel: 'outra_desp_op' },
   { nome: 'Outras Receitas Operacionais', papel: 'outra_rec_op' },
@@ -318,6 +320,7 @@ const SEGMENTOS: Segmento[] = [
   { papeis: ['receita_bruta'] },
   { papeis: ['deducao'], sub: { key: 'recliq', label: '= Receita Operacional Líquida', tipo: 'sub' } },
   { papeis: ['custo'], sub: { key: 'lucrobruto', label: '= Lucro Bruto', tipo: 'sub' } },
+  { papeis: ['pessoal_direto'], sub: { key: 'margemcontrib', label: '= Margem de Contribuição', tipo: 'sub' } },
   { papeis: ['despesa_op', 'outra_desp_op', 'outra_rec_op', 'outras'], sub: { key: 'ebitda', label: '= EBITDA', tipo: 'result' } },
   { papeis: ['depreciacao'], sub: { key: 'ebit', label: '= EBIT (Resultado Operacional)', tipo: 'result' } },
   { papeis: ['rec_fin', 'desp_fin', 'equiv'], sub: { key: 'lair', label: '= Resultado antes do IR/CSLL', tipo: 'result' } },
@@ -475,7 +478,17 @@ export function buildDRE(rows: RowLike[], opts: BuildOpts = {}): { linhas: Linha
   for (const seg of SEGMENTOS) {
     for (const def of catalogo) {
       if (!seg.papeis.includes(def.papel)) continue
-      const l = mkGrupo(def)
+      let l = mkGrupo(def)
+      // Pessoal Direto é sempre exibido (mesmo zerado): é uma linha estrutural
+      // nova que começa vazia — a contabilidade cria as contas e o de-para as
+      // aloca aqui depois. Sem isso, o grupo vazio seria ocultado e a Margem de
+      // Contribuição apareceria sem a linha que a origina.
+      if (!l && def.papel === 'pessoal_direto') {
+        l = {
+          tipo: 'grupo', key: 'g:' + def.nome, label: def.nome, papel: def.papel,
+          sinal: '–', mes: z12(), total: 0, subgrupos: [], contas: [],
+        }
+      }
       if (!l) continue
       linhas.push(l)
       const f = ehReceita(def.papel) ? 1 : -1
@@ -496,6 +509,7 @@ export const PAPEIS: PapelInfo[] = [
   { papel: 'receita_bruta', label: 'Receita bruta (soma)' },
   { papel: 'deducao', label: 'Dedução da receita (subtrai)' },
   { papel: 'custo', label: 'Custo dos serviços (subtrai)' },
+  { papel: 'pessoal_direto', label: 'Pessoal direto (subtrai, após Lucro Bruto → Margem de Contribuição)' },
   { papel: 'despesa_op', label: 'Despesa operacional (subtrai)' },
   { papel: 'outra_desp_op', label: 'Outra despesa operacional (subtrai)' },
   { papel: 'outra_rec_op', label: 'Outra receita operacional (soma)' },
