@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react'
 import { FaturamentoLista } from './FaturamentoLista'
+import { FaturamentoIndicadores } from './FaturamentoIndicadores'
 
 type Aba = 'lista' | 'indicadores'
 
@@ -20,18 +21,7 @@ export function FaturamentoHub() {
         </div>
       </div>
 
-      {aba === 'lista' ? <FaturamentoLista /> : <IndicadoresEmBreve />}
-    </div>
-  )
-}
-
-function IndicadoresEmBreve() {
-  return (
-    <div className="rounded-xl border border-line bg-surface px-4 py-12 text-center">
-      <div className="text-[14px] font-bold text-ink">Indicadores em construção</div>
-      <p className="mx-auto mt-1 max-w-md text-[13px] text-muted">
-        Evolução do faturamento, faturamento por unidade de negócio, top clientes, faturado × recebido × a receber e ticket médio — chegam na próxima etapa.
-      </p>
+      {aba === 'lista' ? <FaturamentoLista /> : <FaturamentoIndicadores />}
     </div>
   )
 }
