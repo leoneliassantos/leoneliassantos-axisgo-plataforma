@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Criar a base de Faturamento (Supabase)</title>
+<style>
+  body{margin:0;background:#f4f2eb;color:#16211d;font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.5}
+  .wrap{max-width:820px;margin:0 auto;padding:28px 20px 60px}
+  h1{font-family:Georgia,serif;font-size:23px;margin:0 0 4px}
+  p{color:#4a4a42;margin:6px 0}
+  .card{background:#fff;border:1px solid #e2ddd1;border-radius:14px;padding:20px;box-shadow:0 8px 24px rgba(22,33,29,.06);margin-top:16px}
+  .btn{display:inline-flex;align-items:center;gap:8px;background:#FB5403;color:#fff;border:0;border-radius:10px;padding:13px 20px;font-size:16px;font-weight:700;cursor:pointer;transition:.15s}
+  .btn:hover{background:#d84703}.btn.ok{background:#15734f}
+  textarea{width:100%;height:300px;margin-top:12px;border:1px solid #e2ddd1;border-radius:10px;padding:11px;font-family:ui-monospace,Consolas,monospace;font-size:12px;color:#16211d;background:#fbfaf6;resize:vertical}
+  .status{margin-left:12px;font-weight:600;color:#15734f}
+  code{background:#eef0e9;padding:1px 6px;border-radius:5px;font-size:13px}
+  a{color:#d84703;font-weight:600}
+  ol{padding-left:20px}li{margin:8px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Criar a base de Faturamento no Supabase</h1>
+  <p>Isso cria a tabela onde a base do <b>Publi</b> vai ficar guardada (segura, só para o time da Batux),
+     com a função de atualização por mês. <b>Roda uma vez só.</b></p>
+
+  <div class="card">
+    <button class="btn" id="copiar" type="button">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8">
+        <rect x="9" y="9" width="12" height="12" rx="2"></rect><path d="M5 15V5a2 2 0 012-2h10"></path>
+      </svg>
+      Copiar o código SQL
+    </button>
+    <span class="status" id="status"></span>
+    <textarea id="sql" readonly spellcheck="false">-- AxisGo · Modulo Financeiro -> Faturamento (base do Publi)
+-- Tabela + RLS + funcao de upload incremental (por mes de emissao). Roda uma vez.
+
+create table if not exists public.faturamento (
+  id          bigint generated always as identity primary key,
+  empresa     text not null,
+  cliente     text not null,
+  sacado      text,
+  origem      text,
+  descricao   text,
+  documento   text,
+  ecs         text,
+  pit         text,
+  emissao     date,
+  vencimento  date,
+  pagamento   date,
+  valor       numeric(16, 2) not null default 0,
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists faturamento_emp_idx on public.faturamento (empresa, emissao);
+create index if not exists faturamento_doc_idx on public.faturamento (documento);
+
+alter table public.faturamento enable row level security;
+
+drop policy if exists "faturamento_leitura_autenticado" on public.faturamento;
+create policy "faturamento_leitura_autenticado"
+  on public.faturamento for select
+  to authenticated
+  using (true);
+
+drop policy if exists "faturamento_escrita_admin" on public.faturamento;
+create policy "faturamento_escrita_admin"
+  on public.faturamento for all
+  to authenticated
+  using (public.is_admin())
+  with check (public.is_admin());
+
+create or replace function public.faturamento_upload(p_empresa text, p_rows jsonb)
+returns integer
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  n integer;
+begin
+  if not public.is_admin() then
+    raise exception 'Apenas administradores podem atualizar a base.';
+  end if;
+
+  delete from public.faturamento f
+  where f.empresa = p_empresa
+    and to_char(f.emissao, 'YYYY-MM') in (
+      select distinct to_char(x.emissao, 'YYYY-MM')
+      from jsonb_to_recordset(p_rows) as x(emissao date)
+    );
+
+  insert into public.faturamento
+    (empresa, cliente, sacado, origem, descricao, documento, ecs, pit, emissao, vencimento, pagamento, valor)
+  select p_empresa, x.cliente, x.sacado, x.origem, x.descricao, x.documento, x.ecs, x.pit,
+         x.emissao, x.vencimento, x.pagamento, x.valor
+  from jsonb_to_recordset(p_rows) as x(
+    cliente text, sacado text, origem text, descricao text, documento text, ecs text, pit text,
+    emissao date, vencimento date, pagamento date, valor numeric
+  );
+
+  get diagnostics n = row_count;
+  return n;
+end;
+$$;
+
+revoke all on function public.faturamento_upload(text, jsonb) from public, anon;
+grant execute on function public.faturamento_upload(text, jsonb) to authenticated;</textarea>
+  </div>
+
+  <div class="card">
+    <p style="font-weight:700;margin-top:0">Passo a passo:</p>
+    <ol>
+      <li>Clique em <b>Copiar o código SQL</b> acima.</li>
+      <li>Abra o <a href="https://supabase.com/dashboard/project/kfbmiasyqfpskxezzvvj/sql/new" target="_blank" rel="noopener">SQL Editor do Supabase</a> (projeto da Batux).</li>
+      <li>Cole (<b>Ctrl+V</b>) e clique em <b>Run</b>.</li>
+      <li>Deve aparecer <code>Success. No rows returned</code>. 🎉 Pronto — agora dá para subir a base do Publi pela tela de Faturamento.</li>
+    </ol>
+    <p class="status" style="color:#4a4a42">Apareceu erro em vermelho? Copie e cole no chat que eu ajudo.</p>
+  </div>
+</div>
+<script>
+const area=document.getElementById('sql'),btn=document.getElementById('copiar'),status=document.getElementById('status');
+btn.addEventListener('click',async()=>{
+  try{await navigator.clipboard.writeText(area.value)}catch{area.focus();area.select();document.execCommand('copy')}
+  status.textContent='✓ Copiado!';btn.classList.add('ok');btn.lastChild.textContent=' Copiado!';
+  setTimeout(()=>{status.textContent='';btn.classList.remove('ok');btn.lastChild.textContent=' Copiar o código SQL'},2500);
+});
+</script>
+</body>
+</html>
