@@ -16,6 +16,7 @@ import { parsePubliAOA, MESES_PT, type FaturamentoRow } from './publiFaturamento
 const CONSOLIDADO = '__consolidado__'
 const GRAD_KPI = 'linear-gradient(180deg, #FE9F2E 0%, #FB5403 55%, #F5390A 100%)'
 const EMPRESAS_UPLOAD = ['Batuque', 'Batux']
+const MESES_FULL = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 
 const fmt0 = (v: number) => Math.round(v).toLocaleString('pt-BR')
 const fmtData = (iso: string | null) => {
@@ -43,7 +44,17 @@ export function FaturamentoLista() {
   const [statusSel, setStatusSel] = useState<'todos' | 'pago' | 'areceber'>('todos')
   const [busca, setBusca] = useState('')
   const [uploadEmpresa, setUploadEmpresa] = useState<string>('Batuque')
+  const [uploadAno, setUploadAno] = useState<number>(() => new Date().getFullYear())
+  const [uploadMes, setUploadMes] = useState<number>(() => new Date().getMonth() + 1) // 1..12
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // Anos disponíveis para seleção no upload (2023 até o próximo ano).
+  const anosUpload = useMemo(() => {
+    const atual = new Date().getFullYear()
+    const arr: number[] = []
+    for (let y = 2023; y <= atual + 1; y++) arr.push(y)
+    return arr
+  }, [])
 
   /* ---------- carregar ---------- */
   const carregar = useCallback(async () => {
@@ -102,26 +113,39 @@ export function FaturamentoLista() {
       const parsed = parsePubliAOA(aoa, uploadEmpresa)
       if (!parsed.rows.length) throw new Error('não encontrei faturamentos (linhas com data de Emissão). Confira se é o "Mapa de Faturamento" do Publi.')
 
+      // Atualização SÓ do mês/ano selecionado: fica apenas com as notas dessa
+      // competência (mesmo que o arquivo traga outros meses) — os meses
+      // fechados nem são tocados no banco.
+      const ymAlvo = `${uploadAno}-${String(uploadMes).padStart(2, '0')}`
+      const rotuloMes = `${MESES_FULL[uploadMes - 1]}/${uploadAno}`
+      const rowsMes = parsed.rows.filter((r) => (r.emissao ?? '').slice(0, 7) === ymAlvo)
+      if (!rowsMes.length) {
+        const achados = parsed.meses.map(mesLabel).join(', ') || '—'
+        throw new Error(`o arquivo não tem notas de ${rotuloMes}. Meses encontrados no arquivo: ${achados}. Selecione um mês presente no arquivo (ou exporte ${rotuloMes} no Publi).`)
+      }
+
       if (mode === 'supabase' && supabase) {
-        const payload = parsed.rows.map((r) => ({
+        const payload = rowsMes.map((r) => ({
           cliente: r.cliente, sacado: r.sacado, origem: r.origem, descricao: r.descricao,
           documento: r.documento, ecs: r.ecs, pit: r.pit,
           emissao: r.emissao, vencimento: r.vencimento, pagamento: r.pagamento, valor: r.valor,
         }))
+        // faturamento_upload substitui por competência: só o mês enviado é apagado/reinserido.
         const { error } = await supabase.rpc('faturamento_upload', { p_empresa: uploadEmpresa, p_rows: payload })
         if (error) throw new Error(error.message)
         await carregar()
       } else {
-        // modo demo: substitui em memória os meses da empresa
-        const meses = new Set(parsed.rows.map((r) => (r.emissao ?? '').slice(0, 7)))
+        // modo demo: substitui em memória apenas o mês/empresa selecionado
         setRows((prev) => [
-          ...prev.filter((r) => !(r.empresa === uploadEmpresa && meses.has((r.emissao ?? '').slice(0, 7)))),
-          ...parsed.rows,
+          ...prev.filter((r) => !(r.empresa === uploadEmpresa && (r.emissao ?? '').slice(0, 7) === ymAlvo)),
+          ...rowsMes,
         ])
       }
       setEmpresaSel(uploadEmpresa)
-      const nomeMeses = parsed.meses.map(mesLabel).join(', ')
-      setAviso(`${uploadEmpresa}: base atualizada — ${parsed.rows.length} nota(s) (${nomeMeses}).`)
+      setMesSel(ymAlvo)
+      const ignorados = parsed.rows.length - rowsMes.length
+      const obsIgnorados = ignorados > 0 ? ` (${ignorados} nota(s) de outros meses no arquivo foram ignoradas)` : ''
+      setAviso(`${uploadEmpresa}: ${rotuloMes} atualizado — ${rowsMes.length} nota(s). Meses fechados não foram alterados${obsIgnorados}.`)
     } catch (e) {
       setErro(`Não consegui importar a base do Publi: ${(e as Error).message}`)
     } finally {
@@ -201,26 +225,53 @@ export function FaturamentoLista() {
               Exportar Excel
             </button>
             {isAdmin && (
-              <>
-                <select
-                  className="periodo-sel"
-                  value={uploadEmpresa}
-                  onChange={(e) => setUploadEmpresa(e.target.value)}
-                  title="Empresa do arquivo que você vai subir"
-                  disabled={busy}
-                >
-                  {EMPRESAS_UPLOAD.map((e) => <option key={e} value={e}>{e}</option>)}
-                </select>
+              <div className="flex flex-wrap items-end gap-2 rounded-lg border border-line bg-paper px-2 py-1.5">
+                <label className="flex flex-col gap-0.5">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-muted">Empresa</span>
+                  <select
+                    className="periodo-sel"
+                    value={uploadEmpresa}
+                    onChange={(e) => setUploadEmpresa(e.target.value)}
+                    title="Empresa do arquivo que você vai subir"
+                    disabled={busy}
+                  >
+                    {EMPRESAS_UPLOAD.map((e) => <option key={e} value={e}>{e}</option>)}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-0.5">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-muted">Ano</span>
+                  <select
+                    className="periodo-sel"
+                    value={uploadAno}
+                    onChange={(e) => setUploadAno(Number(e.target.value))}
+                    title="Ano da competência que você vai atualizar"
+                    disabled={busy}
+                  >
+                    {anosUpload.map((y) => <option key={y} value={y}>{y}</option>)}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-0.5">
+                  <span className="text-[9px] font-bold uppercase tracking-wider text-muted">Mês</span>
+                  <select
+                    className="periodo-sel"
+                    value={uploadMes}
+                    onChange={(e) => setUploadMes(Number(e.target.value))}
+                    title="Mês da competência que você vai atualizar"
+                    disabled={busy}
+                  >
+                    {MESES_FULL.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+                  </select>
+                </label>
                 <button
                   className="inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2.5 text-[13px] font-bold text-white shadow-brand transition hover:brightness-125 disabled:opacity-50"
                   onClick={() => fileRef.current?.click()}
                   disabled={busy}
-                  title="Enviar o Mapa de Faturamento (.xlsx) do Publi"
+                  title={`Enviar o Mapa de Faturamento (.xlsx) e atualizar só ${MESES_FULL[uploadMes - 1]}/${uploadAno} de ${uploadEmpresa}`}
                 >
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21V9" /><path d="m7 14 5-5 5 5" /><path d="M5 3h14" /></svg>
-                  {busy ? 'Processando…' : 'Subir base do Publi'}
+                  {busy ? 'Processando…' : 'Subir base do mês'}
                 </button>
-              </>
+              </div>
             )}
             <input ref={fileRef} type="file" accept=".xls,.xlsx" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
           </div>
@@ -270,7 +321,7 @@ export function FaturamentoLista() {
         <div className="rounded-xl border border-line bg-surface px-4 py-10 text-center text-[13px] text-muted">Carregando…</div>
       ) : vazio ? (
         <div className="rounded-xl border border-line bg-surface px-4 py-10 text-center text-[13px] text-muted">
-          Nenhum faturamento ainda.{isAdmin ? ' Use “Subir base do Publi” para carregar o Mapa de Faturamento.' : ' Peça a um administrador para subir a base do Publi.'}
+          Nenhum faturamento ainda.{isAdmin ? ' Selecione empresa, ano e mês e use “Subir base do mês” para carregar o Mapa de Faturamento.' : ' Peça a um administrador para subir a base do Publi.'}
           {demo && <div className="mt-1 text-[12px]">Modo demonstração: os dados ficam só nesta sessão.</div>}
         </div>
       ) : (
