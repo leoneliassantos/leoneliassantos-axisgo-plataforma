@@ -180,6 +180,7 @@ export function Vendas() {
   const [busy, setBusy] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
+  const [upMode, setUpMode] = useState<'incremental' | 'full'>('incremental')
   const fileRef = useRef<HTMLInputElement>(null)
 
   // filtros
@@ -433,6 +434,9 @@ export function Vendas() {
         if (!novo.length) throw new Error('nenhuma venda válida encontrada na planilha.')
       }
 
+      const brd = (iso: string) => iso.split('-').reverse().join('/')
+      const fullReplace = upMode === 'full'
+
       // intervalo de datas coberto POR CANAL → substituição incremental (canal + período):
       // apaga só as vendas do mesmo canal DENTRO do período do arquivo; o resto é mantido.
       const janela = new Map<string, { d0: string; d1: string }>()
@@ -443,15 +447,32 @@ export function Vendas() {
         else { if (r.data < w.d0) w.d0 = r.data; if (r.data > w.d1) w.d1 = r.data }
       }
 
+      // "Substituir base inteira": apaga TUDO e regrava só o arquivo. É destrutivo → confirma antes.
+      if (fullReplace) {
+        const datas = novo.map((r) => r.data).sort()
+        const canaisArq = [...janela.keys()].sort()
+        const ok = window.confirm(
+          'SUBSTITUIR A BASE INTEIRA\n\n' +
+          `Isto APAGA todas as vendas atuais (todos os canais e datas) e grava somente as ${novo.length} vendas deste arquivo.\n\n` +
+          `Canais no arquivo: ${canaisArq.join(', ')}\n` +
+          `Período: ${brd(datas[0])} a ${brd(datas[datas.length - 1])}\n\n` +
+          'Use este modo só quando o arquivo for a base COMPLETA. Deseja continuar?'
+        )
+        if (!ok) { setAviso('Substituição cancelada — a base atual foi mantida.'); return }
+      }
+
       if (mode === 'supabase' && supabase) {
         const payload = novo.map((r) => ({
           nota: r.nota, data: r.data, tipo: r.tipo, cliente: r.cliente, sku: r.sku,
           produto: r.produto, quantidade: r.qtd, valor_unitario: r.unit, serie: r.serie, origem: r.origem,
           categoria: r.categoria,
         }))
-        const { error } = await supabase.rpc('vendas_replace_periodo', { p_rows: payload })
+        const { error } = await supabase.rpc(fullReplace ? 'vendas_replace' : 'vendas_replace_periodo', { p_rows: payload })
         if (error) throw new Error(error.message)
         await carregar()
+      } else if (fullReplace) {
+        // modo local (sem Supabase): troca a base inteira
+        setRows(novo)
       } else {
         // modo local (sem Supabase): espelha a substituição por canal+período em memória
         setRows((prev) => [
@@ -462,9 +483,13 @@ export function Vendas() {
           ...novo,
         ])
       }
-      const brd = (iso: string) => iso.split('-').reverse().join('/')
-      const resumo = [...janela.entries()].map(([o, w]) => `${o} (${brd(w.d0)}–${brd(w.d1)})`).join(' · ')
-      setAviso(`Base atualizada: ${novo.length} vendas — ${resumo}${ignoradas ? ` · ${ignoradas} linhas ignoradas` : ''}. Só esse período/canal foi substituído; o restante foi mantido.`)
+
+      if (fullReplace) {
+        setAviso(`Base substituída por completo: ${novo.length} vendas${ignoradas ? ` · ${ignoradas} linhas ignoradas` : ''}. Toda a base anterior foi apagada e regravada com este arquivo.`)
+      } else {
+        const resumo = [...janela.entries()].map(([o, w]) => `${o} (${brd(w.d0)}–${brd(w.d1)})`).join(' · ')
+        setAviso(`Base atualizada: ${novo.length} vendas — ${resumo}${ignoradas ? ` · ${ignoradas} linhas ignoradas` : ''}. Só esse período/canal foi substituído; o restante foi mantido.`)
+      }
     } catch (e) {
       setErro(`Não consegui ler o arquivo: ${(e as Error).message}`)
     } finally {
@@ -553,9 +578,18 @@ export function Vendas() {
             Baixar base
           </button>
           {isAdmin && (
+            <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-muted" title="Como o próximo arquivo será aplicado. “Só este arquivo” substitui apenas os canais e o período do arquivo (o resto fica). “Base inteira” apaga tudo e regrava só o arquivo — use quando o arquivo for a base completa.">
+              <span className="uppercase tracking-wide">Ao enviar:</span>
+              <Toggle valor={upMode} set={setUpMode} ops={[['incremental', 'Só este arquivo'], ['full', 'Base inteira']]} />
+            </label>
+          )}
+          {isAdmin && (
             <button
               className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3 py-2 text-[12px] font-bold text-white shadow-brand transition hover:brightness-125 disabled:opacity-50"
-              onClick={() => fileRef.current?.click()} disabled={busy} title="Enviar Excel do Olist ou PDF do Foodpro. Substitui só o canal e o período do arquivo; as demais datas e canais são mantidos."
+              onClick={() => fileRef.current?.click()} disabled={busy}
+              title={upMode === 'full'
+                ? 'Substitui a BASE INTEIRA pelo arquivo enviado (apaga tudo e regrava). Pede confirmação antes.'
+                : 'Substitui só o canal e o período do arquivo; as demais datas e canais são mantidos.'}
             >
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21V9" /><path d="m7 14 5-5 5 5" /><path d="M5 3h14" /></svg>
               {busy ? 'Processando…' : 'Atualizar base'}
