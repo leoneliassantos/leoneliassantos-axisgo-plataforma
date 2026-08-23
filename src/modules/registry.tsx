@@ -5,6 +5,7 @@ import { FluxoCaixaHub } from '../pages/financeiro/FluxoCaixaHub'
 import { FaturamentoHub } from '../pages/financeiro/FaturamentoHub'
 import { Dre } from '../pages/financeiro/Dre'
 import { Vendas } from '../pages/financeiro/Vendas'
+import { Caixa } from '../pages/financeiro/Caixa'
 import { FluxoProducao } from '../pages/operacoes/FluxoProducao'
 import { OrdensProducao } from '../pages/operacoes/OrdensProducao'
 import { Acompanhamento } from '../pages/operacoes/Acompanhamento'
@@ -119,6 +120,8 @@ const TODAS_FRENTES: Frente[] = [
     modulos: [
       // Módulo sob demanda (optIn): aparece só onde VITE_MODULES incluir "vendas".
       { slug: 'vendas', label: 'Vendas', element: <Vendas />, optIn: true },
+      // Fluxo de Caixa por títulos (Foodpro) — específico da MC (VITE_MODULES incluir "caixa").
+      { slug: 'caixa', label: 'Fluxo de Caixa', element: <Caixa />, optIn: true },
       { slug: 'dre', label: 'DRE', element: <Dre /> },
       { slug: 'faturamento', label: 'Faturamento', element: <FaturamentoHub /> },
       { slug: 'fluxo-caixa', label: 'Fluxo de Caixa', element: <FluxoCaixaHub /> },
