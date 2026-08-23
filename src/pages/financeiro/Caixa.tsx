@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { CLIENT } from '../../config/client'
@@ -263,42 +263,59 @@ export function Caixa() {
   )
   const origemOk = useCallback((o: string) => selOrigem === null || selOrigem.has(o), [selOrigem])
 
-  /* ================= FLUXO tradicional (só pagos, por data de pagamento) ================= */
+  /* ============ FLUXO estilo Fukuda: matriz (linhas = contas, colunas = períodos) ============ *
+   * Só títulos pagos, pela Data de Pagamento. Entradas quebradas por canal; despesas por
+   * categoria (de-para), com abertura por fornecedor. Saldo final de um período = inicial do
+   * próximo; o primeiro parte do Saldo de abertura + tudo que já havia sido pago antes. */
   const fluxo = useMemo(() => {
     const d0 = de || '0000-01-01'
     const d1 = ate || '9999-12-31'
     const pagos = rows.filter((r) => r.dataPgto && origemOk(r.origem) && (!aberturaData || r.dataPgto >= aberturaData))
     const sinal = (r: Titulo) => (r.tipo === 'entrada' ? r.valorPago : -r.valorPago)
-    // saldo acumulado ANTES do início do período (para dar continuidade ao saldo inicial)
     const base = aberturaValor + pagos.filter((r) => r.dataPgto < d0).reduce((s, r) => s + sinal(r), 0)
     const dentro = pagos.filter((r) => r.dataPgto >= d0 && r.dataPgto <= d1)
 
-    const bmap = new Map<string, { label: string; entradas: number; saidas: number }>()
+    // colunas (períodos) na ordem cronológica
+    const bset = new Map<string, string>()
+    for (const r of dentro) { const b = bucket(r.dataPgto, gran); bset.set(b.key, b.label) }
+    const cols = Array.from(bset.keys()).sort().map((key) => ({ key, label: bset.get(key)! }))
+    const zero = () => { const o: Record<string, number> = {}; for (const c of cols) o[c.key] = 0; return o }
+
+    // entradas por canal · despesas por categoria (com fornecedores)
+    const entMap = new Map<string, Record<string, number>>()
+    const catMap = new Map<string, { vals: Record<string, number>; forn: Map<string, { label: string; vals: Record<string, number> }> }>()
     for (const r of dentro) {
-      const b = bucket(r.dataPgto, gran)
-      let e = bmap.get(b.key)
-      if (!e) { e = { label: b.label, entradas: 0, saidas: 0 }; bmap.set(b.key, e) }
-      if (r.tipo === 'entrada') e.entradas += r.valorPago; else e.saidas += r.valorPago
+      const bk = bucket(r.dataPgto, gran).key
+      if (r.tipo === 'entrada') {
+        const k = r.origem || 'Recebimentos'
+        let m = entMap.get(k); if (!m) { m = zero(); entMap.set(k, m) }
+        m[bk] += r.valorPago
+      } else {
+        const c = r.categoria || SEM_CAT
+        let e = catMap.get(c); if (!e) { e = { vals: zero(), forn: new Map() }; catMap.set(c, e) }
+        e.vals[bk] += r.valorPago
+        const fk = r.participante || '(sem)'
+        let f = e.forn.get(fk); if (!f) { f = { label: r.obs || r.participante || '—', vals: zero() }; e.forn.set(fk, f) }
+        f.vals[bk] += r.valorPago
+      }
     }
-    const keys = Array.from(bmap.keys()).sort()
-    let saldo = base
-    const linhas = keys.map((k) => {
-      const e = bmap.get(k)!
-      const ini = saldo
-      const res = e.entradas - e.saidas
-      saldo = ini + res
-      return { key: k, label: e.label, ini, entradas: e.entradas, saidas: e.saidas, res, fim: saldo }
-    })
-    // despesas pagas por categoria no período
-    const cat = new Map<string, number>()
-    for (const r of dentro) if (r.tipo === 'saida') {
-      const c = r.categoria || SEM_CAT
-      cat.set(c, (cat.get(c) || 0) + r.valorPago)
+    const soma = (v: Record<string, number>) => cols.reduce((s, c) => s + v[c.key], 0)
+    const entradaRows = Array.from(entMap.entries()).map(([nome, vals]) => ({ nome, vals, total: soma(vals) })).sort((a, b) => b.total - a.total)
+    const despesaRows = Array.from(catMap.entries()).map(([nome, e]) => ({
+      nome, vals: e.vals, total: soma(e.vals),
+      fornecedores: Array.from(e.forn.values()).map((f) => ({ nome: f.label, vals: f.vals, total: soma(f.vals) })).sort((a, b) => b.total - a.total),
+    })).sort((a, b) => b.total - a.total)
+
+    // totais e saldos por coluna (encadeados)
+    const totalEntradas = zero(), totalSaidas = zero(), fluxoOp = zero(), saldoInicial = zero(), saldoFinal = zero()
+    let prev = base
+    for (const c of cols) {
+      const te = entradaRows.reduce((s, r) => s + r.vals[c.key], 0)
+      const ts = despesaRows.reduce((s, r) => s + r.vals[c.key], 0)
+      totalEntradas[c.key] = te; totalSaidas[c.key] = ts; fluxoOp[c.key] = te - ts
+      saldoInicial[c.key] = prev; saldoFinal[c.key] = prev + te - ts; prev = saldoFinal[c.key]
     }
-    const porCategoria = Array.from(cat.entries()).map(([nome, valor]) => ({ nome, valor })).sort((a, b) => b.valor - a.valor)
-    const totEnt = linhas.reduce((s, l) => s + l.entradas, 0)
-    const totSai = linhas.reduce((s, l) => s + l.saidas, 0)
-    return { base, linhas, porCategoria, totEnt, totSai, saldoInicial: base, saldoFinal: saldo }
+    return { cols, entradaRows, despesaRows, totalEntradas, totalSaidas, fluxoOp, saldoInicial, saldoFinal }
   }, [rows, de, ate, gran, origemOk, aberturaData, aberturaValor])
 
   /* ================= TÍTULOS (tabela filtrável) ================= */
@@ -524,85 +541,85 @@ function rotSit(s: Situacao): string {
 }
 
 /* ============================ FLUXO tradicional ============================ */
+const HDR = '#f1f0ec', WHITE = '#ffffff', BG_IN = '#e9f7ef', BG_OUT = '#fdecec', BG_SLD = '#eef1f6'
+function ValCell({ v, bold, color }: { v: number; bold?: boolean; color?: string }) {
+  const zerado = Math.abs(v) < 0.005
+  return <td className="whitespace-nowrap px-4 py-2 text-right tabular-nums" style={{ fontWeight: bold ? 700 : 400, color: zerado ? '#c3c0bb' : color }}>{`R$ ${fmt2(v)}`}</td>
+}
+function LinhaFluxo({ label, children, bg, bold, indent, sub, chevron, open, onToggle }: {
+  label: string; children: ReactNode; bg?: string; bold?: boolean; indent?: 1 | 2; sub?: boolean; chevron?: boolean; open?: boolean; onToggle?: () => void
+}) {
+  const bgc = bg ?? WHITE
+  const padLeft = indent === 2 ? 40 : indent === 1 ? 26 : 14
+  return (
+    <tr style={{ background: bgc }} className="border-b border-line/60">
+      <td className="sticky left-0 z-10 whitespace-nowrap py-2 pr-4 text-left"
+        style={{ background: bgc, paddingLeft: padLeft, fontWeight: bold ? 700 : sub ? 400 : 500, color: sub ? '#8a8078' : '#241f1a', fontSize: sub ? 11.5 : undefined }}>
+        {chevron && <button onClick={onToggle} className="mr-1.5 inline-block w-2.5 text-muted">{open ? '▾' : '▸'}</button>}
+        {label}
+      </td>
+      {children}
+    </tr>
+  )
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function FluxoView({ f }: { f: any }) {
-  const linhas = f.linhas as { key: string; label: string; ini: number; entradas: number; saidas: number; res: number; fim: number }[]
-  const porCategoria = f.porCategoria as { nome: string; valor: number }[]
-  const totCat = porCategoria.reduce((s, c) => s + c.valor, 0)
-  return (
-    <div className="grid gap-3 lg:grid-cols-[1.6fr_1fr]">
-      <div className="overflow-x-auto rounded-xl border border-line bg-surface shadow-card">
-        <div className="flex items-center gap-2 border-b border-line px-4 py-2.5">
-          <h3 className="text-[13px] font-bold text-ink">Fluxo de Caixa realizado</h3>
-          <Info tip="Só entram títulos com pagamento efetivado, na Data de Pagamento. O Saldo inicial de cada período é o Saldo final do anterior; o primeiro parte do Saldo de abertura + tudo que já havia sido pago antes do período." />
-        </div>
-        <table className="w-full text-right text-[12.5px]">
-          <thead>
-            <tr className="border-b border-line text-[11px] uppercase tracking-wide text-muted">
-              <th className="px-4 py-2 text-left font-semibold">Período</th>
-              <th className="px-3 py-2 font-semibold">Saldo inicial</th>
-              <th className="px-3 py-2 font-semibold">Entradas</th>
-              <th className="px-3 py-2 font-semibold">Saídas</th>
-              <th className="px-3 py-2 font-semibold">Resultado</th>
-              <th className="px-4 py-2 font-semibold">Saldo final</th>
-            </tr>
-          </thead>
-          <tbody className="tabular-nums">
-            {linhas.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted">Sem pagamentos no período selecionado.</td></tr>
-            )}
-            {linhas.map((l) => (
-              <tr key={l.key} className="border-b border-line/60 last:border-0 hover:bg-paper/50">
-                <td className="px-4 py-2 text-left font-semibold text-ink">{l.label}</td>
-                <td className="px-3 py-2 text-muted">{fmt2(l.ini)}</td>
-                <td className="px-3 py-2" style={{ color: COR_IN }}>{fmt2(l.entradas)}</td>
-                <td className="px-3 py-2" style={{ color: COR_OUT }}>{fmt2(l.saidas)}</td>
-                <td className="px-3 py-2 font-semibold" style={{ color: l.res >= 0 ? COR_IN : COR_OUT }}>{l.res >= 0 ? '+' : ''}{fmt2(l.res)}</td>
-                <td className="px-4 py-2 font-bold text-ink">{fmt2(l.fim)}</td>
-              </tr>
-            ))}
-          </tbody>
-          {linhas.length > 0 && (
-            <tfoot>
-              <tr className="border-t-2 border-line bg-paper/60 font-bold text-ink">
-                <td className="px-4 py-2 text-left">Total</td>
-                <td className="px-3 py-2 text-muted">{fmt2(f.saldoInicial)}</td>
-                <td className="px-3 py-2" style={{ color: COR_IN }}>{fmt2(f.totEnt)}</td>
-                <td className="px-3 py-2" style={{ color: COR_OUT }}>{fmt2(f.totSai)}</td>
-                <td className="px-3 py-2" style={{ color: f.totEnt - f.totSai >= 0 ? COR_IN : COR_OUT }}>{fmt2(f.totEnt - f.totSai)}</td>
-                <td className="px-4 py-2">{fmt2(f.saldoFinal)}</td>
-              </tr>
-            </tfoot>
-          )}
-        </table>
-      </div>
+  const [aberto, setAberto] = useState<Set<string>>(new Set())
+  const cols = f.cols as { key: string; label: string }[]
+  const toggle = (c: string) => setAberto((p) => { const n = new Set(p); n.has(c) ? n.delete(c) : n.add(c); return n })
+  const entradaRows = f.entradaRows as { nome: string; vals: Record<string, number>; total: number }[]
+  const despesaRows = f.despesaRows as { nome: string; vals: Record<string, number>; total: number; fornecedores: { nome: string; vals: Record<string, number>; total: number }[] }[]
 
-      <div className="rounded-xl border border-line bg-surface p-4 shadow-card">
-        <div className="mb-3 flex items-center gap-2">
-          <h3 className="text-[13px] font-bold text-ink">Despesas pagas por categoria</h3>
-          <Info tip="Quebra das saídas pagas no período pela categoria do fornecedor (de-para). 'Sem categoria' são fornecedores ainda não classificados." />
-        </div>
-        {porCategoria.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted">Sem despesas pagas no período.</p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {porCategoria.map((c) => (
-              <div key={c.nome}>
-                <div className="mb-0.5 flex justify-between text-[12px]">
-                  <span className={`truncate ${c.nome === SEM_CAT ? 'text-muted' : 'text-ink'}`}>{c.nome}</span>
-                  <span className="ml-2 shrink-0 font-semibold tabular-nums text-ink">{reais(c.valor)}</span>
-                </div>
-                <div className="h-2 overflow-hidden rounded-full bg-paper">
-                  <div className="h-full rounded-full" style={{ width: `${totCat ? (c.valor / totCat) * 100 : 0}%`, background: COR_OUT, opacity: c.nome === SEM_CAT ? 0.35 : 1 }} />
-                </div>
-              </div>
-            ))}
-            <div className="mt-1 flex justify-between border-t border-line pt-2 text-[12px] font-bold text-ink">
-              <span>Total de despesas</span><span className="tabular-nums">{reais(totCat)}</span>
-            </div>
-          </div>
-        )}
-      </div>
+  if (!cols.length) return <div className="rounded-xl border border-line bg-surface p-12 text-center text-muted">Sem pagamentos no período selecionado.</div>
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-line bg-surface shadow-card">
+      <table className="min-w-full border-collapse text-[12.5px]">
+        <thead>
+          <tr>
+            <th className="sticky left-0 z-20 px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wide text-muted" style={{ background: HDR }}>Descrição</th>
+            {cols.map((c) => <th key={c.key} className="whitespace-nowrap px-4 py-3 text-right text-[11px] font-bold uppercase tracking-wide text-muted" style={{ background: HDR }}>{c.label}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          <LinhaFluxo label="Saldo Inicial de Caixa" bold>
+            {cols.map((c) => <ValCell key={c.key} v={f.saldoInicial[c.key]} bold />)}
+          </LinhaFluxo>
+
+          {entradaRows.map((r) => (
+            <LinhaFluxo key={r.nome} label={`(+) ${r.nome}`} indent={1}>
+              {cols.map((c) => <ValCell key={c.key} v={r.vals[c.key]} color={COR_IN} />)}
+            </LinhaFluxo>
+          ))}
+          <LinhaFluxo label="Total de Entradas" bold bg={BG_IN}>
+            {cols.map((c) => <ValCell key={c.key} v={f.totalEntradas[c.key]} bold color={COR_IN} />)}
+          </LinhaFluxo>
+
+          {despesaRows.map((r) => (
+            <Fragment key={r.nome}>
+              <LinhaFluxo label={`(-) ${r.nome}`} indent={1} chevron={r.fornecedores.length > 0} open={aberto.has(r.nome)} onToggle={() => toggle(r.nome)}>
+                {cols.map((c) => <ValCell key={c.key} v={r.vals[c.key]} color={COR_OUT} />)}
+              </LinhaFluxo>
+              {aberto.has(r.nome) && r.fornecedores.map((fo, i) => (
+                <LinhaFluxo key={i} label={fo.nome.length > 42 ? `${fo.nome.slice(0, 42)}…` : fo.nome} indent={2} sub>
+                  {cols.map((c) => <ValCell key={c.key} v={fo.vals[c.key]} />)}
+                </LinhaFluxo>
+              ))}
+            </Fragment>
+          ))}
+          <LinhaFluxo label="Total de Saídas" bold bg={BG_OUT}>
+            {cols.map((c) => <ValCell key={c.key} v={f.totalSaidas[c.key]} bold color={COR_OUT} />)}
+          </LinhaFluxo>
+
+          <LinhaFluxo label="Fluxo de Caixa Operacional" bold>
+            {cols.map((c) => <ValCell key={c.key} v={f.fluxoOp[c.key]} bold color={f.fluxoOp[c.key] >= 0 ? COR_IN : COR_OUT} />)}
+          </LinhaFluxo>
+          <LinhaFluxo label="Saldo Final de Caixa" bold bg={BG_SLD}>
+            {cols.map((c) => <ValCell key={c.key} v={f.saldoFinal[c.key]} bold />)}
+          </LinhaFluxo>
+        </tbody>
+      </table>
     </div>
   )
 }
