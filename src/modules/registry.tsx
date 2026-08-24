@@ -9,6 +9,7 @@ import { Caixa } from '../pages/financeiro/Caixa'
 import { FluxoProducao } from '../pages/operacoes/FluxoProducao'
 import { OrdensProducao } from '../pages/operacoes/OrdensProducao'
 import { Acompanhamento } from '../pages/operacoes/Acompanhamento'
+import { CobrancaOficinas } from '../pages/operacoes/CobrancaOficinas'
 import { Cadastros } from '../pages/operacoes/Cadastros'
 
 /**
@@ -104,6 +105,7 @@ const TODAS_FRENTES: Frente[] = [
       { slug: 'fluxo-producao', label: 'Fluxo de Produção', element: <FluxoProducao /> },
       { slug: 'ordens-producao', label: 'Ordens de Produção', element: <OrdensProducao /> },
       { slug: 'acompanhamento', label: 'Acompanhamento', element: <Acompanhamento /> },
+      { slug: 'cobranca-oficinas', label: 'Cobrança de Oficinas', element: <CobrancaOficinas /> },
       { slug: 'cad-clientes', label: 'Clientes', grupo: 'Cadastros', element: <Cadastros tipo="clientes" /> },
       { slug: 'cad-uniformes', label: 'Uniformes', grupo: 'Cadastros', element: <Cadastros tipo="uniformes" /> },
       { slug: 'cad-cores', label: 'Cores', grupo: 'Cadastros', element: <Cadastros tipo="cores" /> },
