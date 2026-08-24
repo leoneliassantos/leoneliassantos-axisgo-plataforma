@@ -1,10 +1,13 @@
 import { useMemo, useState } from 'react'
+import { useAuth } from '../../auth/AuthContext'
+import { podeVerFinanceiro } from '../../auth/types'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
+import { NfResumo } from './NotaFiscal'
 import { fmtBRfull, fmtBRL, fmtMesAno, hojeISO, daysBetween, statusClasse, ANO_MIN, ANO_MAX } from './helpers'
 import { ProdutoFields, produtoToDraft, oficinaDraftToInput, logosDraftToInput, gradeErro, TIPOS_LOGO, type ProdutoDraft, type TabCad } from './ProdutoFields'
 import {
-  type Produto, type ProdutoPatch, type StatusProd, type LogoInput, type Cadastro, type Cadastros, type Grade,
-  ETAPAS, etapaLabel, PRIO_LABEL, STATUS_LABEL, TAMANHOS, situacaoAutomatica, SITUACAO_REGRA,
+  type Produto, type ProdutoPatch, type StatusProd, type LogoInput, type Cadastro, type Cadastros, type Grade, type Nf,
+  ETAPAS, etapaLabel, PRIO_LABEL, STATUS_LABEL, TAMANHOS, situacaoAutomatica, SITUACAO_REGRA, NF_VAZIA,
 } from './data'
 
 const nomeDe = (list: Cadastro[], id: string | null) => (id ? list.find((c) => c.id === id)?.nome ?? '' : '')
@@ -16,6 +19,7 @@ const gradeResumo = (g: Grade): string => {
 
 export function ItemModal({
   produto,
+  pedidoNf,
   cadastros,
   saving,
   onSaveItem,
@@ -25,6 +29,7 @@ export function ItemModal({
   onClose,
 }: {
   produto: Produto
+  pedidoNf?: Nf
   cadastros: Cadastros
   saving: boolean
   onSaveItem: (patch: ProdutoPatch, logos: LogoInput[], logText: string) => void
@@ -33,7 +38,10 @@ export function ItemModal({
   onAddCadastro: (tabela: TabCad, nome: string) => Promise<Cadastro>
   onClose: () => void
 }) {
-  const [aba, setAba] = useState<'detalhes' | 'mov'>('detalhes')
+  const { user } = useAuth()
+  const verFinanceiro = user ? podeVerFinanceiro(user.role) : false
+  const abas: Array<'detalhes' | 'mov' | 'financeiro'> = verFinanceiro ? ['detalhes', 'mov', 'financeiro'] : ['detalhes', 'mov']
+  const [aba, setAba] = useState<'detalhes' | 'mov' | 'financeiro'>('detalhes')
   const [draft, setDraft] = useState<ProdutoDraft>(() => produtoToDraft(produto))
   const [responsavel, setResponsavel] = useState(produto.responsavel)
   const [sitSel, setSitSel] = useState<'auto' | StatusProd>(produto.situacaoAuto ? 'auto' : produto.situacaoManual)
@@ -146,19 +154,24 @@ export function ItemModal({
     >
       {/* Abas */}
       <div className="mb-5 flex gap-1 rounded-lg bg-paper p-1">
-        {(['detalhes', 'mov'] as const).map((t) => (
+        {abas.map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => setAba(t)}
             className={`flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition ${aba === t ? 'bg-surface text-ink shadow-sm' : 'text-muted hover:text-ink'}`}
           >
-            {t === 'detalhes' ? 'Detalhes' : 'Movimentação'}
+            {t === 'detalhes' ? 'Detalhes' : t === 'mov' ? 'Movimentação' : 'Financeiro'}
           </button>
         ))}
       </div>
 
-      {aba === 'detalhes' ? (
+      {aba === 'financeiro' ? (
+        <div>
+          <div className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-muted">Nota Fiscal do pedido</div>
+          <NfResumo nf={pedidoNf ?? NF_VAZIA} />
+        </div>
+      ) : aba === 'detalhes' ? (
         <div>
           <div className="mb-1 text-[12px] font-semibold uppercase tracking-wide text-muted">Cadastro do item</div>
           <ProdutoFields draft={draft} ativos={cadastros} opProposta={produto.numeroProposta} opPedido={produto.numeroPedido} opVendedor={produto.vendedor} onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))} onAddCadastro={onAddCadastro} />

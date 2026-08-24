@@ -32,6 +32,10 @@ export function podeVerValorVenda(role: Role): boolean {
 export function podeVerValorFornecedor(role: Role): boolean {
   return role !== 'acabamento'
 }
+/** Dados financeiros da Nota Fiscal do pedido — só Admin e Diretoria. */
+export function podeVerFinanceiro(role: Role): boolean {
+  return role === 'admin' || role === 'diretoria'
+}
 
 export interface AppUser {
   id: string

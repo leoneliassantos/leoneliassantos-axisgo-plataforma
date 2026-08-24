@@ -1,19 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
-import { podeVerValorVenda } from '../../auth/types'
+import { podeVerValorVenda, podeVerFinanceiro } from '../../auth/types'
 import { NovaOP } from './NovaOP'
 import { NovoItem } from './NovoItem'
 import { ItemModal } from './ItemModal'
+import { NfModal } from './NotaFiscal'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
 import {
   resumoPedido, contagemPorEtapa, statusClasse, prioCor, fmtBR, fmtBRfull, hojeISO, daysBetween, itemFiltraTexto,
   dataValida, ANO_MIN, ANO_MAX, valorPedido, fmtBRL,
 } from './helpers'
 import {
-  loadCadastros, loadPedidos, addCadastro, createPedido, addProduto, updateProduto, updatePedido, setProdutoLogos, moveProduto, addObservacao,
+  loadCadastros, loadPedidos, addCadastro, createPedido, addProduto, updateProduto, updatePedido, setProdutoLogos, moveProduto, addObservacao, temNf,
   isDemo, ETAPAS, ETAPA_COR, STATUS_LABEL, PRIO_LABEL, SITUACAO_REGRA,
-  type Cadastros, type Pedido, type Produto, type ProdutoPatch, type NovoPedidoInput, type NovoProdutoInput, type StatusProd, type LogoInput,
+  type Cadastros, type Pedido, type Produto, type ProdutoPatch, type NovoPedidoInput, type NovoProdutoInput, type StatusProd, type LogoInput, type Nf,
 } from './data'
 
 const CADASTROS_VAZIO: Cadastros = { clientes: [], uniformes: [], cores: [], tecidos: [], fornecedores: [] }
@@ -37,6 +38,7 @@ export function FluxoProducao() {
   const [showNova, setShowNova] = useState(false)
   const [itemId, setItemId] = useState<string | null>(null)
   const [addItemOpId, setAddItemOpId] = useState<string | null>(null)
+  const [showNf, setShowNf] = useState(false)
   const [moveAlvo, setMoveAlvo] = useState<MoveAlvo | null>(null)
   const [saving, setSaving] = useState(false)
   const dragId = useRef<string | null>(null)
@@ -136,6 +138,14 @@ export function FluxoProducao() {
     finally { setSaving(false) }
   }
 
+  async function handleSaveNf(nf: Nf) {
+    if (!currentOrder) return
+    setSaving(true)
+    try { await updatePedido(currentOrder.id, { nf }); await refreshPedidos(); setShowNf(false) }
+    catch (e) { alert('Não foi possível salvar a Nota Fiscal: ' + (e instanceof Error ? e.message : '')) }
+    finally { setSaving(false) }
+  }
+
   async function handleSaveEntrega(dataEntrega: string) {
     if (!currentOrder) return
     setSaving(true)
@@ -190,7 +200,7 @@ export function FluxoProducao() {
 
       {view === 'list'
         ? <ListaPedidos pedidos={pedidos} busca={busca} setBusca={setBusca} filtroSit={filtroSit} setFiltroSit={setFiltroSit} onAbrir={abrirBoard} onNova={() => setShowNova(true)} />
-        : currentOrder && <Quadro order={currentOrder} busca={busca} setBusca={setBusca} onVoltar={voltarLista} onAbrirItem={setItemId} onAddItem={() => setAddItemOpId(currentOrder.id)} dragId={dragId} onSoltar={pedirMove} onSaveEntrega={handleSaveEntrega} saving={saving} />}
+        : currentOrder && <Quadro order={currentOrder} busca={busca} setBusca={setBusca} onVoltar={voltarLista} onAbrirItem={setItemId} onAddItem={() => setAddItemOpId(currentOrder.id)} onAbrirNf={() => setShowNf(true)} dragId={dragId} onSoltar={pedirMove} onSaveEntrega={handleSaveEntrega} saving={saving} />}
 
       {showNova && (
         <NovaOP cadastros={cadastros} saving={saving} onAddCadastro={handleAddCadastro} onCreate={handleCreate} onClose={() => setShowNova(false)} />
@@ -199,7 +209,10 @@ export function FluxoProducao() {
         <NovoItem cadastros={cadastros} opProposta={currentOrder.numeroProposta} opPedido={currentOrder.numeroPedido} opPrevisao={currentOrder.dataEntrega} opPrioridade={currentOrder.prioridade} opEvento={currentOrder.evento} opAmostra={currentOrder.amostra} opVendedor={currentOrder.vendedor} saving={saving} onAddCadastro={handleAddCadastro} onCreate={handleAddItem} onClose={() => setAddItemOpId(null)} />
       )}
       {itemAberto && (
-        <ItemModal key={itemAberto.id} produto={itemAberto} cadastros={cadastros} saving={saving} onSaveItem={handleSaveItem} onMover={(para) => pedirMove(itemAberto.id, itemAberto.etapaId, para)} onAddObs={handleAddObs} onAddCadastro={handleAddCadastro} onClose={() => setItemId(null)} />
+        <ItemModal key={itemAberto.id} produto={itemAberto} pedidoNf={currentOrder?.nf} cadastros={cadastros} saving={saving} onSaveItem={handleSaveItem} onMover={(para) => pedirMove(itemAberto.id, itemAberto.etapaId, para)} onAddObs={handleAddObs} onAddCadastro={handleAddCadastro} onClose={() => setItemId(null)} />
+      )}
+      {showNf && currentOrder && (
+        <NfModal nf={currentOrder.nf} saving={saving} onSave={handleSaveNf} onClose={() => setShowNf(false)} />
       )}
       {moveAlvo && (
         <MoveModal alvo={moveAlvo} saving={saving} onConfirm={handleConfirmMove} onClose={() => setMoveAlvo(null)} />
@@ -443,16 +456,17 @@ function EntregaEditavel({ order, onSalvar, saving }: { order: Pedido; onSalvar:
 
 /* =========================== Quadro (Kanban do pedido) =========================== */
 function Quadro({
-  order, busca, setBusca, onVoltar, onAbrirItem, onAddItem, dragId, onSoltar, onSaveEntrega, saving,
+  order, busca, setBusca, onVoltar, onAbrirItem, onAddItem, onAbrirNf, dragId, onSoltar, onSaveEntrega, saving,
 }: {
   order: Pedido; busca: string; setBusca: (s: string) => void
-  onVoltar: () => void; onAbrirItem: (id: string) => void; onAddItem: () => void
+  onVoltar: () => void; onAbrirItem: (id: string) => void; onAddItem: () => void; onAbrirNf: () => void
   dragId: React.MutableRefObject<string | null>; onSoltar: (produtoId: string, de: string, para: string) => void
   onSaveEntrega: (dataEntrega: string) => void; saving: boolean
 }) {
   const r = resumoPedido(order)
   const { user } = useAuth()
   const verValorVenda = user ? podeVerValorVenda(user.role) : false
+  const verFinanceiro = user ? podeVerFinanceiro(user.role) : false
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
@@ -485,6 +499,18 @@ function Quadro({
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14" strokeWidth="2" strokeLinecap="round" /></svg>
             Acrescentar item
           </BtnPrimary>
+          {verFinanceiro && (
+            <button
+              type="button"
+              onClick={onAbrirNf}
+              title="Preencher os dados da Nota Fiscal deste pedido"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-sm font-medium text-ink transition hover:border-ink/30 hover:bg-paper"
+            >
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M7 3h7l4 4v14H7z" /><path d="M14 3v4h4" /><path d="M9.5 12h5M9.5 16h5" /></svg>
+              Dados da Nota Fiscal
+              {temNf(order.nf) && <span className="size-1.5 rounded-full bg-pos" title="NF preenchida" />}
+            </button>
+          )}
         </div>
       </div>
 

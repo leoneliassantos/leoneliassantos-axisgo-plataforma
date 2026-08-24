@@ -111,6 +111,23 @@ export interface OficinaInput {
 
 export const OFICINA_VAZIA: Oficina = { fornecedorId: null, fornecedorNome: '', mesFechamento: '', dataEnvio: '', valorUnitario: 0 }
 
+/** Dados da Nota Fiscal do pedido (aba Financeiro — só Admin/Diretoria). */
+export interface Nf {
+  numero: string
+  dataEmissao: string   // 'YYYY-MM-DD' | ''
+  valor: number
+  fretePorMM: boolean    // frete por conta da MM
+  freteEmpresa: string
+  freteValor: number
+}
+
+export const NF_VAZIA: Nf = { numero: '', dataEmissao: '', valor: 0, fretePorMM: false, freteEmpresa: '', freteValor: 0 }
+
+/** True se a NF tem algum dado preenchido. */
+export function temNf(nf: Nf): boolean {
+  return !!(nf.numero || nf.dataEmissao || nf.valor || nf.freteEmpresa || nf.freteValor)
+}
+
 export interface HistEntry {
   id?: string
   kind: 'mov' | 'obs'
@@ -166,6 +183,7 @@ export interface Pedido {
   amostra: boolean
   dataEntrega: string // YYYY-MM-DD | '' — alimenta a previsão dos itens
   observacao: string
+  nf: Nf
   produtos: Produto[]
 }
 
@@ -396,6 +414,7 @@ export async function loadPedidos(): Promise<Pedido[]> {
     return demoLoad().pedidos.map((ped) => ({
       ...ped,
       vendedor: ped.vendedor ?? '',
+      nf: ped.nf ?? { ...NF_VAZIA },
       produtos: ped.produtos.map((p) => {
         const situacaoAuto = p.situacaoAuto ?? true
         const situacaoManual = p.situacaoManual ?? p.status ?? 'ok'
@@ -404,7 +423,7 @@ export async function loadPedidos(): Promise<Pedido[]> {
     }))
   }
   const [ops, prods, logos, datas, hist] = await Promise.all([
-    supabase!.from('op').select('id, cliente_id, numero_proposta, numero_pedido, vendedor, data_pedido, prioridade, evento, amostra, data_entrega, observacao, clientes(nome)').order('data_pedido', { ascending: false }),
+    supabase!.from('op').select('id, cliente_id, numero_proposta, numero_pedido, vendedor, data_pedido, prioridade, evento, amostra, data_entrega, observacao, nf_numero, nf_data_emissao, nf_valor, nf_frete_mm, nf_frete_empresa, nf_frete_valor, clientes(nome)').order('data_pedido', { ascending: false }),
     supabase!.from('op_produtos').select('id, op_id, uniforme_id, cor_id, tecido_id, numero_proposta, numero_pedido, vendedor, qtd, valor_unitario, prioridade, status, situacao_auto, etapa_id, progresso, responsavel, previsao_entrega, observacao, evento, amostra, grade, oficina_fornecedor_id, oficina_mes_fechamento, oficina_data_envio, oficina_valor_unitario, uniformes(nome), cores(nome), tecidos(nome)'),
     supabase!.from('op_produto_logo').select('produto_id, tipo, fornecedor_id, mes_fechamento, data_envio, valor_unitario, fornecedores(nome)'),
     supabase!.from('op_produto_etapa').select('produto_id, etapa_id, data_conclusao'),
@@ -484,6 +503,14 @@ export async function loadPedidos(): Promise<Pedido[]> {
     evento: !!o.evento, amostra: !!o.amostra,
     dataEntrega: dateOnly(o.data_entrega),
     observacao: (o.observacao as string) ?? '',
+    nf: {
+      numero: (o.nf_numero as string) ?? '',
+      dataEmissao: dateOnly(o.nf_data_emissao),
+      valor: Number(o.nf_valor) || 0,
+      fretePorMM: !!o.nf_frete_mm,
+      freteEmpresa: (o.nf_frete_empresa as string) ?? '',
+      freteValor: Number(o.nf_frete_valor) || 0,
+    },
     produtos: prodsByOp.get(o.id as string) ?? [],
   }))
 }
@@ -563,7 +590,7 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
       }
     })
     db.pedidos = [
-      { id: opId, clienteId: input.clienteId, clienteNome: cliente?.nome ?? '', numeroProposta: input.numeroProposta, numeroPedido: input.numeroPedido, vendedor: input.vendedor, dataPedido: input.dataPedido, prioridade: input.prioridade, evento: input.evento, amostra: input.amostra, dataEntrega: input.dataEntrega, observacao: input.observacao, produtos },
+      { id: opId, clienteId: input.clienteId, clienteNome: cliente?.nome ?? '', numeroProposta: input.numeroProposta, numeroPedido: input.numeroPedido, vendedor: input.vendedor, dataPedido: input.dataPedido, prioridade: input.prioridade, evento: input.evento, amostra: input.amostra, dataEntrega: input.dataEntrega, observacao: input.observacao, nf: { ...NF_VAZIA }, produtos },
       ...db.pedidos,
     ]
     demoSave(db)
@@ -607,6 +634,7 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
 /** Campos do pedido (cabeçalho da OP) que podem ser corrigidos depois de criado. */
 export interface PedidoPatch {
   dataEntrega?: string
+  nf?: Nf
 }
 
 /** Atualiza dados do cabeçalho do pedido (ex.: corrigir a data de entrega). */
@@ -614,12 +642,24 @@ export async function updatePedido(opId: string, patch: PedidoPatch): Promise<vo
   if (isDemo) {
     const db = demoLoad()
     const ped = db.pedidos.find((o) => o.id === opId)
-    if (ped && patch.dataEntrega !== undefined) ped.dataEntrega = patch.dataEntrega
+    if (ped) {
+      if (patch.dataEntrega !== undefined) ped.dataEntrega = patch.dataEntrega
+      if (patch.nf !== undefined) ped.nf = patch.nf
+    }
     demoSave(db)
     return
   }
   const row: Record<string, unknown> = {}
   if (patch.dataEntrega !== undefined) row.data_entrega = patch.dataEntrega || null
+  if (patch.nf !== undefined) {
+    const nf = patch.nf
+    row.nf_numero = nf.numero || null
+    row.nf_data_emissao = nf.dataEmissao || null
+    row.nf_valor = nf.valor || null
+    row.nf_frete_mm = nf.fretePorMM
+    row.nf_frete_empresa = nf.fretePorMM ? (nf.freteEmpresa || null) : null
+    row.nf_frete_valor = nf.fretePorMM ? (nf.freteValor || null) : null
+  }
   if (Object.keys(row).length === 0) return
   const { error } = await supabase!.from('op').update(row).eq('id', opId)
   if (error) throw new Error(error.message)
