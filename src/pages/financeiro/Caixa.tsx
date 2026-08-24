@@ -264,39 +264,55 @@ export function Caixa() {
   const origemOk = useCallback((o: string) => selOrigem === null || selOrigem.has(o), [selOrigem])
 
   /* ============ FLUXO estilo Fukuda: matriz (linhas = contas, colunas = períodos) ============ *
-   * Só títulos pagos, pela Data de Pagamento. Entradas quebradas por canal; despesas por
-   * categoria (de-para), com abertura por fornecedor. Saldo final de um período = inicial do
-   * próximo; o primeiro parte do Saldo de abertura + tudo que já havia sido pago antes. */
+   * REALIZADO + PROJETADO. Cada título vira um "evento de caixa":
+   *   • pago/recebido  → na Data de Pagamento, pelo Valor Pago (realizado);
+   *   • a vencer (não pago, vencimento ≥ hoje) → no Vencimento, pelo Valor do Documento (projetado);
+   *   • vencido não pago → NÃO entra no fluxo (aparece só na lista de Títulos).
+   * Entradas quebradas por canal; despesas por categoria (com abertura por fornecedor). Saldo final
+   * de um período = inicial do próximo; o primeiro parte do Saldo de abertura + tudo antes do período. */
   const fluxo = useMemo(() => {
     const d0 = de || '0000-01-01'
     const d1 = ate || '9999-12-31'
-    const pagos = rows.filter((r) => r.dataPgto && origemOk(r.origem) && (!aberturaData || r.dataPgto >= aberturaData))
-    const sinal = (r: Titulo) => (r.tipo === 'entrada' ? r.valorPago : -r.valorPago)
-    const base = aberturaValor + pagos.filter((r) => r.dataPgto < d0).reduce((s, r) => s + sinal(r), 0)
-    const dentro = pagos.filter((r) => r.dataPgto >= d0 && r.dataPgto <= d1)
+    type Ev = { r: Titulo; date: string; valor: number; proj: boolean }
+    const eventos: Ev[] = []
+    for (const r of rows) {
+      if (!origemOk(r.origem)) continue
+      if (r.dataPgto) {
+        if (aberturaData && r.dataPgto < aberturaData) continue
+        eventos.push({ r, date: r.dataPgto, valor: r.valorPago, proj: false })      // realizado
+      } else if (r.vencimento && r.vencimento >= hoje) {
+        eventos.push({ r, date: r.vencimento, valor: r.valorDoc, proj: true })        // projetado (a vencer)
+      }
+      // vencido não pago (vencimento < hoje) → fora do fluxo
+    }
+    const sinal = (e: Ev) => (e.r.tipo === 'entrada' ? e.valor : -e.valor)
+    const base = aberturaValor + eventos.filter((e) => e.date < d0).reduce((s, e) => s + sinal(e), 0)
+    const dentro = eventos.filter((e) => e.date >= d0 && e.date <= d1)
 
-    // colunas (períodos) na ordem cronológica
+    // colunas (períodos) na ordem cronológica; colProj marca as que têm projeção
     const bset = new Map<string, string>()
-    for (const r of dentro) { const b = bucket(r.dataPgto, gran); bset.set(b.key, b.label) }
+    const colProj: Record<string, boolean> = {}
+    for (const e of dentro) { const b = bucket(e.date, gran); bset.set(b.key, b.label); if (e.proj) colProj[b.key] = true }
     const cols = Array.from(bset.keys()).sort().map((key) => ({ key, label: bset.get(key)! }))
     const zero = () => { const o: Record<string, number> = {}; for (const c of cols) o[c.key] = 0; return o }
 
     // entradas por canal · despesas por categoria (com fornecedores)
     const entMap = new Map<string, Record<string, number>>()
     const catMap = new Map<string, { vals: Record<string, number>; forn: Map<string, { label: string; vals: Record<string, number> }> }>()
-    for (const r of dentro) {
-      const bk = bucket(r.dataPgto, gran).key
+    for (const e of dentro) {
+      const bk = bucket(e.date, gran).key
+      const r = e.r
       if (r.tipo === 'entrada') {
         const k = r.origem || 'Recebimentos'
         let m = entMap.get(k); if (!m) { m = zero(); entMap.set(k, m) }
-        m[bk] += r.valorPago
+        m[bk] += e.valor
       } else {
         const c = r.categoria || SEM_CAT
-        let e = catMap.get(c); if (!e) { e = { vals: zero(), forn: new Map() }; catMap.set(c, e) }
-        e.vals[bk] += r.valorPago
+        let ce = catMap.get(c); if (!ce) { ce = { vals: zero(), forn: new Map() }; catMap.set(c, ce) }
+        ce.vals[bk] += e.valor
         const fk = r.participante || '(sem)'
-        let f = e.forn.get(fk); if (!f) { f = { label: r.obs || r.participante || '—', vals: zero() }; e.forn.set(fk, f) }
-        f.vals[bk] += r.valorPago
+        let f = ce.forn.get(fk); if (!f) { f = { label: r.obs || r.participante || '—', vals: zero() }; ce.forn.set(fk, f) }
+        f.vals[bk] += e.valor
       }
     }
     const soma = (v: Record<string, number>) => cols.reduce((s, c) => s + v[c.key], 0)
@@ -315,8 +331,8 @@ export function Caixa() {
       totalEntradas[c.key] = te; totalSaidas[c.key] = ts; fluxoOp[c.key] = te - ts
       saldoInicial[c.key] = prev; saldoFinal[c.key] = prev + te - ts; prev = saldoFinal[c.key]
     }
-    return { cols, entradaRows, despesaRows, totalEntradas, totalSaidas, fluxoOp, saldoInicial, saldoFinal }
-  }, [rows, de, ate, gran, origemOk, aberturaData, aberturaValor])
+    return { cols, colProj, entradaRows, despesaRows, totalEntradas, totalSaidas, fluxoOp, saldoInicial, saldoFinal }
+  }, [rows, de, ate, gran, origemOk, aberturaData, aberturaValor, hoje])
 
   /* ================= TÍTULOS (tabela filtrável) ================= */
   const titulosFiltrados = useMemo(() => {
@@ -571,15 +587,29 @@ function FluxoView({ f }: { f: any }) {
   const entradaRows = f.entradaRows as { nome: string; vals: Record<string, number>; total: number }[]
   const despesaRows = f.despesaRows as { nome: string; vals: Record<string, number>; total: number; fornecedores: { nome: string; vals: Record<string, number>; total: number }[] }[]
 
-  if (!cols.length) return <div className="rounded-xl border border-line bg-surface p-12 text-center text-muted">Sem pagamentos no período selecionado.</div>
+  if (!cols.length) return <div className="rounded-xl border border-line bg-surface p-12 text-center text-muted">Sem lançamentos no período selecionado.</div>
+  const colProj = f.colProj as Record<string, boolean>
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-line bg-surface shadow-card">
+    <div className="rounded-xl border border-line bg-surface shadow-card">
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-b border-line px-4 py-2 text-[11px] text-muted">
+        <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: '#fff', border: '1px solid #d9cfc4' }} /><b className="text-ink">Realizado</b> — pagamentos e recebimentos efetivados (até hoje).</span>
+        <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: '#eef4fb', border: '1px solid #cfe0f5' }} /><b style={{ color: '#1e5fa8' }}>Projeção</b> — contas a vencer, ainda não pagas/recebidas.</span>
+      </div>
+      <div className="overflow-x-auto">
       <table className="min-w-full border-collapse text-[12.5px]">
         <thead>
           <tr>
             <th className="sticky left-0 z-20 px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wide text-muted" style={{ background: HDR }}>Descrição</th>
-            {cols.map((c) => <th key={c.key} className="whitespace-nowrap px-4 py-3 text-right text-[11px] font-bold uppercase tracking-wide text-muted" style={{ background: HDR }}>{c.label}</th>)}
+            {cols.map((c) => {
+              const proj = colProj[c.key]
+              return (
+                <th key={c.key} className="whitespace-nowrap px-4 py-3 text-right text-[11px] font-bold uppercase tracking-wide" style={{ background: proj ? '#eef4fb' : HDR, color: proj ? '#1e5fa8' : undefined }}>
+                  <span className={proj ? '' : 'text-muted'}>{c.label}</span>
+                  {proj && <div className="text-[9px] font-semibold normal-case tracking-normal" style={{ color: '#1e5fa8' }}>projeção</div>}
+                </th>
+              )
+            })}
           </tr>
         </thead>
         <tbody>
@@ -620,6 +650,7 @@ function FluxoView({ f }: { f: any }) {
           </LinhaFluxo>
         </tbody>
       </table>
+      </div>
     </div>
   )
 }
