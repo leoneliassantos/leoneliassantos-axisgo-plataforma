@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
+import { podeVerValorVenda } from '../../auth/types'
 import { NovaOP } from './NovaOP'
 import { NovoItem } from './NovoItem'
 import { ItemModal } from './ItemModal'
@@ -450,6 +451,8 @@ function Quadro({
   onSaveEntrega: (dataEntrega: string) => void; saving: boolean
 }) {
   const r = resumoPedido(order)
+  const { user } = useAuth()
+  const verValorVenda = user ? podeVerValorVenda(user.role) : false
   return (
     <div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
@@ -468,7 +471,7 @@ function Quadro({
             <div className="text-[13px] text-muted">
               {order.numeroProposta && <>PC Cliente <b className="text-ink/80">{order.numeroProposta}</b> · </>}
               {order.numeroPedido && <>Pedido <b className="text-ink/80">{order.numeroPedido}</b> · </>}
-              {r.total} itens · {r.entregues} entregues · {r.progresso}% · Valor total <b className="tnum text-ink/80">{fmtBRL(valorPedido(order))}</b>
+              {r.total} itens · {r.entregues} entregues · {r.progresso}%{verValorVenda && <> · Valor total <b className="tnum text-ink/80">{fmtBRL(valorPedido(order))}</b></>}
             </div>
             <EntregaEditavel order={order} onSalvar={onSaveEntrega} saving={saving} />
           </div>

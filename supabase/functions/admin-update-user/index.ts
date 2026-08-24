@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
     const profilePatch: Record<string, unknown> = {}
     if (nome !== undefined) profilePatch.nome = nome
     if (email !== undefined) profilePatch.email = email
-    if (role !== undefined) profilePatch.role = role === 'admin' ? 'admin' : 'user'
+    if (role !== undefined) profilePatch.role = ['admin', 'diretoria', 'operacoes', 'acabamento'].includes(role) ? role : 'acabamento'
     if (bloqueado !== undefined) profilePatch.bloqueado = bloqueado
     if (Object.keys(profilePatch).length) {
       const { error } = await admin.from('profiles').update(profilePatch).eq('id', id)

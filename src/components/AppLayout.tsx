@@ -186,10 +186,14 @@ export function AppLayout() {
     </NavLink>
   )
 
+  // Módulos visíveis para o perfil atual (ex.: Cobrança some para Acabamento).
+  const modulosVisiveis = frenteAtiva
+    ? frenteAtiva.modulos.filter((m) => !m.podeVer || (user ? m.podeVer(user.role) : false))
+    : []
   // Separa módulos soltos dos agrupados (ex.: "Cadastros").
-  const soltos = frenteAtiva ? frenteAtiva.modulos.filter((m) => !m.grupo) : []
+  const soltos = modulosVisiveis.filter((m) => !m.grupo)
   const grupos: Record<string, Modulo[]> = {}
-  if (frenteAtiva) for (const m of frenteAtiva.modulos) if (m.grupo) (grupos[m.grupo] ??= []).push(m)
+  for (const m of modulosVisiveis) if (m.grupo) (grupos[m.grupo] ??= []).push(m)
 
   return (
     <div className="flex h-screen overflow-hidden">

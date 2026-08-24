@@ -1,4 +1,6 @@
 import { Combobox } from './Combobox'
+import { useAuth } from '../../auth/AuthContext'
+import { podeVerValorVenda, podeVerValorFornecedor } from '../../auth/types'
 import { ANO_MIN, ANO_MAX, fmtBRL } from './helpers'
 import { TAMANHOS_LINHA1, TAMANHOS_LINHA2, TAMANHOS_LINHA3, TAMANHOS_LINHA4, somaGrade } from './data'
 import type { Cadastro, Cadastros, NovoProdutoInput, OficinaInput, LogoItem, LogoInput, Prioridade, TipoLogo, Produto, Grade } from './data'
@@ -205,6 +207,9 @@ export function ProdutoFields({
   const ofValorUnit = Number(draft.oficina.valorUnitario) || 0
   const ofValorTotal = (Number(draft.qtd) || 0) * ofValorUnit
   const itemValorTotal = (Number(draft.qtd) || 0) * (Number(draft.valorUnitario) || 0)
+  const { user } = useAuth()
+  const verValorVenda = user ? podeVerValorVenda(user.role) : false
+  const verValorFornecedor = user ? podeVerValorFornecedor(user.role) : false
   const setGrade = (t: string, v: string) => {
     const n = Math.max(0, Math.floor(Number(v) || 0))
     const g = { ...draft.grade }
@@ -251,15 +256,19 @@ export function ProdutoFields({
           <label className={lab}>Quantidade (peças) *</label>
           <input type="number" min={0} className={inp} value={draft.qtd} onChange={(e) => onChange({ qtd: e.target.value })} placeholder="0" />
         </div>
-        <div>
-          <label className={lab}>Valor Unitário</label>
-          <input type="number" min={0} step="0.01" inputMode="decimal" className={inp} value={draft.valorUnitario} onChange={(e) => onChange({ valorUnitario: e.target.value })} placeholder="0,00" />
-        </div>
-        <div>
-          <label className={lab}>Valor Total do Item</label>
-          <div className="flex h-[38px] items-center rounded-lg border border-line bg-paper px-3 text-sm font-semibold tabular-nums text-ink">{fmtBRL(itemValorTotal)}</div>
-          <span className="mt-1 block text-[11px] text-muted">Quantidade × Valor Unitário.</span>
-        </div>
+        {verValorVenda && (
+          <>
+            <div>
+              <label className={lab}>Valor Unitário</label>
+              <input type="number" min={0} step="0.01" inputMode="decimal" className={inp} value={draft.valorUnitario} onChange={(e) => onChange({ valorUnitario: e.target.value })} placeholder="0,00" />
+            </div>
+            <div>
+              <label className={lab}>Valor Total do Item</label>
+              <div className="flex h-[38px] items-center rounded-lg border border-line bg-paper px-3 text-sm font-semibold tabular-nums text-ink">{fmtBRL(itemValorTotal)}</div>
+              <span className="mt-1 block text-[11px] text-muted">Quantidade × Valor Unitário.</span>
+            </div>
+          </>
+        )}
         <div>
           <label className={lab}>Previsão de entrega</label>
           <input type="date" className={inp} value={previsaoEfetiva(draft, opPrevisao)} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`} onChange={(e) => onChange({ previsaoEntrega: e.target.value, previsaoEdit: true })} />
@@ -366,15 +375,19 @@ export function ProdutoFields({
                 <input className={`${inp} bg-paper text-muted`} value={Number(draft.qtd) || 0} readOnly tabIndex={-1} />
                 <span className="mt-1 block text-[11px] text-muted">Puxada do item.</span>
               </div>
-              <div>
-                <label className={lab}>Valor Unitário</label>
-                <input type="number" min={0} step="0.01" inputMode="decimal" className={inp} value={draft.oficina.valorUnitario} onChange={(e) => updOficina({ valorUnitario: e.target.value })} placeholder="0,00" />
-              </div>
-              <div className="sm:col-span-2">
-                <label className={lab}>Valor Total</label>
-                <div className="flex h-[38px] items-center rounded-lg border border-line bg-paper px-3 text-sm font-semibold tabular-nums text-ink">{fmtBRL(ofValorTotal)}</div>
-                <span className="mt-1 block text-[11px] text-muted">Quantidade × Valor Unitário (calculado automaticamente).</span>
-              </div>
+              {verValorFornecedor && (
+                <>
+                  <div>
+                    <label className={lab}>Valor Unitário</label>
+                    <input type="number" min={0} step="0.01" inputMode="decimal" className={inp} value={draft.oficina.valorUnitario} onChange={(e) => updOficina({ valorUnitario: e.target.value })} placeholder="0,00" />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className={lab}>Valor Total</label>
+                    <div className="flex h-[38px] items-center rounded-lg border border-line bg-paper px-3 text-sm font-semibold tabular-nums text-ink">{fmtBRL(ofValorTotal)}</div>
+                    <span className="mt-1 block text-[11px] text-muted">Quantidade × Valor Unitário (calculado automaticamente).</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -426,15 +439,19 @@ export function ProdutoFields({
                         <input className={`${inp} bg-paper text-muted`} value={Number(draft.qtd) || 0} readOnly tabIndex={-1} />
                         <span className="mt-1 block text-[11px] text-muted">Puxada do item.</span>
                       </div>
-                      <div>
-                        <label className={lab}>Valor Unitário</label>
-                        <input type="number" min={0} step="0.01" inputMode="decimal" className={inp} value={l.valorUnitario} onChange={(e) => updLogo(t, { valorUnitario: e.target.value })} placeholder="0,00" />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className={lab}>Valor Total</label>
-                        <div className="flex h-[38px] items-center rounded-lg border border-line bg-paper px-3 text-sm font-semibold tabular-nums text-ink">{fmtBRL(vt)}</div>
-                        <span className="mt-1 block text-[11px] text-muted">Quantidade × Valor Unitário (calculado automaticamente).</span>
-                      </div>
+                      {verValorFornecedor && (
+                        <>
+                          <div>
+                            <label className={lab}>Valor Unitário</label>
+                            <input type="number" min={0} step="0.01" inputMode="decimal" className={inp} value={l.valorUnitario} onChange={(e) => updLogo(t, { valorUnitario: e.target.value })} placeholder="0,00" />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label className={lab}>Valor Total</label>
+                            <div className="flex h-[38px] items-center rounded-lg border border-line bg-paper px-3 text-sm font-semibold tabular-nums text-ink">{fmtBRL(vt)}</div>
+                            <span className="mt-1 block text-[11px] text-muted">Quantidade × Valor Unitário (calculado automaticamente).</span>
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>

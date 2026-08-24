@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useAuth } from '../../auth/AuthContext'
 import { PasswordInput } from '../../components/PasswordInput'
 import { avaliarSenha } from '../../lib/password'
-import type { AppUser, Role } from '../../auth/types'
+import { ROLES, ROLE_LABEL, ROLE_DESC, type AppUser, type Role } from '../../auth/types'
 
 type ModalMode = 'novo' | 'editar' | null
 
@@ -17,7 +17,7 @@ export function Usuarios() {
   const [nome, setNome] = useState('')
   const [email, setEmail] = useState('')
   const [senha, setSenha] = useState('')
-  const [role, setRole] = useState<Role>('user')
+  const [role, setRole] = useState<Role>('operacoes')
   const [erroForm, setErroForm] = useState('')
   const [salvando, setSalvando] = useState(false)
 
@@ -38,7 +38,7 @@ export function Usuarios() {
     setNome('')
     setEmail('')
     setSenha('')
-    setRole('user')
+    setRole('operacoes')
     setErroForm('')
   }
 
@@ -153,10 +153,10 @@ export function Usuarios() {
                     <td className="px-4 py-3">
                       <span
                         className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                          u.role === 'admin' ? 'bg-ink text-white' : 'bg-paper text-ink'
+                          u.role === 'admin' ? 'bg-ink text-white' : 'border border-line bg-paper text-ink'
                         }`}
                       >
-                        {u.role === 'admin' ? 'Admin' : 'Usuário'}
+                        {ROLE_LABEL[u.role] ?? u.role}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -245,9 +245,11 @@ export function Usuarios() {
                 onChange={(e) => setRole(e.target.value as Role)}
                 className="rounded-lg border border-line bg-surface px-3.5 py-2.5 text-ink outline-none transition focus:border-ink/40 focus:ring-2 focus:ring-ink/10"
               >
-                <option value="user">Usuário</option>
-                <option value="admin">Administrador</option>
+                {ROLES.map((r) => (
+                  <option key={r} value={r}>{ROLE_LABEL[r]}</option>
+                ))}
               </select>
+              <span className="text-[12px] text-muted">{ROLE_DESC[role]}</span>
             </label>
 
             <PasswordInput

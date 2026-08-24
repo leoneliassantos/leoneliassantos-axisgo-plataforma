@@ -53,7 +53,7 @@ Deno.serve(async (req) => {
       email,
       password: senha,
       email_confirm: true,
-      user_metadata: { nome, role: role === 'admin' ? 'admin' : 'user' },
+      user_metadata: { nome, role: ['admin', 'diretoria', 'operacoes', 'acabamento'].includes(role) ? role : 'acabamento' },
     })
     if (error) return json(400, { error: error.message })
 

@@ -8,7 +8,7 @@ create table if not exists public.profiles (
   id         uuid primary key references auth.users on delete cascade,
   email      text,
   nome       text,
-  role       text not null default 'user' check (role in ('admin', 'user')),
+  role       text not null default 'acabamento' check (role in ('admin', 'diretoria', 'operacoes', 'acabamento', 'user')),
   bloqueado  boolean not null default false,
   created_at timestamptz not null default now()
 );
@@ -79,7 +79,7 @@ create policy "perfil_update"
   using (auth.uid() = id or public.is_admin())
   with check (
     public.is_admin()
-    or (auth.uid() = id and role = 'user' and bloqueado = false)
+    or (auth.uid() = id and role <> 'admin' and bloqueado = false)
   );
 
 -- Observação: a CRIAÇÃO de usuários por um admin (definindo e-mail/senha de

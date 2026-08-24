@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useAuth } from '../../auth/AuthContext'
+import { podeVerValorFornecedor } from '../../auth/types'
 import { fmtBRL, fmtBRfull, fmtMesAno, hojeISO, ANO_MIN, ANO_MAX } from './helpers'
 import { loadCadastros, loadPedidos, type Cadastros, type Pedido } from './data'
 
@@ -20,6 +22,7 @@ interface LinhaCobranca {
 const mesAtual = () => hojeISO().slice(0, 7)
 
 export function CobrancaOficinas() {
+  const { user } = useAuth()
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const [cadastros, setCadastros] = useState<Cadastros>(CADASTROS_VAZIO)
@@ -108,6 +111,8 @@ export function CobrancaOficinas() {
     XLSX.writeFile(wb, `Cobranca Oficinas - ${periodo}.xlsx`.replace(/\//g, '-'))
   }
 
+  if (user && !podeVerValorFornecedor(user.role))
+    return <div className="mx-auto mt-10 max-w-lg rounded-xl border border-line bg-surface p-6 text-center text-muted">Seu perfil não tem acesso ao relatório de cobrança.</div>
   if (loading) return <div className="py-20 text-center text-muted">Carregando…</div>
   if (erro) return <div className="mx-auto mt-10 max-w-lg rounded-xl border border-neg/30 bg-neg/5 p-5 text-center text-neg">{erro}</div>
 

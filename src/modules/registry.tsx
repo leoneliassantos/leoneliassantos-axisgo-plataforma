@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { podeVerValorFornecedor, type Role } from '../auth/types'
 import { EmConstrucao } from '../components/EmConstrucao'
 import { Rentabilidade } from '../pages/financeiro/Rentabilidade'
 import { FluxoCaixaHub } from '../pages/financeiro/FluxoCaixaHub'
@@ -42,6 +43,11 @@ export interface Modulo {
    * aparecem juntos, sob um submenu recolhível (ex.: "Cadastros").
    */
   grupo?: string
+  /**
+   * Visibilidade por perfil. Se definido, o módulo só aparece (menu + acesso)
+   * quando o predicado é verdadeiro para o role do usuário. Ausente = todos veem.
+   */
+  podeVer?: (role: Role) => boolean
 }
 
 export interface Frente {
@@ -105,7 +111,7 @@ const TODAS_FRENTES: Frente[] = [
       { slug: 'fluxo-producao', label: 'Fluxo de Produção', element: <FluxoProducao /> },
       { slug: 'ordens-producao', label: 'Ordens de Produção', element: <OrdensProducao /> },
       { slug: 'acompanhamento', label: 'Acompanhamento', element: <Acompanhamento /> },
-      { slug: 'cobranca-oficinas', label: 'Cobrança de Oficinas', element: <CobrancaOficinas /> },
+      { slug: 'cobranca-oficinas', label: 'Cobrança de Oficinas', element: <CobrancaOficinas />, podeVer: podeVerValorFornecedor },
       { slug: 'cad-clientes', label: 'Clientes', grupo: 'Cadastros', element: <Cadastros tipo="clientes" /> },
       { slug: 'cad-uniformes', label: 'Uniformes', grupo: 'Cadastros', element: <Cadastros tipo="uniformes" /> },
       { slug: 'cad-cores', label: 'Cores', grupo: 'Cadastros', element: <Cadastros tipo="cores" /> },
