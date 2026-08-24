@@ -1,13 +1,16 @@
 import { Combobox } from './Combobox'
 import { ANO_MIN, ANO_MAX, fmtBRL } from './helpers'
 import { TAMANHOS_LINHA1, TAMANHOS_LINHA2, TAMANHOS_LINHA3, TAMANHOS_LINHA4, somaGrade } from './data'
-import type { Cadastro, Cadastros, NovoProdutoInput, OficinaInput, Prioridade, TipoLogo, Produto, Grade } from './data'
+import type { Cadastro, Cadastros, NovoProdutoInput, OficinaInput, LogoItem, LogoInput, Prioridade, TipoLogo, Produto, Grade } from './data'
 
 export type TabCad = 'clientes' | 'uniformes' | 'cores' | 'tecidos' | 'fornecedores'
 
 interface LogoDraft {
   ativo: boolean
   fornecedorId: string | null
+  mesFechamento: string   // 'YYYY-MM'
+  dataEnvio: string       // 'YYYY-MM-DD'
+  valorUnitario: string   // texto do input
 }
 interface OficinaDraft {
   fornecedorId: string | null
@@ -53,7 +56,11 @@ export const novaLinha = (): ProdutoDraft => ({
   evento: false, eventoEdit: false, amostra: false, amostraEdit: false, observacao: '', grade: {},
   temOficina: false, oficina: { fornecedorId: null, mesFechamento: '', dataEnvio: '', valorUnitario: '' },
   temLogo: false,
-  logos: { Bordado: { ativo: false, fornecedorId: null }, Silk: { ativo: false, fornecedorId: null }, DTF: { ativo: false, fornecedorId: null } },
+  logos: {
+    Bordado: { ativo: false, fornecedorId: null, mesFechamento: '', dataEnvio: '', valorUnitario: '' },
+    Silk: { ativo: false, fornecedorId: null, mesFechamento: '', dataEnvio: '', valorUnitario: '' },
+    DTF: { ativo: false, fornecedorId: null, mesFechamento: '', dataEnvio: '', valorUnitario: '' },
+  },
 })
 
 /** Converte um Produto já existente em rascunho editável (para a aba Detalhes). */
@@ -75,10 +82,21 @@ export function produtoToDraft(p: Produto): ProdutoDraft {
     },
     temLogo: p.logos.length > 0,
     logos: {
-      Bordado: { ativo: !!logoOf('Bordado'), fornecedorId: logoOf('Bordado')?.fornecedorId ?? null },
-      Silk: { ativo: !!logoOf('Silk'), fornecedorId: logoOf('Silk')?.fornecedorId ?? null },
-      DTF: { ativo: !!logoOf('DTF'), fornecedorId: logoOf('DTF')?.fornecedorId ?? null },
+      Bordado: logoToDraft(logoOf('Bordado')),
+      Silk: logoToDraft(logoOf('Silk')),
+      DTF: logoToDraft(logoOf('DTF')),
     },
+  }
+}
+
+/** Converte um LogoItem salvo (ou ausente) em rascunho editável. */
+function logoToDraft(l: LogoItem | undefined): LogoDraft {
+  return {
+    ativo: !!l,
+    fornecedorId: l?.fornecedorId ?? null,
+    mesFechamento: l?.mesFechamento ?? '',
+    dataEnvio: l?.dataEnvio ?? '',
+    valorUnitario: l?.valorUnitario ? String(l.valorUnitario) : '',
   }
 }
 
@@ -94,6 +112,18 @@ export const prioridadeEfetiva = (d: ProdutoDraft, opPrioridade: Prioridade): Pr
 /** Evento/Amostra efetivos: usam o do item se foram trocados; senão herdam os do pedido. */
 export const eventoEfetivo = (d: ProdutoDraft, opEvento: boolean) => (d.eventoEdit ? d.evento : opEvento)
 export const amostraEfetiva = (d: ProdutoDraft, opAmostra: boolean) => (d.amostraEdit ? d.amostra : opAmostra)
+
+/** Logomarcas ativas do rascunho, prontas para gravação (vazio se a logomarca não foi ativada). */
+export function logosDraftToInput(d: ProdutoDraft): LogoInput[] {
+  if (!d.temLogo) return []
+  return TIPOS_LOGO.filter((t) => d.logos[t].ativo).map((t) => ({
+    tipo: t,
+    fornecedorId: d.logos[t].fornecedorId,
+    mesFechamento: d.logos[t].mesFechamento,
+    dataEnvio: d.logos[t].dataEnvio,
+    valorUnitario: Number(d.logos[t].valorUnitario) || 0,
+  }))
+}
 
 /** Dados da oficina do rascunho, prontos para gravação (vazios se a oficina não foi ativada). */
 export function oficinaDraftToInput(d: ProdutoDraft): OficinaInput {
@@ -115,7 +145,7 @@ export function draftToInput(d: ProdutoDraft, opProposta: string, opPedido: stri
     qtd: Number(d.qtd), prioridade: prioridadeEfetiva(d, opPrioridade), previsaoEntrega: previsaoEfetiva(d, opPrevisao),
     observacao: d.observacao.trim(), evento: eventoEfetivo(d, opEvento), amostra: amostraEfetiva(d, opAmostra), grade: d.grade,
     oficina: oficinaDraftToInput(d),
-    logos: d.temLogo ? TIPOS_LOGO.filter((t) => d.logos[t].ativo).map((t) => ({ tipo: t, fornecedorId: d.logos[t].fornecedorId })) : [],
+    logos: logosDraftToInput(d),
   }
 }
 
@@ -339,28 +369,69 @@ export function ProdutoFields({
         )}
       </div>
 
-      <label className="mt-4 flex items-center gap-2 text-sm text-ink">
-        <input type="checkbox" checked={draft.temLogo} onChange={(e) => onChange({ temLogo: e.target.checked })} className="accent-ink" />
-        Tem aplicação de logomarca?
-      </label>
-      {draft.temLogo && (
-        <div className="mt-2 grid grid-cols-1 gap-2 rounded-lg bg-paper p-3 sm:grid-cols-3">
-          {TIPOS_LOGO.map((t) => (
-            <div key={t} className="rounded-lg border border-line bg-surface p-2.5">
-              <label className="flex items-center gap-2 text-sm font-medium text-ink">
-                <input type="checkbox" checked={draft.logos[t].ativo} onChange={(e) => updLogo(t, { ativo: e.target.checked })} className="accent-ink" />
-                {t}
-              </label>
-              {draft.logos[t].ativo && (
-                <div className="mt-2">
-                  <Combobox value={draft.logos[t].fornecedorId} options={ativos.fornecedores} placeholder="Fornecedor" addLabel="Cadastrar fornecedor"
-                    onSelect={(id) => updLogo(t, { fornecedorId: id })} onAdd={(nome) => addAndSelect('fornecedores', nome, (id) => updLogo(t, { fornecedorId: id }))} />
+      {/* Aplicação de logomarca — um bloco por tipo (Bordado/Silk/DTF), base para a cobrança do fornecedor */}
+      <div className="mt-4">
+        <button
+          type="button"
+          onClick={() => onChange({ temLogo: !draft.temLogo })}
+          className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition ${draft.temLogo ? 'border-ink bg-ink text-surface' : 'border-line bg-surface text-ink hover:border-ink/30'}`}
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h7l9 9-7 7-9-9z" /><circle cx="8" cy="8" r="1.2" /></svg>
+          Aplicação de logomarca
+          <span className={draft.temLogo ? 'text-surface/70' : 'text-muted'}>{draft.temLogo ? '(preenchendo)' : '(adicionar)'}</span>
+        </button>
+
+        {draft.temLogo && (
+          <div className="mt-2 flex flex-col gap-2">
+            {TIPOS_LOGO.map((t) => {
+              const l = draft.logos[t]
+              const vu = Number(l.valorUnitario) || 0
+              const vt = (Number(draft.qtd) || 0) * vu
+              return (
+                <div key={t} className={`rounded-lg border p-3 ${l.ativo ? 'border-ink/25 bg-surface' : 'border-line bg-paper'}`}>
+                  <label className="flex items-center gap-2 text-sm font-semibold text-ink">
+                    <input type="checkbox" checked={l.ativo} onChange={(e) => updLogo(t, { ativo: e.target.checked })} className="accent-ink" />
+                    {t}
+                  </label>
+                  {l.ativo && (
+                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <div className="sm:col-span-3">
+                        <label className={lab}>Fornecedor</label>
+                        <Combobox value={l.fornecedorId} options={ativos.fornecedores} placeholder="Selecione o fornecedor" addLabel="Cadastrar fornecedor"
+                          onSelect={(id) => updLogo(t, { fornecedorId: id })} onAdd={(nome) => addAndSelect('fornecedores', nome, (id) => updLogo(t, { fornecedorId: id }))} />
+                      </div>
+                      <div>
+                        <label className={lab}>Mês de Fechamento</label>
+                        <input type="month" className={inp} value={l.mesFechamento} min={`${ANO_MIN}-01`} max={`${ANO_MAX}-12`} onChange={(e) => updLogo(t, { mesFechamento: e.target.value })} />
+                        <span className="mt-1 block text-[11px] text-muted">Define se a cobrança cai neste mês ou no próximo.</span>
+                      </div>
+                      <div>
+                        <label className={lab}>Data de Envio</label>
+                        <input type="date" className={inp} value={l.dataEnvio} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`} onChange={(e) => updLogo(t, { dataEnvio: e.target.value })} />
+                        <span className="mt-1 block text-[11px] text-muted">Preenche sozinho na etapa Aplicação de Logomarca.</span>
+                      </div>
+                      <div>
+                        <label className={lab}>Quantidade</label>
+                        <input className={`${inp} bg-paper text-muted`} value={Number(draft.qtd) || 0} readOnly tabIndex={-1} />
+                        <span className="mt-1 block text-[11px] text-muted">Puxada do item.</span>
+                      </div>
+                      <div>
+                        <label className={lab}>Valor Unitário</label>
+                        <input type="number" min={0} step="0.01" inputMode="decimal" className={inp} value={l.valorUnitario} onChange={(e) => updLogo(t, { valorUnitario: e.target.value })} placeholder="0,00" />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className={lab}>Valor Total</label>
+                        <div className="flex h-[38px] items-center rounded-lg border border-line bg-paper px-3 text-sm font-semibold tabular-nums text-ink">{fmtBRL(vt)}</div>
+                        <span className="mt-1 block text-[11px] text-muted">Quantidade × Valor Unitário (calculado automaticamente).</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+              )
+            })}
+          </div>
+        )}
+      </div>
     </>
   )
 }

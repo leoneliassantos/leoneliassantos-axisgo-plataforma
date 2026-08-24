@@ -12,7 +12,7 @@ import {
 import {
   loadCadastros, loadPedidos, addCadastro, createPedido, addProduto, updateProduto, updatePedido, setProdutoLogos, moveProduto, addObservacao,
   isDemo, ETAPAS, ETAPA_COR, STATUS_LABEL, PRIO_LABEL, SITUACAO_REGRA,
-  type Cadastros, type Pedido, type Produto, type ProdutoPatch, type NovoPedidoInput, type NovoProdutoInput, type StatusProd, type TipoLogo,
+  type Cadastros, type Pedido, type Produto, type ProdutoPatch, type NovoPedidoInput, type NovoProdutoInput, type StatusProd, type LogoInput,
 } from './data'
 
 const CADASTROS_VAZIO: Cadastros = { clientes: [], uniformes: [], cores: [], tecidos: [], fornecedores: [] }
@@ -115,7 +115,7 @@ export function FluxoProducao() {
     }
   }
 
-  async function handleSaveItem(patch: ProdutoPatch, logos: { tipo: TipoLogo; fornecedorId: string | null }[], logText: string) {
+  async function handleSaveItem(patch: ProdutoPatch, logos: LogoInput[], logText: string) {
     if (!itemId) return
     setSaving(true)
     try {

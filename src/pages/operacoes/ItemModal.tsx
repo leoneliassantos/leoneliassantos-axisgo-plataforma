@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
 import { fmtBRfull, fmtBRL, fmtMesAno, hojeISO, daysBetween, statusClasse, ANO_MIN, ANO_MAX } from './helpers'
-import { ProdutoFields, produtoToDraft, oficinaDraftToInput, gradeErro, TIPOS_LOGO, type ProdutoDraft, type TabCad } from './ProdutoFields'
+import { ProdutoFields, produtoToDraft, oficinaDraftToInput, logosDraftToInput, gradeErro, TIPOS_LOGO, type ProdutoDraft, type TabCad } from './ProdutoFields'
 import {
-  type Produto, type ProdutoPatch, type StatusProd, type TipoLogo, type Cadastro, type Cadastros, type Grade,
+  type Produto, type ProdutoPatch, type StatusProd, type LogoInput, type Cadastro, type Cadastros, type Grade,
   ETAPAS, etapaLabel, PRIO_LABEL, STATUS_LABEL, TAMANHOS, situacaoAutomatica, SITUACAO_REGRA,
 } from './data'
 
@@ -27,7 +27,7 @@ export function ItemModal({
   produto: Produto
   cadastros: Cadastros
   saving: boolean
-  onSaveItem: (patch: ProdutoPatch, logos: { tipo: TipoLogo; fornecedorId: string | null }[], logText: string) => void
+  onSaveItem: (patch: ProdutoPatch, logos: LogoInput[], logText: string) => void
   onMover: (para: string) => void
   onAddObs: (texto: string, data: string) => void
   onAddCadastro: (tabela: TabCad, nome: string) => Promise<Cadastro>
@@ -87,11 +87,17 @@ export function ItemModal({
     if (of.valorUnitario !== produto.oficina.valorUnitario) ch.push(`Valor unitário (oficina): ${fmtBRL(produto.oficina.valorUnitario)} → ${fmtBRL(of.valorUnitario)}`)
     for (const t of TIPOS_LOGO) {
       const old = produto.logos.find((l) => l.tipo === t)
-      const novoAtivo = draft.temLogo && draft.logos[t].ativo
-      const novoForn = draft.logos[t].fornecedorId
-      if (old && !novoAtivo) ch.push(`Logomarca ${t} removida`)
-      else if (!old && novoAtivo) ch.push(`Logomarca ${t} adicionada${novoForn ? ` (fornecedor: ${nomeDe(cadastros.fornecedores, novoForn)})` : ''}`)
-      else if (old && novoAtivo && (old.fornecedorId ?? null) !== (novoForn ?? null)) ch.push(`Fornecedor do ${t}: "${old.fornecedorNome || '—'}" → "${nomeDe(cadastros.fornecedores, novoForn) || '—'}"`)
+      const dl = draft.logos[t]
+      const novoAtivo = draft.temLogo && dl.ativo
+      if (old && !novoAtivo) { ch.push(`Logomarca ${t} removida`); continue }
+      if (!old && novoAtivo) { ch.push(`Logomarca ${t} adicionada${dl.fornecedorId ? ` (fornecedor: ${nomeDe(cadastros.fornecedores, dl.fornecedorId)})` : ''}`); continue }
+      if (old && novoAtivo) {
+        if ((old.fornecedorId ?? null) !== (dl.fornecedorId ?? null)) ch.push(`Fornecedor do ${t}: "${old.fornecedorNome || '—'}" → "${nomeDe(cadastros.fornecedores, dl.fornecedorId) || '—'}"`)
+        if ((dl.mesFechamento || '') !== (old.mesFechamento || '')) ch.push(`Mês de fechamento ${t}: ${fmtMesAno(old.mesFechamento) || '—'} → ${fmtMesAno(dl.mesFechamento) || '—'}`)
+        if ((dl.dataEnvio || '') !== (old.dataEnvio || '')) ch.push(`Data de envio ${t}: ${fmtBRfull(old.dataEnvio) || '—'} → ${fmtBRfull(dl.dataEnvio) || '—'}`)
+        const oldVu = old.valorUnitario || 0, newVu = Number(dl.valorUnitario) || 0
+        if (newVu !== oldVu) ch.push(`Valor unitário ${t}: ${fmtBRL(oldVu)} → ${fmtBRL(newVu)}`)
+      }
     }
     return ch
   }
@@ -102,7 +108,7 @@ export function ItemModal({
     if (ge) { setErro(ge); return }
     const mudancas = calcularMudancas()
     if (mudancas.length === 0) { onClose(); return }
-    const logos = draft.temLogo ? TIPOS_LOGO.filter((t) => draft.logos[t].ativo).map((t) => ({ tipo: t, fornecedorId: draft.logos[t].fornecedorId })) : []
+    const logos = logosDraftToInput(draft)
     const patch: ProdutoPatch = {
       uniformeId: draft.uniformeId, corId: draft.corId, tecidoId: draft.tecidoId,
       numeroProposta: draft.numeroProposta.trim(), numeroPedido: draft.numeroPedido.trim(), vendedor: draft.vendedor.trim(),

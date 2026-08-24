@@ -78,6 +78,18 @@ export interface LogoItem {
   tipo: TipoLogo
   fornecedorId?: string | null
   fornecedorNome?: string
+  mesFechamento: string    // 'YYYY-MM' | '' — mês em que a produção do fornecedor fecha
+  dataEnvio: string        // 'YYYY-MM-DD' | '' — entrada (pode vir da movimentação do card)
+  valorUnitario: number    // 0 = não informado
+}
+
+/** Entrada de logomarca para gravação (um tipo: Bordado/Silk/DTF). */
+export interface LogoInput {
+  tipo: TipoLogo
+  fornecedorId: string | null
+  mesFechamento: string
+  dataEnvio: string
+  valorUnitario: number
 }
 
 /** Dados da Oficina (facção) que costura o item — base para a cobrança do fornecedor. */
@@ -179,7 +191,7 @@ export interface NovoProdutoInput {
   amostra: boolean
   grade: Grade
   oficina: OficinaInput
-  logos: { tipo: TipoLogo; fornecedorId: string | null }[]
+  logos: LogoInput[]
 }
 
 export interface NovoPedidoInput {
@@ -392,7 +404,7 @@ export async function loadPedidos(): Promise<Pedido[]> {
   const [ops, prods, logos, datas, hist] = await Promise.all([
     supabase!.from('op').select('id, cliente_id, numero_proposta, numero_pedido, vendedor, data_pedido, prioridade, evento, amostra, data_entrega, observacao, clientes(nome)').order('data_pedido', { ascending: false }),
     supabase!.from('op_produtos').select('id, op_id, uniforme_id, cor_id, tecido_id, numero_proposta, numero_pedido, vendedor, qtd, prioridade, status, situacao_auto, etapa_id, progresso, responsavel, previsao_entrega, observacao, evento, amostra, grade, oficina_fornecedor_id, oficina_mes_fechamento, oficina_data_envio, oficina_valor_unitario, uniformes(nome), cores(nome), tecidos(nome)'),
-    supabase!.from('op_produto_logo').select('produto_id, tipo, fornecedor_id, fornecedores(nome)'),
+    supabase!.from('op_produto_logo').select('produto_id, tipo, fornecedor_id, mes_fechamento, data_envio, valor_unitario, fornecedores(nome)'),
     supabase!.from('op_produto_etapa').select('produto_id, etapa_id, data_conclusao'),
     supabase!.from('op_etapa_historico').select('id, produto_id, kind, etapa_de, etapa_para, data, texto, usuario').order('created_at'),
   ])
@@ -402,7 +414,10 @@ export async function loadPedidos(): Promise<Pedido[]> {
   const logosByProd = new Map<string, LogoItem[]>()
   for (const l of (logos.data ?? []) as Array<Record<string, unknown>>) {
     const arr = logosByProd.get(l.produto_id as string) ?? []
-    arr.push({ tipo: l.tipo as TipoLogo, fornecedorId: (l.fornecedor_id as string) ?? null, fornecedorNome: rel(l.fornecedores) })
+    arr.push({
+      tipo: l.tipo as TipoLogo, fornecedorId: (l.fornecedor_id as string) ?? null, fornecedorNome: rel(l.fornecedores),
+      mesFechamento: (l.mes_fechamento as string) ?? '', dataEnvio: dateOnly(l.data_envio), valorUnitario: Number(l.valor_unitario) || 0,
+    })
     logosByProd.set(l.produto_id as string, arr)
   }
   const datasByProd = new Map<string, Record<string, string>>()
@@ -500,6 +515,23 @@ function oficinaColumns(o: OficinaInput): Record<string, unknown> {
   }
 }
 
+/** Monta um LogoItem (com nome resolvido) a partir do input + lista de fornecedores. */
+function logoFromInput(l: LogoInput, fornecedores: Cadastro[]): LogoItem {
+  return {
+    tipo: l.tipo, fornecedorId: l.fornecedorId,
+    fornecedorNome: fornecedores.find((f) => f.id === l.fornecedorId)?.nome,
+    mesFechamento: l.mesFechamento, dataEnvio: l.dataEnvio, valorUnitario: l.valorUnitario,
+  }
+}
+
+/** Linha da tabela op_produto_logo para insert no Supabase. */
+function logoRow(produtoId: string, l: LogoInput): Record<string, unknown> {
+  return {
+    produto_id: produtoId, tipo: l.tipo, fornecedor_id: l.fornecedorId,
+    mes_fechamento: l.mesFechamento || null, data_envio: l.dataEnvio || null, valor_unitario: l.valorUnitario || null,
+  }
+}
+
 /** Extrai o `nome` de um relacionamento do PostgREST (objeto ou array). */
 function rel(v: unknown): string {
   if (!v) return ''
@@ -524,7 +556,7 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
         etapaId: 'pedido', progresso: progressoDaEtapa('pedido'), responsavel: '',
         previsaoEntrega: p.previsaoEntrega, observacao: p.observacao, evento: p.evento, amostra: p.amostra, grade: p.grade ?? {},
         oficina: oficinaFromInput(p.oficina, db.fornecedores),
-        logos: p.logos.map((l) => ({ tipo: l.tipo, fornecedorId: l.fornecedorId, fornecedorNome: db.fornecedores.find((f) => f.id === l.fornecedorId)?.nome })),
+        logos: p.logos.map((l) => logoFromInput(l, db.fornecedores)),
         datas: {}, historico: [],
       }
     })
@@ -562,7 +594,7 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
     if (p.logos.length) {
       const { error: lErr } = await supabase!
         .from('op_produto_logo')
-        .insert(p.logos.map((l) => ({ produto_id: prodId, tipo: l.tipo, fornecedor_id: l.fornecedorId })))
+        .insert(p.logos.map((l) => logoRow(prodId, l)))
       if (lErr) throw new Error(lErr.message)
     }
   }
@@ -607,7 +639,7 @@ export async function addProduto(opId: string, p: NovoProdutoInput): Promise<voi
       prioridade: p.prioridade, status: 'ok', situacaoAuto: true, situacaoManual: 'ok', etapaId: 'pedido', progresso: progressoDaEtapa('pedido'),
       responsavel: '', previsaoEntrega: p.previsaoEntrega, observacao: p.observacao, evento: p.evento, amostra: p.amostra, grade: p.grade ?? {},
       oficina: oficinaFromInput(p.oficina, db.fornecedores),
-      logos: p.logos.map((l) => ({ tipo: l.tipo, fornecedorId: l.fornecedorId, fornecedorNome: db.fornecedores.find((f) => f.id === l.fornecedorId)?.nome })),
+      logos: p.logos.map((l) => logoFromInput(l, db.fornecedores)),
       datas: {}, historico: [],
     })
     demoSave(db)
@@ -629,7 +661,7 @@ export async function addProduto(opId: string, p: NovoProdutoInput): Promise<voi
   if (p.logos.length) {
     const { error: lErr } = await supabase!
       .from('op_produto_logo')
-      .insert(p.logos.map((l) => ({ produto_id: prodId, tipo: l.tipo, fornecedor_id: l.fornecedorId })))
+      .insert(p.logos.map((l) => logoRow(prodId, l)))
     if (lErr) throw new Error(lErr.message)
   }
 }
@@ -707,13 +739,13 @@ export async function updateProduto(id: string, patch: ProdutoPatch): Promise<vo
 }
 
 /** Substitui as logomarcas de um produto (apaga as antigas e grava as novas). */
-export async function setProdutoLogos(produtoId: string, logos: { tipo: TipoLogo; fornecedorId: string | null }[]): Promise<void> {
+export async function setProdutoLogos(produtoId: string, logos: LogoInput[]): Promise<void> {
   if (isDemo) {
     const db = demoLoad()
     for (const ped of db.pedidos) {
       const prod = ped.produtos.find((p) => p.id === produtoId)
       if (prod) {
-        prod.logos = logos.map((l) => ({ tipo: l.tipo, fornecedorId: l.fornecedorId, fornecedorNome: db.fornecedores.find((f) => f.id === l.fornecedorId)?.nome }))
+        prod.logos = logos.map((l) => logoFromInput(l, db.fornecedores))
         break
       }
     }
@@ -723,7 +755,7 @@ export async function setProdutoLogos(produtoId: string, logos: { tipo: TipoLogo
   const del = await supabase!.from('op_produto_logo').delete().eq('produto_id', produtoId)
   if (del.error) throw new Error(del.error.message)
   if (logos.length) {
-    const ins = await supabase!.from('op_produto_logo').insert(logos.map((l) => ({ produto_id: produtoId, tipo: l.tipo, fornecedor_id: l.fornecedorId })))
+    const ins = await supabase!.from('op_produto_logo').insert(logos.map((l) => logoRow(produtoId, l)))
     if (ins.error) throw new Error(ins.error.message)
   }
 }
@@ -760,6 +792,8 @@ export async function moveProduto(id: string, de: string, para: string, data: st
         else for (const eid of etapasADesfazer) delete prod.datas[eid]
         // Entrada na Oficina preenche a Data de Envio da oficina (se ainda vazia).
         if (para === 'oficina') { prod.oficina = prod.oficina ?? { ...OFICINA_VAZIA }; if (!prod.oficina.dataEnvio) prod.oficina.dataEnvio = data }
+        // Entrada na Aplicação de Logomarca preenche a Data de Envio das logos (se ainda vazia).
+        if (para === 'logo') for (const l of prod.logos) { if (!l.dataEnvio) l.dataEnvio = data }
         break
       }
     }
@@ -773,6 +807,11 @@ export async function moveProduto(id: string, de: string, para: string, data: st
   if (para === 'oficina') {
     const of = await supabase!.from('op_produtos').update({ oficina_data_envio: data }).eq('id', id).is('oficina_data_envio', null)
     if (of.error) throw new Error(of.error.message)
+  }
+  // Entrada na Aplicação de Logomarca preenche a Data de Envio das logos, só as ainda vazias.
+  if (para === 'logo') {
+    const lg = await supabase!.from('op_produto_logo').update({ data_envio: data }).eq('produto_id', id).is('data_envio', null)
+    if (lg.error) throw new Error(lg.error.message)
   }
   // 2) O LOG — gravado antes do passo da linha do tempo, para nunca ser suprimido.
   const h = await supabase!.from('op_etapa_historico').insert({ produto_id: id, kind: 'mov', etapa_de: de, etapa_para: para, data, texto: obs || null, usuario: usuario || null })
