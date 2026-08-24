@@ -230,7 +230,7 @@ export function FluxoProducao() {
         <NovoItem cadastros={cadastros} opProposta={currentOrder.numeroProposta} opPedido={currentOrder.numeroPedido} opPrevisao={currentOrder.dataEntrega} opPrioridade={currentOrder.prioridade} opEvento={currentOrder.evento} opAmostra={currentOrder.amostra} opVendedor={currentOrder.vendedor} saving={saving} onAddCadastro={handleAddCadastro} onCreate={handleAddItem} onClose={() => setAddItemOpId(null)} />
       )}
       {itemAberto && (
-        <ItemModal key={itemAberto.id} produto={itemAberto} pedidoNf={currentOrder?.nf} cadastros={cadastros} saving={saving} onSaveItem={handleSaveItem} onMover={(para) => pedirMove(itemAberto.id, itemAberto.etapaId, para)} onAddObs={handleAddObs} onAddCadastro={handleAddCadastro} onClose={() => setItemId(null)} />
+        <ItemModal key={itemAberto.id} produto={itemAberto} pedidoNf={currentOrder?.nf} pedidoData={currentOrder?.dataPedido} cadastros={cadastros} saving={saving} onSaveItem={handleSaveItem} onMover={(para) => pedirMove(itemAberto.id, itemAberto.etapaId, para)} onAddObs={handleAddObs} onAddCadastro={handleAddCadastro} onClose={() => setItemId(null)} />
       )}
       {showNf && currentOrder && (
         <NfModal nf={currentOrder.nf} saving={saving} onSave={handleSaveNf} onClose={() => setShowNf(false)} />

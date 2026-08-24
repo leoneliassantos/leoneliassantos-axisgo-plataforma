@@ -94,6 +94,47 @@ export function valorPedido(ped: Pedido): number {
   return ped.produtos.reduce((s, i) => s + (i.qtd || 0) * (i.valorUnitario || 0), 0)
 }
 
+/**
+ * Dias que o item passou em cada etapa, derivado da movimentação dos cards.
+ * Entrar numa etapa = data do movimento que trouxe o item para ela; sair = data
+ * do movimento que o tirou. A etapa inicial usa a data do pedido como entrada; a
+ * etapa atual conta até hoje (exceto a etapa final, que é o encerramento).
+ */
+export function temposPorEtapa(prod: Produto, dataInicial: string, hoje: string): Record<string, number> {
+  const tempos: Record<string, number> = {}
+  const add = (etapa: string, de: string, ate: string) => {
+    if (!etapa || !de || !ate) return
+    tempos[etapa] = (tempos[etapa] ?? 0) + Math.max(0, daysBetween(de, ate))
+  }
+  const moves = prod.historico
+    .filter((h) => h.kind === 'mov' && h.etapaDe && h.etapaPara)
+    .slice()
+    .sort((a, b) => a.data.localeCompare(b.data))
+
+  if (moves.length === 0) {
+    if (prod.etapaId !== ULTIMA_ETAPA) add(prod.etapaId, dataInicial, hoje)
+    return tempos
+  }
+  let etapaAtual = moves[0].etapaDe as string
+  let entrou = dataInicial || moves[0].data
+  for (const m of moves) {
+    add(etapaAtual, entrou, m.data)
+    etapaAtual = m.etapaPara as string
+    entrou = m.data
+  }
+  // Etapa atual (ainda não saiu): conta até hoje, salvo se já é a etapa final.
+  if (etapaAtual !== ULTIMA_ETAPA) add(etapaAtual, entrou, hoje)
+  return tempos
+}
+
+/** Etapa em que o item mais tempo ficou (o gargalo). Null se não houver dados. */
+export function etapaGargalo(tempos: Record<string, number>): { etapaId: string; dias: number } | null {
+  const ids = Object.keys(tempos)
+  if (!ids.length) return null
+  const etapaId = ids.reduce((a, b) => (tempos[b] > tempos[a] ? b : a))
+  return { etapaId, dias: tempos[etapaId] }
+}
+
 /** Contagem de itens por etapa (para o mini-mapa da lista). */
 export function contagemPorEtapa(ped: Pedido): Record<string, number> {
   const m: Record<string, number> = {}

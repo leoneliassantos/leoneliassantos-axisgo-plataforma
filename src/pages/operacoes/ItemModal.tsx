@@ -4,7 +4,7 @@ import { podeVerFinanceiro } from '../../auth/types'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
 import { NfResumo } from './NotaFiscal'
 import { MentionPicker } from '../../components/MentionPicker'
-import { fmtBRfull, fmtBRL, fmtMesAno, hojeISO, daysBetween, statusClasse, ANO_MIN, ANO_MAX } from './helpers'
+import { fmtBRfull, fmtBRL, fmtMesAno, hojeISO, daysBetween, statusClasse, temposPorEtapa, etapaGargalo, ANO_MIN, ANO_MAX } from './helpers'
 import { ProdutoFields, produtoToDraft, oficinaDraftToInput, logosDraftToInput, gradeErro, TIPOS_LOGO, type ProdutoDraft, type TabCad } from './ProdutoFields'
 import {
   type Produto, type ProdutoPatch, type StatusProd, type LogoInput, type Cadastro, type Cadastros, type Grade, type Nf,
@@ -21,6 +21,7 @@ const gradeResumo = (g: Grade): string => {
 export function ItemModal({
   produto,
   pedidoNf,
+  pedidoData,
   cadastros,
   saving,
   onSaveItem,
@@ -31,6 +32,7 @@ export function ItemModal({
 }: {
   produto: Produto
   pedidoNf?: Nf
+  pedidoData?: string
   cadastros: Cadastros
   saving: boolean
   onSaveItem: (patch: ProdutoPatch, logos: LogoInput[], logText: string) => void
@@ -57,6 +59,10 @@ export function ItemModal({
     const lead = concl.length >= 2 ? daysBetween(concl[0], concl[concl.length - 1]) : 0
     return { concluidas: concl.length, lead }
   }, [produto.datas])
+
+  const tempos = useMemo(() => temposPorEtapa(produto, pedidoData ?? '', hojeISO()), [produto, pedidoData])
+  const gargalo = useMemo(() => etapaGargalo(tempos), [tempos])
+  const fmtDias = (n: number) => `${n} ${n === 1 ? 'dia' : 'dias'}`
 
   const historicoOrd = useMemo(
     () => [...produto.historico].sort((a, b) => a.data.localeCompare(b.data)),
@@ -207,34 +213,49 @@ export function ItemModal({
 
           {erro && <p className="mt-3 rounded-lg bg-neg/10 px-3 py-2 text-sm font-medium text-neg">{erro}</p>}
 
-          {/* Linha do tempo do item */}
+          {/* Linha do tempo do item — com o tempo (dias) que ficou em cada etapa */}
           <div className="mt-5">
-            <label className={lab}>Linha do tempo do item</label>
+            <div className="mb-1 flex items-center justify-between">
+              <label className={`${lab} mb-0`}>Linha do tempo do item</label>
+              <span className="text-[11px] text-muted">Tempo em cada etapa (pela movimentação)</span>
+            </div>
             <ol className="mt-1 space-y-1.5">
               {ETAPAS.map((e) => {
                 const data = produto.datas[e.id]
                 const atual = e.id === produto.etapaId
+                const dias = tempos[e.id]
+                const emAndamento = atual && data === undefined
                 return (
                   <li key={e.id} className="flex items-center gap-3 text-sm">
                     <span className={`grid size-5 shrink-0 place-items-center rounded-full text-[10px] font-bold ${data ? 'bg-pos text-white' : atual ? 'bg-ink text-white' : 'bg-line text-muted'}`}>
                       {data ? '✓' : e.ordem}
                     </span>
                     <span className={`flex-1 ${atual ? 'font-semibold text-ink' : data ? 'text-ink' : 'text-muted'}`}>{e.label}{atual && ' (atual)'}</span>
-                    <span className="tnum text-muted">{data ? fmtBRfull(data) : '—'}</span>
+                    {dias !== undefined && (
+                      <span className={`tnum rounded px-1.5 py-0.5 text-[11px] font-medium ${gargalo && gargalo.etapaId === e.id && gargalo.dias > 0 ? 'bg-amber-500/15 text-amber-700' : 'bg-paper text-muted'}`} title={emAndamento ? 'Tempo até hoje (ainda nesta etapa)' : 'Tempo que ficou nesta etapa'}>
+                        {fmtDias(dias)}{emAndamento ? '…' : ''}
+                      </span>
+                    )}
+                    <span className="tnum w-20 text-right text-muted">{data ? fmtBRfull(data) : '—'}</span>
                   </li>
                 )
               })}
             </ol>
+            {gargalo && gargalo.dias > 0 && (
+              <p className="mt-2 text-[12px] text-muted">Mais tempo parado: <b className="text-ink">{etapaLabel(gargalo.etapaId)}</b> ({fmtDias(gargalo.dias)}).</p>
+            )}
           </div>
         </div>
       ) : (
         <div>
           {/* Indicadores */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Ind label="Etapas concluídas" valor={`${indicadores.concluidas} / ${ETAPAS.length}`} />
-            <Ind label="Lead time" valor={indicadores.lead ? `${indicadores.lead} dias` : '—'} />
+            <Ind label="Lead time" valor={indicadores.lead ? fmtDias(indicadores.lead) : '—'} />
             <Ind label="Etapa atual" valor={etapaLabel(produto.etapaId)} />
+            <Ind label="Etapa mais lenta" valor={gargalo && gargalo.dias > 0 ? `${etapaLabel(gargalo.etapaId)} · ${fmtDias(gargalo.dias)}` : '—'} />
           </div>
+          <p className="mt-2 text-[12px] text-muted">O tempo de cada etapa é calculado pelas datas das movimentações do card. Veja o detalhamento na aba <b>Detalhes</b> (Linha do tempo do item).</p>
 
           {/* Adicionar observação */}
           <div className="mt-5 rounded-xl border border-line p-3">
