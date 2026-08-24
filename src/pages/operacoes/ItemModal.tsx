@@ -63,6 +63,7 @@ export function ItemModal({
     if (draft.tecidoId !== produto.tecidoId) ch.push(`Tecido: "${produto.tecidoNome || '—'}" → "${nomeDe(cadastros.tecidos, draft.tecidoId) || '—'}"`)
     if (prop !== (produto.numeroProposta || '')) ch.push(`Pedido de Compra Cliente: "${produto.numeroProposta || '—'}" → "${prop || '—'}"`)
     if (ped !== (produto.numeroPedido || '')) ch.push(`Nº Pedido: "${produto.numeroPedido || '—'}" → "${ped || '—'}"`)
+    if (draft.vendedor.trim() !== (produto.vendedor || '')) ch.push(`Vendedor: "${produto.vendedor || '—'}" → "${draft.vendedor.trim() || '—'}"`)
     const qtd = Number(draft.qtd) || 0
     if (qtd !== produto.qtd) ch.push(`Quantidade: ${produto.qtd} → ${qtd}`)
     if (draft.prioridade !== produto.prioridade) ch.push(`Prioridade: ${PRIO_LABEL[produto.prioridade]} → ${PRIO_LABEL[draft.prioridade]}`)
@@ -98,7 +99,7 @@ export function ItemModal({
     const logos = draft.temLogo ? TIPOS_LOGO.filter((t) => draft.logos[t].ativo).map((t) => ({ tipo: t, fornecedorId: draft.logos[t].fornecedorId })) : []
     const patch: ProdutoPatch = {
       uniformeId: draft.uniformeId, corId: draft.corId, tecidoId: draft.tecidoId,
-      numeroProposta: draft.numeroProposta.trim(), numeroPedido: draft.numeroPedido.trim(),
+      numeroProposta: draft.numeroProposta.trim(), numeroPedido: draft.numeroPedido.trim(), vendedor: draft.vendedor.trim(),
       qtd: Number(draft.qtd) || 0, prioridade: draft.prioridade, responsavel: responsavel.trim(), previsaoEntrega: draft.previsaoEntrega,
       situacaoAuto: sitSel === 'auto', situacaoManual: sitSel === 'auto' ? produto.situacaoManual : sitSel,
       evento: draft.evento, amostra: draft.amostra,
@@ -145,7 +146,7 @@ export function ItemModal({
       {aba === 'detalhes' ? (
         <div>
           <div className="mb-1 text-[12px] font-semibold uppercase tracking-wide text-muted">Cadastro do item</div>
-          <ProdutoFields draft={draft} ativos={cadastros} opProposta={produto.numeroProposta} opPedido={produto.numeroPedido} onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))} onAddCadastro={onAddCadastro} />
+          <ProdutoFields draft={draft} ativos={cadastros} opProposta={produto.numeroProposta} opPedido={produto.numeroPedido} opVendedor={produto.vendedor} onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))} onAddCadastro={onAddCadastro} />
 
           {/* Campos específicos do item em produção */}
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">

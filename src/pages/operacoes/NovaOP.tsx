@@ -26,6 +26,7 @@ export function NovaOP({
   const [evento, setEvento] = useState(false)
   const [amostra, setAmostra] = useState(false)
   const [dataEntrega, setDataEntrega] = useState('')
+  const [vendedor, setVendedor] = useState('')
   const [observacao, setObservacao] = useState('')
   const [produtos, setProdutos] = useState<ProdutoDraft[]>([novaLinha()])
   const [erro, setErro] = useState<string | null>(null)
@@ -63,9 +64,9 @@ export function NovaOP({
       if (ge) { setErro(`Produto ${i + 1}: ${ge}`); return }
     }
     const input: NovoPedidoInput = {
-      clienteId, numeroProposta: numeroProposta.trim(), numeroPedido: numeroPedido.trim(), dataPedido, prioridade,
+      clienteId, numeroProposta: numeroProposta.trim(), numeroPedido: numeroPedido.trim(), vendedor: vendedor.trim(), dataPedido, prioridade,
       evento, amostra, dataEntrega, observacao: observacao.trim(),
-      produtos: validos.map((p) => draftToInput(p, numeroProposta, numeroPedido, dataEntrega, prioridade, evento, amostra)),
+      produtos: validos.map((p) => draftToInput(p, numeroProposta, numeroPedido, dataEntrega, prioridade, evento, amostra, vendedor)),
     }
     onCreate(input)
   }
@@ -139,6 +140,13 @@ export function NovaOP({
         </div>
       </div>
 
+      {/* Vendedor do pedido — espelha para cada item (editável em cada um) */}
+      <div className="mt-4">
+        <label className={lab}>Vendedor</label>
+        <input className={inp} value={vendedor} onChange={(e) => setVendedor(e.target.value)} placeholder="Nome do vendedor responsável pelo pedido" />
+        <span className="mt-1 block text-[11px] text-muted">Preenche o vendedor de cada item (editável em cada um).</span>
+      </div>
+
       {/* Observação do pedido */}
       <div className="mt-4">
         <label className={lab}>Observação</label>
@@ -165,7 +173,7 @@ export function NovaOP({
                 </button>
               )}
             </div>
-            <ProdutoFields draft={p} ativos={ativos} opProposta={numeroProposta} opPedido={numeroPedido} opPrevisao={dataEntrega} opPrioridade={prioridade} opEvento={evento} opAmostra={amostra} onChange={(patch) => upd(p.key, patch)} onAddCadastro={onAddCadastro} />
+            <ProdutoFields draft={p} ativos={ativos} opProposta={numeroProposta} opPedido={numeroPedido} opPrevisao={dataEntrega} opPrioridade={prioridade} opEvento={evento} opAmostra={amostra} opVendedor={vendedor} onChange={(patch) => upd(p.key, patch)} onAddCadastro={onAddCadastro} />
           </div>
         ))}
       </div>

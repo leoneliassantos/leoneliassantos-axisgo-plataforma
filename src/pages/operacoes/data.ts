@@ -101,6 +101,7 @@ export interface Produto {
   tecidoNome: string
   numeroProposta: string
   numeroPedido: string
+  vendedor: string
   qtd: number
   prioridade: Prioridade
   status: StatusProd // situação EFETIVA (automática ou manual) — usada em toda exibição/resumo
@@ -125,6 +126,7 @@ export interface Pedido {
   clienteNome: string
   numeroProposta: string
   numeroPedido: string
+  vendedor: string
   dataPedido: string // YYYY-MM-DD
   prioridade: Prioridade
   evento: boolean
@@ -148,6 +150,7 @@ export interface NovoProdutoInput {
   tecidoId: string | null
   numeroProposta: string
   numeroPedido: string
+  vendedor: string
   qtd: number
   prioridade: Prioridade
   previsaoEntrega: string
@@ -162,6 +165,7 @@ export interface NovoPedidoInput {
   clienteId: string
   numeroProposta: string
   numeroPedido: string
+  vendedor: string
   dataPedido: string
   prioridade: Prioridade
   evento: boolean
@@ -356,16 +360,17 @@ export async function loadPedidos(): Promise<Pedido[]> {
   if (isDemo) {
     return demoLoad().pedidos.map((ped) => ({
       ...ped,
+      vendedor: ped.vendedor ?? '',
       produtos: ped.produtos.map((p) => {
         const situacaoAuto = p.situacaoAuto ?? true
         const situacaoManual = p.situacaoManual ?? p.status ?? 'ok'
-        return { ...p, evento: !!p.evento, amostra: !!p.amostra, situacaoAuto, situacaoManual, status: situacaoEfetiva({ situacaoAuto, situacaoManual, previsaoEntrega: p.previsaoEntrega, etapaId: p.etapaId }) }
+        return { ...p, vendedor: p.vendedor ?? '', evento: !!p.evento, amostra: !!p.amostra, situacaoAuto, situacaoManual, status: situacaoEfetiva({ situacaoAuto, situacaoManual, previsaoEntrega: p.previsaoEntrega, etapaId: p.etapaId }) }
       }),
     }))
   }
   const [ops, prods, logos, datas, hist] = await Promise.all([
-    supabase!.from('op').select('id, cliente_id, numero_proposta, numero_pedido, data_pedido, prioridade, evento, amostra, data_entrega, observacao, clientes(nome)').order('data_pedido', { ascending: false }),
-    supabase!.from('op_produtos').select('id, op_id, uniforme_id, cor_id, tecido_id, numero_proposta, numero_pedido, qtd, prioridade, status, situacao_auto, etapa_id, progresso, responsavel, previsao_entrega, observacao, evento, amostra, grade, uniformes(nome), cores(nome), tecidos(nome)'),
+    supabase!.from('op').select('id, cliente_id, numero_proposta, numero_pedido, vendedor, data_pedido, prioridade, evento, amostra, data_entrega, observacao, clientes(nome)').order('data_pedido', { ascending: false }),
+    supabase!.from('op_produtos').select('id, op_id, uniforme_id, cor_id, tecido_id, numero_proposta, numero_pedido, vendedor, qtd, prioridade, status, situacao_auto, etapa_id, progresso, responsavel, previsao_entrega, observacao, evento, amostra, grade, uniformes(nome), cores(nome), tecidos(nome)'),
     supabase!.from('op_produto_logo').select('produto_id, tipo, fornecedor_id, fornecedores(nome)'),
     supabase!.from('op_produto_etapa').select('produto_id, etapa_id, data_conclusao'),
     supabase!.from('op_etapa_historico').select('id, produto_id, kind, etapa_de, etapa_para, data, texto, usuario').order('created_at'),
@@ -409,6 +414,7 @@ export async function loadPedidos(): Promise<Pedido[]> {
       corId: (p.cor_id as string) ?? null, corNome: rel(p.cores),
       tecidoId: (p.tecido_id as string) ?? null, tecidoNome: rel(p.tecidos),
       numeroProposta: (p.numero_proposta as string) ?? '', numeroPedido: (p.numero_pedido as string) ?? '',
+      vendedor: (p.vendedor as string) ?? '',
       qtd: Number(p.qtd) || 0, prioridade: (p.prioridade as Prioridade) ?? 'media',
       status: situacaoEfetiva({ situacaoAuto: auto, situacaoManual: manual, previsaoEntrega: prev, etapaId: etapa }),
       situacaoAuto: auto, situacaoManual: manual,
@@ -427,6 +433,7 @@ export async function loadPedidos(): Promise<Pedido[]> {
   return ((ops.data ?? []) as Array<Record<string, unknown>>).map((o) => ({
     id: o.id as string, clienteId: o.cliente_id as string, clienteNome: rel(o.clientes),
     numeroProposta: (o.numero_proposta as string) ?? '', numeroPedido: (o.numero_pedido as string) ?? '',
+    vendedor: (o.vendedor as string) ?? '',
     dataPedido: dateOnly(o.data_pedido),
     prioridade: (o.prioridade as Prioridade) ?? 'media',
     evento: !!o.evento, amostra: !!o.amostra,
@@ -464,7 +471,7 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
         id: uid(), opId, uniformeId: p.uniformeId, uniformeNome: uni?.nome ?? '',
         corId: p.corId, corNome: cor?.nome ?? '', tecidoId: p.tecidoId, tecidoNome: tec?.nome ?? '',
         numeroProposta: p.numeroProposta || input.numeroProposta,
-        numeroPedido: p.numeroPedido, qtd: p.qtd, prioridade: p.prioridade, status: 'ok', situacaoAuto: true, situacaoManual: 'ok',
+        numeroPedido: p.numeroPedido, vendedor: p.vendedor, qtd: p.qtd, prioridade: p.prioridade, status: 'ok', situacaoAuto: true, situacaoManual: 'ok',
         etapaId: 'pedido', progresso: progressoDaEtapa('pedido'), responsavel: '',
         previsaoEntrega: p.previsaoEntrega, observacao: p.observacao, evento: p.evento, amostra: p.amostra, grade: p.grade ?? {},
         logos: p.logos.map((l) => ({ tipo: l.tipo, fornecedorId: l.fornecedorId, fornecedorNome: db.fornecedores.find((f) => f.id === l.fornecedorId)?.nome })),
@@ -472,7 +479,7 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
       }
     })
     db.pedidos = [
-      { id: opId, clienteId: input.clienteId, clienteNome: cliente?.nome ?? '', numeroProposta: input.numeroProposta, numeroPedido: input.numeroPedido, dataPedido: input.dataPedido, prioridade: input.prioridade, evento: input.evento, amostra: input.amostra, dataEntrega: input.dataEntrega, observacao: input.observacao, produtos },
+      { id: opId, clienteId: input.clienteId, clienteNome: cliente?.nome ?? '', numeroProposta: input.numeroProposta, numeroPedido: input.numeroPedido, vendedor: input.vendedor, dataPedido: input.dataPedido, prioridade: input.prioridade, evento: input.evento, amostra: input.amostra, dataEntrega: input.dataEntrega, observacao: input.observacao, produtos },
       ...db.pedidos,
     ]
     demoSave(db)
@@ -481,7 +488,7 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
 
   const { data: op, error: opErr } = await supabase!
     .from('op')
-    .insert({ cliente_id: input.clienteId, numero_proposta: input.numeroProposta || null, numero_pedido: input.numeroPedido || null, data_pedido: input.dataPedido, prioridade: input.prioridade, evento: input.evento, amostra: input.amostra, data_entrega: input.dataEntrega || null, observacao: input.observacao || null })
+    .insert({ cliente_id: input.clienteId, numero_proposta: input.numeroProposta || null, numero_pedido: input.numeroPedido || null, vendedor: input.vendedor || null, data_pedido: input.dataPedido, prioridade: input.prioridade, evento: input.evento, amostra: input.amostra, data_entrega: input.dataEntrega || null, observacao: input.observacao || null })
     .select('id')
     .single()
   if (opErr) throw new Error(opErr.message)
@@ -493,6 +500,7 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
       .insert({
         op_id: opId, uniforme_id: p.uniformeId, cor_id: p.corId, tecido_id: p.tecidoId,
         numero_proposta: p.numeroProposta || input.numeroProposta || null, numero_pedido: p.numeroPedido || input.numeroPedido || null,
+        vendedor: p.vendedor || input.vendedor || null,
         qtd: p.qtd, prioridade: p.prioridade, status: 'ok', situacao_auto: true, etapa_id: 'pedido', progresso: progressoDaEtapa('pedido'),
         previsao_entrega: p.previsaoEntrega || null, observacao: p.observacao || null, evento: p.evento, amostra: p.amostra, grade: p.grade ?? {},
       })
@@ -544,7 +552,7 @@ export async function addProduto(opId: string, p: NovoProdutoInput): Promise<voi
     ped.produtos.push({
       id: uid(), opId, uniformeId: p.uniformeId, uniformeNome: uni?.nome ?? '',
       corId: p.corId, corNome: cor?.nome ?? '', tecidoId: p.tecidoId, tecidoNome: tec?.nome ?? '',
-      numeroProposta: p.numeroProposta, numeroPedido: p.numeroPedido, qtd: p.qtd,
+      numeroProposta: p.numeroProposta, numeroPedido: p.numeroPedido, vendedor: p.vendedor, qtd: p.qtd,
       prioridade: p.prioridade, status: 'ok', situacaoAuto: true, situacaoManual: 'ok', etapaId: 'pedido', progresso: progressoDaEtapa('pedido'),
       responsavel: '', previsaoEntrega: p.previsaoEntrega, observacao: p.observacao, evento: p.evento, amostra: p.amostra, grade: p.grade ?? {},
       logos: p.logos.map((l) => ({ tipo: l.tipo, fornecedorId: l.fornecedorId, fornecedorNome: db.fornecedores.find((f) => f.id === l.fornecedorId)?.nome })),
@@ -557,7 +565,7 @@ export async function addProduto(opId: string, p: NovoProdutoInput): Promise<voi
     .from('op_produtos')
     .insert({
       op_id: opId, uniforme_id: p.uniformeId, cor_id: p.corId, tecido_id: p.tecidoId,
-      numero_proposta: p.numeroProposta || null, numero_pedido: p.numeroPedido || null,
+      numero_proposta: p.numeroProposta || null, numero_pedido: p.numeroPedido || null, vendedor: p.vendedor || null,
       qtd: p.qtd, prioridade: p.prioridade, status: 'ok', situacao_auto: true, etapa_id: 'pedido', progresso: progressoDaEtapa('pedido'),
       previsao_entrega: p.previsaoEntrega || null, observacao: p.observacao || null, evento: p.evento, amostra: p.amostra, grade: p.grade ?? {},
     })
@@ -579,6 +587,7 @@ export interface ProdutoPatch {
   tecidoId?: string | null
   numeroProposta?: string
   numeroPedido?: string
+  vendedor?: string
   qtd?: number
   prioridade?: Prioridade
   situacaoAuto?: boolean
@@ -602,6 +611,7 @@ export async function updateProduto(id: string, patch: ProdutoPatch): Promise<vo
         if (patch.tecidoId !== undefined) { prod.tecidoId = patch.tecidoId; prod.tecidoNome = db.tecidos.find((t) => t.id === patch.tecidoId)?.nome ?? '' }
         if (patch.numeroProposta !== undefined) prod.numeroProposta = patch.numeroProposta
         if (patch.numeroPedido !== undefined) prod.numeroPedido = patch.numeroPedido
+        if (patch.vendedor !== undefined) prod.vendedor = patch.vendedor
         if (patch.qtd !== undefined) prod.qtd = patch.qtd
         if (patch.prioridade !== undefined) prod.prioridade = patch.prioridade
         if (patch.situacaoAuto !== undefined) prod.situacaoAuto = patch.situacaoAuto
@@ -625,6 +635,7 @@ export async function updateProduto(id: string, patch: ProdutoPatch): Promise<vo
   if (patch.tecidoId !== undefined) payload.tecido_id = patch.tecidoId
   if (patch.numeroProposta !== undefined) payload.numero_proposta = patch.numeroProposta || null
   if (patch.numeroPedido !== undefined) payload.numero_pedido = patch.numeroPedido || null
+  if (patch.vendedor !== undefined) payload.vendedor = patch.vendedor || null
   if (patch.qtd !== undefined) payload.qtd = patch.qtd
   if (patch.prioridade !== undefined) payload.prioridade = patch.prioridade
   if (patch.situacaoAuto !== undefined) payload.situacao_auto = patch.situacaoAuto

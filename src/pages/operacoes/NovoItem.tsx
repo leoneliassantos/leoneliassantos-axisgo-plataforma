@@ -4,7 +4,7 @@ import { ProdutoFields, novaLinha, draftToInput, gradeErro, type ProdutoDraft, t
 import type { Cadastro, Cadastros, NovoProdutoInput, Prioridade } from './data'
 
 export function NovoItem({
-  cadastros, opProposta, opPedido, opPrevisao = '', opPrioridade = 'media', opEvento = false, opAmostra = false, saving, onAddCadastro, onCreate, onClose,
+  cadastros, opProposta, opPedido, opPrevisao = '', opPrioridade = 'media', opEvento = false, opAmostra = false, opVendedor = '', saving, onAddCadastro, onCreate, onClose,
 }: {
   cadastros: Cadastros
   opProposta: string
@@ -13,6 +13,7 @@ export function NovoItem({
   opPrioridade?: Prioridade
   opEvento?: boolean
   opAmostra?: boolean
+  opVendedor?: string
   saving: boolean
   onAddCadastro: (tabela: TabCad, nome: string) => Promise<Cadastro>
   onCreate: (input: NovoProdutoInput) => void
@@ -34,7 +35,7 @@ export function NovoItem({
     if (!draft.uniformeId || !(Number(draft.qtd) > 0)) { setErro('Informe o uniforme e a quantidade.'); return }
     const ge = gradeErro(draft)
     if (ge) { setErro(ge); return }
-    onCreate(draftToInput(draft, opProposta, opPedido, opPrevisao, opPrioridade, opEvento, opAmostra))
+    onCreate(draftToInput(draft, opProposta, opPedido, opPrevisao, opPrioridade, opEvento, opAmostra, opVendedor))
   }
 
   return (
@@ -50,7 +51,7 @@ export function NovoItem({
         </>
       }
     >
-      <ProdutoFields draft={draft} ativos={ativos} opProposta={opProposta} opPedido={opPedido} opPrevisao={opPrevisao} opPrioridade={opPrioridade} opEvento={opEvento} opAmostra={opAmostra} onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))} onAddCadastro={onAddCadastro} />
+      <ProdutoFields draft={draft} ativos={ativos} opProposta={opProposta} opPedido={opPedido} opPrevisao={opPrevisao} opPrioridade={opPrioridade} opEvento={opEvento} opAmostra={opAmostra} opVendedor={opVendedor} onChange={(patch) => setDraft((d) => ({ ...d, ...patch }))} onAddCadastro={onAddCadastro} />
       {erro && <p className="mt-4 rounded-lg bg-neg/10 px-3 py-2 text-sm text-neg">{erro}</p>}
     </Modal>
   )
