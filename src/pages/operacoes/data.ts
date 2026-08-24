@@ -382,7 +382,7 @@ export async function loadPedidos(): Promise<Pedido[]> {
   const datasByProd = new Map<string, Record<string, string>>()
   for (const d of (datas.data ?? []) as Array<Record<string, unknown>>) {
     const m = datasByProd.get(d.produto_id as string) ?? {}
-    if (d.data_conclusao) m[d.etapa_id as string] = (d.data_conclusao as string).slice(0, 10)
+    if (d.data_conclusao) m[d.etapa_id as string] = dateOnly(d.data_conclusao)
     datasByProd.set(d.produto_id as string, m)
   }
   const histByProd = new Map<string, HistEntry[]>()
@@ -391,7 +391,7 @@ export async function loadPedidos(): Promise<Pedido[]> {
     arr.push({
       id: h.id as string, kind: h.kind as 'mov' | 'obs',
       etapaDe: (h.etapa_de as string) ?? null, etapaPara: (h.etapa_para as string) ?? null,
-      data: (h.data as string).slice(0, 10), texto: (h.texto as string) ?? null,
+      data: dateOnly(h.data), texto: (h.texto as string) ?? null,
       usuario: (h.usuario as string) ?? null,
     })
     histByProd.set(h.produto_id as string, arr)
@@ -402,7 +402,7 @@ export async function loadPedidos(): Promise<Pedido[]> {
     const manual = (p.status as StatusProd) ?? 'ok'
     const auto = p.situacao_auto !== false // default: automático
     const etapa = (p.etapa_id as string) ?? 'pedido'
-    const prev = p.previsao_entrega ? (p.previsao_entrega as string).slice(0, 10) : ''
+    const prev = dateOnly(p.previsao_entrega)
     arr.push({
       id: p.id as string, opId: p.op_id as string,
       uniformeId: (p.uniforme_id as string) ?? null, uniformeNome: rel(p.uniformes),
@@ -427,13 +427,21 @@ export async function loadPedidos(): Promise<Pedido[]> {
   return ((ops.data ?? []) as Array<Record<string, unknown>>).map((o) => ({
     id: o.id as string, clienteId: o.cliente_id as string, clienteNome: rel(o.clientes),
     numeroProposta: (o.numero_proposta as string) ?? '', numeroPedido: (o.numero_pedido as string) ?? '',
-    dataPedido: (o.data_pedido as string).slice(0, 10),
+    dataPedido: dateOnly(o.data_pedido),
     prioridade: (o.prioridade as Prioridade) ?? 'media',
     evento: !!o.evento, amostra: !!o.amostra,
-    dataEntrega: o.data_entrega ? (o.data_entrega as string).slice(0, 10) : '',
+    dataEntrega: dateOnly(o.data_entrega),
     observacao: (o.observacao as string) ?? '',
     produtos: prodsByOp.get(o.id as string) ?? [],
   }))
+}
+
+/** Só a parte de data (YYYY-MM-DD) de um valor do banco. Preserva anos fora do
+ *  padrão (ex.: erro de digitação 20026) para que a validação os detecte, em vez
+ *  de cortar com slice(0,10) e corromper o dia. */
+function dateOnly(v: unknown): string {
+  if (!v) return ''
+  return String(v).split('T')[0]
 }
 
 /** Extrai o `nome` de um relacionamento do PostgREST (objeto ou array). */
@@ -501,6 +509,27 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
   }
   // Silencia o parâmetro não usado fora do modo demo.
   void cadastros
+}
+
+/** Campos do pedido (cabeçalho da OP) que podem ser corrigidos depois de criado. */
+export interface PedidoPatch {
+  dataEntrega?: string
+}
+
+/** Atualiza dados do cabeçalho do pedido (ex.: corrigir a data de entrega). */
+export async function updatePedido(opId: string, patch: PedidoPatch): Promise<void> {
+  if (isDemo) {
+    const db = demoLoad()
+    const ped = db.pedidos.find((o) => o.id === opId)
+    if (ped && patch.dataEntrega !== undefined) ped.dataEntrega = patch.dataEntrega
+    demoSave(db)
+    return
+  }
+  const row: Record<string, unknown> = {}
+  if (patch.dataEntrega !== undefined) row.data_entrega = patch.dataEntrega || null
+  if (Object.keys(row).length === 0) return
+  const { error } = await supabase!.from('op').update(row).eq('id', opId)
+  if (error) throw new Error(error.message)
 }
 
 /** Acrescenta UM produto a uma OP já existente (complementar a OP). */

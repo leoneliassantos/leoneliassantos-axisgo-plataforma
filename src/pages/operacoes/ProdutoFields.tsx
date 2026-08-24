@@ -1,4 +1,5 @@
 import { Combobox } from './Combobox'
+import { ANO_MIN, ANO_MAX } from './helpers'
 import { TAMANHOS_LINHA1, TAMANHOS_LINHA2, TAMANHOS_LINHA3, TAMANHOS_LINHA4, somaGrade } from './data'
 import type { Cadastro, Cadastros, NovoProdutoInput, Prioridade, TipoLogo, Produto, Grade } from './data'
 
@@ -177,7 +178,7 @@ export function ProdutoFields({
         </div>
         <div>
           <label className={lab}>Previsão de entrega</label>
-          <input type="date" className={inp} value={previsaoEfetiva(draft, opPrevisao)} onChange={(e) => onChange({ previsaoEntrega: e.target.value, previsaoEdit: true })} />
+          <input type="date" className={inp} value={previsaoEfetiva(draft, opPrevisao)} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`} onChange={(e) => onChange({ previsaoEntrega: e.target.value, previsaoEdit: true })} />
           {opPrevisao && !draft.previsaoEdit && <span className="mt-1 block text-[11px] text-muted">Herdada da entrega do pedido</span>}
         </div>
         <div>

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
-import { fmtBRfull, hojeISO, daysBetween, statusClasse } from './helpers'
+import { fmtBRfull, hojeISO, daysBetween, statusClasse, ANO_MIN, ANO_MAX } from './helpers'
 import { ProdutoFields, produtoToDraft, gradeErro, TIPOS_LOGO, type ProdutoDraft, type TabCad } from './ProdutoFields'
 import {
   type Produto, type ProdutoPatch, type StatusProd, type TipoLogo, type Cadastro, type Cadastros, type Grade,
@@ -209,7 +209,7 @@ export function ItemModal({
           <div className="mt-5 rounded-xl border border-line p-3">
             <label className={lab}>Adicionar observação</label>
             <div className="flex flex-col gap-2 sm:flex-row">
-              <input type="date" className={`${inp} sm:w-40`} value={obsData} onChange={(e) => setObsData(e.target.value)} />
+              <input type="date" className={`${inp} sm:w-40`} value={obsData} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`} onChange={(e) => setObsData(e.target.value)} />
               <input className={inp} value={obsTexto} onChange={(e) => setObsTexto(e.target.value)} placeholder="Ex.: aguardando tecido do fornecedor" />
               <BtnPrimary onClick={() => { if (obsTexto.trim()) { onAddObs(obsTexto.trim(), obsData); setObsTexto('') } }} disabled={saving || !obsTexto.trim()}>Adicionar</BtnPrimary>
             </div>

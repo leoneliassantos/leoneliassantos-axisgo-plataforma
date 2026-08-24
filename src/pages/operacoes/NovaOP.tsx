@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
 import { Combobox } from './Combobox'
-import { hojeISO } from './helpers'
+import { hojeISO, ANO_MIN, ANO_MAX } from './helpers'
 import { ProdutoFields, FlagSimNao, novaLinha, draftToInput, gradeErro, type ProdutoDraft, type TabCad } from './ProdutoFields'
 import { type Cadastro, type Cadastros, type NovoPedidoInput, type Prioridade, PRIO_LABEL } from './data'
 
@@ -109,7 +109,7 @@ export function NovaOP({
         </div>
         <div>
           <label className={lab}>Data do Pedido</label>
-          <input type="date" className={inp} value={dataPedido} onChange={(e) => setDataPedido(e.target.value)} />
+          <input type="date" className={inp} value={dataPedido} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`} onChange={(e) => setDataPedido(e.target.value)} />
         </div>
         <div>
           <label className={lab}>Prioridade</label>
@@ -134,7 +134,7 @@ export function NovaOP({
         </div>
         <div>
           <label className={lab}>Data de entrega do pedido</label>
-          <input type="date" className={inp} value={dataEntrega} onChange={(e) => setDataEntrega(e.target.value)} />
+          <input type="date" className={inp} value={dataEntrega} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`} onChange={(e) => setDataEntrega(e.target.value)} />
           <span className="mt-1 block text-[11px] text-muted">Preenche a previsão dos itens (editável em cada um).</span>
         </div>
       </div>

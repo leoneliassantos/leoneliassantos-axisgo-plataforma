@@ -25,6 +25,19 @@ export function fmtBRfull(iso: string): string {
   return d && m && y ? `${d}/${m}/${y}` : iso
 }
 
+/** Menor/maior ano aceito num campo de data (evita erros de digitação, ex.: ano 20026). */
+export const ANO_MIN = 2000
+export const ANO_MAX = 2100
+/** True quando a ISO é uma data real com ano de 4 dígitos dentro de [ANO_MIN, ANO_MAX]. */
+export function dataValida(iso: string): boolean {
+  if (!iso) return false
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso)
+  if (!m) return false
+  const ano = Number(m[1])
+  if (ano < ANO_MIN || ano > ANO_MAX) return false
+  return !Number.isNaN(new Date(`${iso}T00:00:00`).getTime())
+}
+
 /** Dias entre duas datas ISO (b - a). */
 export function daysBetween(a: string, b: string): number {
   if (!a || !b) return 0

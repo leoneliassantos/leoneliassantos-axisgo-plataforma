@@ -7,9 +7,10 @@ import { ItemModal } from './ItemModal'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
 import {
   resumoPedido, contagemPorEtapa, statusClasse, prioCor, fmtBR, fmtBRfull, hojeISO, daysBetween, itemFiltraTexto,
+  dataValida, ANO_MIN, ANO_MAX,
 } from './helpers'
 import {
-  loadCadastros, loadPedidos, addCadastro, createPedido, addProduto, updateProduto, setProdutoLogos, moveProduto, addObservacao,
+  loadCadastros, loadPedidos, addCadastro, createPedido, addProduto, updateProduto, updatePedido, setProdutoLogos, moveProduto, addObservacao,
   isDemo, ETAPAS, ETAPA_COR, STATUS_LABEL, PRIO_LABEL, SITUACAO_REGRA,
   type Cadastros, type Pedido, type Produto, type ProdutoPatch, type NovoPedidoInput, type NovoProdutoInput, type StatusProd, type TipoLogo,
 } from './data'
@@ -134,6 +135,14 @@ export function FluxoProducao() {
     finally { setSaving(false) }
   }
 
+  async function handleSaveEntrega(dataEntrega: string) {
+    if (!currentOrder) return
+    setSaving(true)
+    try { await updatePedido(currentOrder.id, { dataEntrega }); await refreshPedidos() }
+    catch (e) { alert('Não foi possível salvar a data de entrega: ' + (e instanceof Error ? e.message : '')) }
+    finally { setSaving(false) }
+  }
+
   async function handleAddObs(texto: string, data: string) {
     if (!itemId) return
     setSaving(true)
@@ -180,7 +189,7 @@ export function FluxoProducao() {
 
       {view === 'list'
         ? <ListaPedidos pedidos={pedidos} busca={busca} setBusca={setBusca} filtroSit={filtroSit} setFiltroSit={setFiltroSit} onAbrir={abrirBoard} onNova={() => setShowNova(true)} />
-        : currentOrder && <Quadro order={currentOrder} busca={busca} setBusca={setBusca} onVoltar={voltarLista} onAbrirItem={setItemId} onAddItem={() => setAddItemOpId(currentOrder.id)} dragId={dragId} onSoltar={pedirMove} />}
+        : currentOrder && <Quadro order={currentOrder} busca={busca} setBusca={setBusca} onVoltar={voltarLista} onAbrirItem={setItemId} onAddItem={() => setAddItemOpId(currentOrder.id)} dragId={dragId} onSoltar={pedirMove} onSaveEntrega={handleSaveEntrega} saving={saving} />}
 
       {showNova && (
         <NovaOP cadastros={cadastros} saving={saving} onAddCadastro={handleAddCadastro} onCreate={handleCreate} onClose={() => setShowNova(false)} />
@@ -385,6 +394,7 @@ function IconInfo() {
 function AlertaEntrega({ ped, concluido }: { ped: Pedido; concluido: boolean }) {
   if (concluido) return <span className="rounded-full bg-pos/10 px-2 py-0.5 text-[11px] font-medium text-pos">Pedido entregue</span>
   if (!ped.dataEntrega) return <span className="rounded-full bg-slate-500/10 px-2 py-0.5 text-[11px] font-medium text-slate-500">Sem data de entrega</span>
+  if (!dataValida(ped.dataEntrega)) return <span title={`Data gravada: ${fmtBRfull(ped.dataEntrega)} — abra o pedido e corrija`} className="rounded-full bg-neg/10 px-2 py-0.5 text-[11px] font-semibold text-neg">Data inválida — corrigir</span>
   const dias = daysBetween(hojeISO(), ped.dataEntrega)
   let txt: string
   let cls: string
@@ -395,13 +405,49 @@ function AlertaEntrega({ ped, concluido }: { ped: Pedido; concluido: boolean }) 
   return <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${cls}`}>{txt}</span>
 }
 
+/** Data de entrega do pedido, editável no cabeçalho do quadro (corrige a data do pedido). */
+function EntregaEditavel({ order, onSalvar, saving }: { order: Pedido; onSalvar: (d: string) => void; saving: boolean }) {
+  const [editando, setEditando] = useState(false)
+  const [data, setData] = useState(order.dataEntrega)
+  useEffect(() => { setData(order.dataEntrega) }, [order.dataEntrega])
+  const invalida = !!order.dataEntrega && !dataValida(order.dataEntrega)
+
+  if (editando) {
+    const podeSalvar = !data || dataValida(data)
+    return (
+      <div className="mt-1 flex flex-wrap items-center gap-2 text-[13px]">
+        <span className="text-muted">Entrega:</span>
+        <input
+          type="date" value={data} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`}
+          onChange={(e) => setData(e.target.value)}
+          className="rounded-lg border border-line bg-surface px-2 py-1 text-sm text-ink focus:border-ink/40 focus:outline-none"
+        />
+        <button type="button" disabled={saving || !podeSalvar} onClick={() => { onSalvar(data); setEditando(false) }} className="rounded-lg bg-ink px-2.5 py-1 text-xs font-medium text-paper transition hover:bg-ink/90 disabled:opacity-50">Salvar</button>
+        <button type="button" onClick={() => { setData(order.dataEntrega); setEditando(false) }} className="rounded-lg border border-line px-2.5 py-1 text-xs font-medium text-muted transition hover:bg-paper">Cancelar</button>
+        {data && !dataValida(data) && <span className="text-[12px] font-medium text-neg">Ano deve estar entre {ANO_MIN} e {ANO_MAX}.</span>}
+      </div>
+    )
+  }
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-2 text-[13px] text-muted">
+      <span>Entrega: <b className={`tnum ${invalida ? 'text-neg' : 'text-ink/80'}`}>{order.dataEntrega ? fmtBRfull(order.dataEntrega) : '—'}</b></span>
+      {invalida && <span className="rounded-full bg-neg/10 px-2 py-0.5 text-[11px] font-semibold text-neg">Data inválida</span>}
+      <button type="button" onClick={() => setEditando(true)} className="inline-flex items-center gap-1 rounded-lg border border-line px-2 py-0.5 text-[12px] font-medium text-ink transition hover:border-ink/30 hover:bg-paper">
+        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>
+        {order.dataEntrega ? 'Alterar data' : 'Definir data'}
+      </button>
+    </div>
+  )
+}
+
 /* =========================== Quadro (Kanban do pedido) =========================== */
 function Quadro({
-  order, busca, setBusca, onVoltar, onAbrirItem, onAddItem, dragId, onSoltar,
+  order, busca, setBusca, onVoltar, onAbrirItem, onAddItem, dragId, onSoltar, onSaveEntrega, saving,
 }: {
   order: Pedido; busca: string; setBusca: (s: string) => void
   onVoltar: () => void; onAbrirItem: (id: string) => void; onAddItem: () => void
   dragId: React.MutableRefObject<string | null>; onSoltar: (produtoId: string, de: string, para: string) => void
+  onSaveEntrega: (dataEntrega: string) => void; saving: boolean
 }) {
   const r = resumoPedido(order)
   return (
@@ -424,6 +470,7 @@ function Quadro({
               {order.numeroPedido && <>Pedido <b className="text-ink/80">{order.numeroPedido}</b> · </>}
               {r.total} itens · {r.entregues} entregues · {r.progresso}%
             </div>
+            <EntregaEditavel order={order} onSalvar={onSaveEntrega} saving={saving} />
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -510,7 +557,7 @@ function MoveModal({ alvo, saving, onConfirm, onClose }: { alvo: MoveAlvo; savin
       footer={<><BtnGhost onClick={onClose} disabled={saving}>Cancelar</BtnGhost><BtnPrimary onClick={() => onConfirm(data, obs.trim())} disabled={saving}>{saving ? 'Movendo…' : 'Confirmar'}</BtnPrimary></>}>
       {!avanco && <p className="mb-3 rounded-lg bg-amber-500/10 px-3 py-2 text-[12px] text-amber-700">O item está voltando de <b>{de}</b> para <b>{para}</b>. A movimentação será registrada no histórico.</p>}
       <label className="block text-[12px] font-medium text-muted mb-1">{avanco ? `Data de conclusão de “${de}”` : 'Data da movimentação'}</label>
-      <input type="date" className={inp} value={data} onChange={(e) => setData(e.target.value)} />
+      <input type="date" className={inp} value={data} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`} onChange={(e) => setData(e.target.value)} />
       <label className="mt-3 block text-[12px] font-medium text-muted mb-1">Observação (opcional)</label>
       <input className={inp} value={obs} onChange={(e) => setObs(e.target.value)} placeholder={avanco ? 'Ex.: enviado para a oficina' : 'Ex.: retornou para ajuste de modelagem'} />
     </Modal>
