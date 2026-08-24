@@ -18,6 +18,18 @@ export function fmtBR(iso: string): string {
   return d && m ? `${d}/${m}` : iso
 }
 
+/** Número → 'R$ 1.234,56'. */
+export function fmtBRL(n: number): string {
+  return (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+/** 'YYYY-MM' → 'mm/aaaa'. Vazio devolve ''. */
+export function fmtMesAno(ym: string): string {
+  if (!ym) return ''
+  const [y, m] = ym.split('-')
+  return y && m ? `${m}/${y}` : ym
+}
+
 /** 'YYYY-MM-DD' → 'dd/mm/aaaa'. */
 export function fmtBRfull(iso: string): string {
   if (!iso) return ''

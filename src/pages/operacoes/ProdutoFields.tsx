@@ -1,13 +1,19 @@
 import { Combobox } from './Combobox'
-import { ANO_MIN, ANO_MAX } from './helpers'
+import { ANO_MIN, ANO_MAX, fmtBRL } from './helpers'
 import { TAMANHOS_LINHA1, TAMANHOS_LINHA2, TAMANHOS_LINHA3, TAMANHOS_LINHA4, somaGrade } from './data'
-import type { Cadastro, Cadastros, NovoProdutoInput, Prioridade, TipoLogo, Produto, Grade } from './data'
+import type { Cadastro, Cadastros, NovoProdutoInput, OficinaInput, Prioridade, TipoLogo, Produto, Grade } from './data'
 
 export type TabCad = 'clientes' | 'uniformes' | 'cores' | 'tecidos' | 'fornecedores'
 
 interface LogoDraft {
   ativo: boolean
   fornecedorId: string | null
+}
+interface OficinaDraft {
+  fornecedorId: string | null
+  mesFechamento: string   // 'YYYY-MM'
+  dataEnvio: string       // 'YYYY-MM-DD'
+  valorUnitario: string   // texto do input
 }
 export interface ProdutoDraft {
   key: string
@@ -31,6 +37,8 @@ export interface ProdutoDraft {
   amostraEdit: boolean
   observacao: string
   grade: Grade
+  temOficina: boolean
+  oficina: OficinaDraft
   temLogo: boolean
   logos: Record<TipoLogo, LogoDraft>
 }
@@ -42,7 +50,9 @@ export const novaLinha = (): ProdutoDraft => ({
   uniformeId: null, corId: null, tecidoId: null,
   numeroProposta: '', numeroPedido: '', vendedor: '', propostaEdit: false, pedidoEdit: false, vendedorEdit: false,
   qtd: '', previsaoEntrega: '', previsaoEdit: false, prioridade: 'media', prioridadeEdit: false,
-  evento: false, eventoEdit: false, amostra: false, amostraEdit: false, observacao: '', grade: {}, temLogo: false,
+  evento: false, eventoEdit: false, amostra: false, amostraEdit: false, observacao: '', grade: {},
+  temOficina: false, oficina: { fornecedorId: null, mesFechamento: '', dataEnvio: '', valorUnitario: '' },
+  temLogo: false,
   logos: { Bordado: { ativo: false, fornecedorId: null }, Silk: { ativo: false, fornecedorId: null }, DTF: { ativo: false, fornecedorId: null } },
 })
 
@@ -56,6 +66,13 @@ export function produtoToDraft(p: Produto): ProdutoDraft {
     qtd: String(p.qtd), previsaoEntrega: p.previsaoEntrega, previsaoEdit: true, prioridade: p.prioridade, prioridadeEdit: true,
     evento: p.evento, eventoEdit: true, amostra: p.amostra, amostraEdit: true,
     observacao: p.observacao ?? '', grade: { ...(p.grade ?? {}) },
+    temOficina: !!(p.oficina.fornecedorId || p.oficina.mesFechamento || p.oficina.dataEnvio || p.oficina.valorUnitario),
+    oficina: {
+      fornecedorId: p.oficina.fornecedorId,
+      mesFechamento: p.oficina.mesFechamento,
+      dataEnvio: p.oficina.dataEnvio,
+      valorUnitario: p.oficina.valorUnitario ? String(p.oficina.valorUnitario) : '',
+    },
     temLogo: p.logos.length > 0,
     logos: {
       Bordado: { ativo: !!logoOf('Bordado'), fornecedorId: logoOf('Bordado')?.fornecedorId ?? null },
@@ -78,6 +95,17 @@ export const prioridadeEfetiva = (d: ProdutoDraft, opPrioridade: Prioridade): Pr
 export const eventoEfetivo = (d: ProdutoDraft, opEvento: boolean) => (d.eventoEdit ? d.evento : opEvento)
 export const amostraEfetiva = (d: ProdutoDraft, opAmostra: boolean) => (d.amostraEdit ? d.amostra : opAmostra)
 
+/** Dados da oficina do rascunho, prontos para gravação (vazios se a oficina não foi ativada). */
+export function oficinaDraftToInput(d: ProdutoDraft): OficinaInput {
+  if (!d.temOficina) return { fornecedorId: null, mesFechamento: '', dataEnvio: '', valorUnitario: 0 }
+  return {
+    fornecedorId: d.oficina.fornecedorId,
+    mesFechamento: d.oficina.mesFechamento,
+    dataEnvio: d.oficina.dataEnvio,
+    valorUnitario: Number(d.oficina.valorUnitario) || 0,
+  }
+}
+
 export function draftToInput(d: ProdutoDraft, opProposta: string, opPedido: string, opPrevisao = '', opPrioridade: Prioridade = 'media', opEvento = false, opAmostra = false, opVendedor = ''): NovoProdutoInput {
   return {
     uniformeId: d.uniformeId, corId: d.corId, tecidoId: d.tecidoId,
@@ -86,6 +114,7 @@ export function draftToInput(d: ProdutoDraft, opProposta: string, opPedido: stri
     vendedor: vendedorEfetivo(d, opVendedor).trim(),
     qtd: Number(d.qtd), prioridade: prioridadeEfetiva(d, opPrioridade), previsaoEntrega: previsaoEfetiva(d, opPrevisao),
     observacao: d.observacao.trim(), evento: eventoEfetivo(d, opEvento), amostra: amostraEfetiva(d, opAmostra), grade: d.grade,
+    oficina: oficinaDraftToInput(d),
     logos: d.temLogo ? TIPOS_LOGO.filter((t) => d.logos[t].ativo).map((t) => ({ tipo: t, fornecedorId: d.logos[t].fornecedorId })) : [],
   }
 }
@@ -137,10 +166,13 @@ export function ProdutoFields({
   onAddCadastro: (tabela: TabCad, nome: string) => Promise<Cadastro>
 }) {
   const updLogo = (tipo: TipoLogo, patch: Partial<LogoDraft>) => onChange({ logos: { ...draft.logos, [tipo]: { ...draft.logos[tipo], ...patch } } })
+  const updOficina = (patch: Partial<OficinaDraft>) => onChange({ oficina: { ...draft.oficina, ...patch } })
   async function addAndSelect(tabela: TabCad, nome: string, set: (id: string) => void) {
     const c = await onAddCadastro(tabela, nome)
     set(c.id)
   }
+  const ofValorUnit = Number(draft.oficina.valorUnitario) || 0
+  const ofValorTotal = (Number(draft.qtd) || 0) * ofValorUnit
   const setGrade = (t: string, v: string) => {
     const n = Math.max(0, Math.floor(Number(v) || 0))
     const g = { ...draft.grade }
@@ -256,6 +288,55 @@ export function ProdutoFields({
           onChange={(e) => onChange({ observacao: e.target.value })}
           placeholder="Observação específica deste produto/item (opcional)"
         />
+      </div>
+
+      {/* Oficina (facção) — base para a cobrança do fornecedor */}
+      <div className="mt-4">
+        <button
+          type="button"
+          onClick={() => onChange({ temOficina: !draft.temOficina })}
+          className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition ${draft.temOficina ? 'border-ink bg-ink text-surface' : 'border-line bg-surface text-ink hover:border-ink/30'}`}
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M8 4 4 7l2 3 2-1v10h8V9l2 1 2-3-4-3-3 2z" /></svg>
+          Oficina
+          <span className={draft.temOficina ? 'text-surface/70' : 'text-muted'}>{draft.temOficina ? '(preenchendo)' : '(adicionar)'}</span>
+        </button>
+
+        {draft.temOficina && (
+          <div className="mt-2 rounded-lg bg-paper p-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="sm:col-span-3">
+                <label className={lab}>Nome da Oficina</label>
+                <Combobox value={draft.oficina.fornecedorId} options={ativos.fornecedores} placeholder="Selecione a oficina/fornecedor" addLabel="Cadastrar oficina"
+                  onSelect={(id) => updOficina({ fornecedorId: id })} onAdd={(nome) => addAndSelect('fornecedores', nome, (id) => updOficina({ fornecedorId: id }))} />
+              </div>
+              <div>
+                <label className={lab}>Mês de Fechamento</label>
+                <input type="month" className={inp} value={draft.oficina.mesFechamento} min={`${ANO_MIN}-01`} max={`${ANO_MAX}-12`} onChange={(e) => updOficina({ mesFechamento: e.target.value })} />
+                <span className="mt-1 block text-[11px] text-muted">Define se a cobrança cai neste mês ou no próximo.</span>
+              </div>
+              <div>
+                <label className={lab}>Data de Envio</label>
+                <input type="date" className={inp} value={draft.oficina.dataEnvio} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`} onChange={(e) => updOficina({ dataEnvio: e.target.value })} />
+                <span className="mt-1 block text-[11px] text-muted">Preenche sozinho quando o card entra na etapa Oficina.</span>
+              </div>
+              <div>
+                <label className={lab}>Quantidade</label>
+                <input className={`${inp} bg-paper text-muted`} value={Number(draft.qtd) || 0} readOnly tabIndex={-1} />
+                <span className="mt-1 block text-[11px] text-muted">Puxada do item.</span>
+              </div>
+              <div>
+                <label className={lab}>Valor Unitário</label>
+                <input type="number" min={0} step="0.01" inputMode="decimal" className={inp} value={draft.oficina.valorUnitario} onChange={(e) => updOficina({ valorUnitario: e.target.value })} placeholder="0,00" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className={lab}>Valor Total</label>
+                <div className="flex h-[38px] items-center rounded-lg border border-line bg-paper px-3 text-sm font-semibold tabular-nums text-ink">{fmtBRL(ofValorTotal)}</div>
+                <span className="mt-1 block text-[11px] text-muted">Quantidade × Valor Unitário (calculado automaticamente).</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <label className="mt-4 flex items-center gap-2 text-sm text-ink">

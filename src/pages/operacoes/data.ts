@@ -80,6 +80,25 @@ export interface LogoItem {
   fornecedorNome?: string
 }
 
+/** Dados da Oficina (facção) que costura o item — base para a cobrança do fornecedor. */
+export interface Oficina {
+  fornecedorId: string | null
+  fornecedorNome: string   // resolvido para exibição (vazio no load; a lista de fornecedores resolve na tela)
+  mesFechamento: string    // 'YYYY-MM' | '' — mês em que a produção do fornecedor fecha
+  dataEnvio: string        // 'YYYY-MM-DD' | '' — entrada na oficina (pode vir da movimentação do card)
+  valorUnitario: number    // 0 = não informado
+}
+
+/** Entrada de Oficina para gravação (sem o nome resolvido). */
+export interface OficinaInput {
+  fornecedorId: string | null
+  mesFechamento: string
+  dataEnvio: string
+  valorUnitario: number
+}
+
+export const OFICINA_VAZIA: Oficina = { fornecedorId: null, fornecedorNome: '', mesFechamento: '', dataEnvio: '', valorUnitario: 0 }
+
 export interface HistEntry {
   id?: string
   kind: 'mov' | 'obs'
@@ -115,6 +134,7 @@ export interface Produto {
   evento: boolean
   amostra: boolean
   grade: Grade
+  oficina: Oficina
   logos: LogoItem[]
   datas: Record<string, string> // etapaId -> data conclusão
   historico: HistEntry[]
@@ -158,6 +178,7 @@ export interface NovoProdutoInput {
   evento: boolean
   amostra: boolean
   grade: Grade
+  oficina: OficinaInput
   logos: { tipo: TipoLogo; fornecedorId: string | null }[]
 }
 
@@ -364,13 +385,13 @@ export async function loadPedidos(): Promise<Pedido[]> {
       produtos: ped.produtos.map((p) => {
         const situacaoAuto = p.situacaoAuto ?? true
         const situacaoManual = p.situacaoManual ?? p.status ?? 'ok'
-        return { ...p, vendedor: p.vendedor ?? '', evento: !!p.evento, amostra: !!p.amostra, situacaoAuto, situacaoManual, status: situacaoEfetiva({ situacaoAuto, situacaoManual, previsaoEntrega: p.previsaoEntrega, etapaId: p.etapaId }) }
+        return { ...p, vendedor: p.vendedor ?? '', oficina: p.oficina ?? { ...OFICINA_VAZIA }, evento: !!p.evento, amostra: !!p.amostra, situacaoAuto, situacaoManual, status: situacaoEfetiva({ situacaoAuto, situacaoManual, previsaoEntrega: p.previsaoEntrega, etapaId: p.etapaId }) }
       }),
     }))
   }
   const [ops, prods, logos, datas, hist] = await Promise.all([
     supabase!.from('op').select('id, cliente_id, numero_proposta, numero_pedido, vendedor, data_pedido, prioridade, evento, amostra, data_entrega, observacao, clientes(nome)').order('data_pedido', { ascending: false }),
-    supabase!.from('op_produtos').select('id, op_id, uniforme_id, cor_id, tecido_id, numero_proposta, numero_pedido, vendedor, qtd, prioridade, status, situacao_auto, etapa_id, progresso, responsavel, previsao_entrega, observacao, evento, amostra, grade, uniformes(nome), cores(nome), tecidos(nome)'),
+    supabase!.from('op_produtos').select('id, op_id, uniforme_id, cor_id, tecido_id, numero_proposta, numero_pedido, vendedor, qtd, prioridade, status, situacao_auto, etapa_id, progresso, responsavel, previsao_entrega, observacao, evento, amostra, grade, oficina_fornecedor_id, oficina_mes_fechamento, oficina_data_envio, oficina_valor_unitario, uniformes(nome), cores(nome), tecidos(nome)'),
     supabase!.from('op_produto_logo').select('produto_id, tipo, fornecedor_id, fornecedores(nome)'),
     supabase!.from('op_produto_etapa').select('produto_id, etapa_id, data_conclusao'),
     supabase!.from('op_etapa_historico').select('id, produto_id, kind, etapa_de, etapa_para, data, texto, usuario').order('created_at'),
@@ -424,6 +445,13 @@ export async function loadPedidos(): Promise<Pedido[]> {
       observacao: (p.observacao as string) ?? '',
       evento: !!p.evento, amostra: !!p.amostra,
       grade: (p.grade as Grade) ?? {},
+      oficina: {
+        fornecedorId: (p.oficina_fornecedor_id as string) ?? null,
+        fornecedorNome: '',
+        mesFechamento: (p.oficina_mes_fechamento as string) ?? '',
+        dataEnvio: dateOnly(p.oficina_data_envio),
+        valorUnitario: Number(p.oficina_valor_unitario) || 0,
+      },
       logos: logosByProd.get(p.id as string) ?? [],
       datas: datasByProd.get(p.id as string) ?? {},
       historico: histByProd.get(p.id as string) ?? [],
@@ -451,6 +479,27 @@ function dateOnly(v: unknown): string {
   return String(v).split('T')[0]
 }
 
+/** Monta o objeto Oficina (com nome resolvido) a partir do input + lista de fornecedores. */
+function oficinaFromInput(o: OficinaInput, fornecedores: Cadastro[]): Oficina {
+  return {
+    fornecedorId: o.fornecedorId,
+    fornecedorNome: fornecedores.find((f) => f.id === o.fornecedorId)?.nome ?? '',
+    mesFechamento: o.mesFechamento,
+    dataEnvio: o.dataEnvio,
+    valorUnitario: o.valorUnitario,
+  }
+}
+
+/** Colunas da oficina para insert/update no Supabase. */
+function oficinaColumns(o: OficinaInput): Record<string, unknown> {
+  return {
+    oficina_fornecedor_id: o.fornecedorId || null,
+    oficina_mes_fechamento: o.mesFechamento || null,
+    oficina_data_envio: o.dataEnvio || null,
+    oficina_valor_unitario: o.valorUnitario || null,
+  }
+}
+
 /** Extrai o `nome` de um relacionamento do PostgREST (objeto ou array). */
 function rel(v: unknown): string {
   if (!v) return ''
@@ -474,6 +523,7 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
         numeroPedido: p.numeroPedido, vendedor: p.vendedor, qtd: p.qtd, prioridade: p.prioridade, status: 'ok', situacaoAuto: true, situacaoManual: 'ok',
         etapaId: 'pedido', progresso: progressoDaEtapa('pedido'), responsavel: '',
         previsaoEntrega: p.previsaoEntrega, observacao: p.observacao, evento: p.evento, amostra: p.amostra, grade: p.grade ?? {},
+        oficina: oficinaFromInput(p.oficina, db.fornecedores),
         logos: p.logos.map((l) => ({ tipo: l.tipo, fornecedorId: l.fornecedorId, fornecedorNome: db.fornecedores.find((f) => f.id === l.fornecedorId)?.nome })),
         datas: {}, historico: [],
       }
@@ -503,6 +553,7 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
         vendedor: p.vendedor || input.vendedor || null,
         qtd: p.qtd, prioridade: p.prioridade, status: 'ok', situacao_auto: true, etapa_id: 'pedido', progresso: progressoDaEtapa('pedido'),
         previsao_entrega: p.previsaoEntrega || null, observacao: p.observacao || null, evento: p.evento, amostra: p.amostra, grade: p.grade ?? {},
+        ...oficinaColumns(p.oficina),
       })
       .select('id')
       .single()
@@ -555,6 +606,7 @@ export async function addProduto(opId: string, p: NovoProdutoInput): Promise<voi
       numeroProposta: p.numeroProposta, numeroPedido: p.numeroPedido, vendedor: p.vendedor, qtd: p.qtd,
       prioridade: p.prioridade, status: 'ok', situacaoAuto: true, situacaoManual: 'ok', etapaId: 'pedido', progresso: progressoDaEtapa('pedido'),
       responsavel: '', previsaoEntrega: p.previsaoEntrega, observacao: p.observacao, evento: p.evento, amostra: p.amostra, grade: p.grade ?? {},
+      oficina: oficinaFromInput(p.oficina, db.fornecedores),
       logos: p.logos.map((l) => ({ tipo: l.tipo, fornecedorId: l.fornecedorId, fornecedorNome: db.fornecedores.find((f) => f.id === l.fornecedorId)?.nome })),
       datas: {}, historico: [],
     })
@@ -568,6 +620,7 @@ export async function addProduto(opId: string, p: NovoProdutoInput): Promise<voi
       numero_proposta: p.numeroProposta || null, numero_pedido: p.numeroPedido || null, vendedor: p.vendedor || null,
       qtd: p.qtd, prioridade: p.prioridade, status: 'ok', situacao_auto: true, etapa_id: 'pedido', progresso: progressoDaEtapa('pedido'),
       previsao_entrega: p.previsaoEntrega || null, observacao: p.observacao || null, evento: p.evento, amostra: p.amostra, grade: p.grade ?? {},
+      ...oficinaColumns(p.oficina),
     })
     .select('id')
     .single()
@@ -598,6 +651,7 @@ export interface ProdutoPatch {
   evento?: boolean
   amostra?: boolean
   grade?: Grade
+  oficina?: OficinaInput
 }
 
 export async function updateProduto(id: string, patch: ProdutoPatch): Promise<void> {
@@ -622,6 +676,7 @@ export async function updateProduto(id: string, patch: ProdutoPatch): Promise<vo
         if (patch.evento !== undefined) prod.evento = patch.evento
         if (patch.amostra !== undefined) prod.amostra = patch.amostra
         if (patch.grade !== undefined) prod.grade = patch.grade
+        if (patch.oficina !== undefined) prod.oficina = oficinaFromInput(patch.oficina, db.fornecedores)
         prod.status = situacaoEfetiva(prod) // recalcula a efetiva após a edição
         break
       }
@@ -646,6 +701,7 @@ export async function updateProduto(id: string, patch: ProdutoPatch): Promise<vo
   if (patch.evento !== undefined) payload.evento = patch.evento
   if (patch.amostra !== undefined) payload.amostra = patch.amostra
   if (patch.grade !== undefined) payload.grade = patch.grade ?? {}
+  if (patch.oficina !== undefined) Object.assign(payload, oficinaColumns(patch.oficina))
   const { error } = await supabase!.from('op_produtos').update(payload).eq('id', id)
   if (error) throw new Error(error.message)
 }
@@ -702,6 +758,8 @@ export async function moveProduto(id: string, de: string, para: string, data: st
         prod.historico.push({ kind: 'mov', etapaDe: de, etapaPara: para, data, texto: obs || null, usuario: usuario || null })
         if (avanco) prod.datas[de] = data
         else for (const eid of etapasADesfazer) delete prod.datas[eid]
+        // Entrada na Oficina preenche a Data de Envio da oficina (se ainda vazia).
+        if (para === 'oficina') { prod.oficina = prod.oficina ?? { ...OFICINA_VAZIA }; if (!prod.oficina.dataEnvio) prod.oficina.dataEnvio = data }
         break
       }
     }
@@ -711,6 +769,11 @@ export async function moveProduto(id: string, de: string, para: string, data: st
   // 1) O movimento em si.
   const up = await supabase!.from('op_produtos').update({ etapa_id: para, progresso: prog }).eq('id', id)
   if (up.error) throw new Error(up.error.message)
+  // Entrada na Oficina preenche a Data de Envio da oficina, só se ainda estiver vazia.
+  if (para === 'oficina') {
+    const of = await supabase!.from('op_produtos').update({ oficina_data_envio: data }).eq('id', id).is('oficina_data_envio', null)
+    if (of.error) throw new Error(of.error.message)
+  }
   // 2) O LOG — gravado antes do passo da linha do tempo, para nunca ser suprimido.
   const h = await supabase!.from('op_etapa_historico').insert({ produto_id: id, kind: 'mov', etapa_de: de, etapa_para: para, data, texto: obs || null, usuario: usuario || null })
   if (h.error) throw new Error(h.error.message)

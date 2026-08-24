@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
-import { fmtBRfull, hojeISO, daysBetween, statusClasse, ANO_MIN, ANO_MAX } from './helpers'
-import { ProdutoFields, produtoToDraft, gradeErro, TIPOS_LOGO, type ProdutoDraft, type TabCad } from './ProdutoFields'
+import { fmtBRfull, fmtBRL, fmtMesAno, hojeISO, daysBetween, statusClasse, ANO_MIN, ANO_MAX } from './helpers'
+import { ProdutoFields, produtoToDraft, oficinaDraftToInput, gradeErro, TIPOS_LOGO, type ProdutoDraft, type TabCad } from './ProdutoFields'
 import {
   type Produto, type ProdutoPatch, type StatusProd, type TipoLogo, type Cadastro, type Cadastros, type Grade,
   ETAPAS, etapaLabel, PRIO_LABEL, STATUS_LABEL, TAMANHOS, situacaoAutomatica, SITUACAO_REGRA,
@@ -79,6 +79,12 @@ export function ItemModal({
     if (draft.amostra !== produto.amostra) ch.push(`Amostra: ${produto.amostra ? 'Sim' : 'Não'} → ${draft.amostra ? 'Sim' : 'Não'}`)
     if (draft.observacao.trim() !== (produto.observacao || '')) ch.push(`Observação do item: "${produto.observacao || '—'}" → "${draft.observacao.trim() || '—'}"`)
     if (gradeResumo(draft.grade) !== gradeResumo(produto.grade)) ch.push(`Grade de tamanhos: ${gradeResumo(produto.grade)} → ${gradeResumo(draft.grade)}`)
+    const of = oficinaDraftToInput(draft)
+    const ofNomeAntes = nomeDe(cadastros.fornecedores, produto.oficina.fornecedorId)
+    if ((of.fornecedorId ?? null) !== (produto.oficina.fornecedorId ?? null)) ch.push(`Oficina: "${ofNomeAntes || '—'}" → "${nomeDe(cadastros.fornecedores, of.fornecedorId) || '—'}"`)
+    if (of.mesFechamento !== produto.oficina.mesFechamento) ch.push(`Mês de fechamento (oficina): ${fmtMesAno(produto.oficina.mesFechamento) || '—'} → ${fmtMesAno(of.mesFechamento) || '—'}`)
+    if (of.dataEnvio !== produto.oficina.dataEnvio) ch.push(`Data de envio (oficina): ${fmtBRfull(produto.oficina.dataEnvio) || '—'} → ${fmtBRfull(of.dataEnvio) || '—'}`)
+    if (of.valorUnitario !== produto.oficina.valorUnitario) ch.push(`Valor unitário (oficina): ${fmtBRL(produto.oficina.valorUnitario)} → ${fmtBRL(of.valorUnitario)}`)
     for (const t of TIPOS_LOGO) {
       const old = produto.logos.find((l) => l.tipo === t)
       const novoAtivo = draft.temLogo && draft.logos[t].ativo
@@ -104,6 +110,7 @@ export function ItemModal({
       situacaoAuto: sitSel === 'auto', situacaoManual: sitSel === 'auto' ? produto.situacaoManual : sitSel,
       evento: draft.evento, amostra: draft.amostra,
       observacao: draft.observacao.trim(), grade: draft.grade,
+      oficina: oficinaDraftToInput(draft),
     }
     onSaveItem(patch, logos, mudancas.join('; '))
     setAba('mov') // mostra o log registrado
