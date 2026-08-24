@@ -661,6 +661,11 @@ const SIT_COR: Record<Situacao, { bg: string; fg: string }> = {
   agendado: { bg: '#dbeafe', fg: '#1e40af' },
   aberto: { bg: '#fee2e2', fg: '#991b1b' },
 }
+const SIT_TIP: Record<Situacao, string> = {
+  pago: 'Pago/recebido: título com pagamento efetivado (tem Data de Pagamento). Entra no Fluxo de Caixa como realizado.',
+  agendado: 'Agendado (a vencer): ainda não pago/recebido, com vencimento de hoje em diante. Entra no Fluxo de Caixa como projeção.',
+  aberto: 'Em aberto (vencido): ainda não pago/recebido e com o vencimento já passado. Aparece só nesta lista — fica fora do Fluxo de Caixa até a data ser reprogramada para o futuro.',
+}
 function TitulosView({ rows, hoje, selSit, setSelSit, categorias, selCat, setSelCat }: {
   rows: Titulo[]; hoje: string; selSit: Set<Situacao>; setSelSit: (s: Set<Situacao>) => void
   categorias: string[]; selCat: Set<string> | null; setSelCat: (s: Set<string> | null) => void
@@ -674,7 +679,7 @@ function TitulosView({ rows, hoje, selSit, setSelSit, categorias, selCat, setSel
   const sitBtn = (s: Situacao) => {
     const on = selSit.has(s)
     return (
-      <button key={s} onClick={() => { const n = new Set(selSit); if (on) n.delete(s); else n.add(s); setSelSit(n) }}
+      <button key={s} title={SIT_TIP[s]} onClick={() => { const n = new Set(selSit); if (on) n.delete(s); else n.add(s); setSelSit(n) }}
         className={`rounded-full px-3 py-1 text-[12px] font-semibold transition ${on ? '' : 'opacity-40'}`}
         style={{ background: SIT_COR[s].bg, color: SIT_COR[s].fg }}>
         {rotSit(s)}
