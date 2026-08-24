@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { useAuth } from '../auth/AuthContext'
 import { CLIENT } from '../config/client'
 import { FRENTES, type Modulo } from '../modules/registry'
+import { CentralAlertas } from './CentralAlertas'
 
 const STORAGE_KEY = 'axisgo.sidebar.recolhida'
 
@@ -159,6 +160,7 @@ export function AppLayout() {
           </div>
         </main>
         {rodape}
+        <CentralAlertas />
       </div>
     )
   }
@@ -326,6 +328,7 @@ export function AppLayout() {
 
         {rodape}
       </div>
+      <CentralAlertas />
     </div>
   )
 }

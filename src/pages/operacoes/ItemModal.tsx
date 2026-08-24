@@ -3,6 +3,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { podeVerFinanceiro } from '../../auth/types'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
 import { NfResumo } from './NotaFiscal'
+import { MentionPicker } from '../../components/MentionPicker'
 import { fmtBRfull, fmtBRL, fmtMesAno, hojeISO, daysBetween, statusClasse, ANO_MIN, ANO_MAX } from './helpers'
 import { ProdutoFields, produtoToDraft, oficinaDraftToInput, logosDraftToInput, gradeErro, TIPOS_LOGO, type ProdutoDraft, type TabCad } from './ProdutoFields'
 import {
@@ -34,7 +35,7 @@ export function ItemModal({
   saving: boolean
   onSaveItem: (patch: ProdutoPatch, logos: LogoInput[], logText: string) => void
   onMover: (para: string) => void
-  onAddObs: (texto: string, data: string) => void
+  onAddObs: (texto: string, data: string, mencionados: string[]) => void
   onAddCadastro: (tabela: TabCad, nome: string) => Promise<Cadastro>
   onClose: () => void
 }) {
@@ -49,6 +50,7 @@ export function ItemModal({
 
   const [obsData, setObsData] = useState(hojeISO())
   const [obsTexto, setObsTexto] = useState('')
+  const [obsMencao, setObsMencao] = useState<string[]>([])
 
   const indicadores = useMemo(() => {
     const concl = ETAPAS.map((e) => produto.datas[e.id]).filter(Boolean).sort()
@@ -240,7 +242,11 @@ export function ItemModal({
             <div className="flex flex-col gap-2 sm:flex-row">
               <input type="date" className={`${inp} sm:w-40`} value={obsData} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`} onChange={(e) => setObsData(e.target.value)} />
               <input className={inp} value={obsTexto} onChange={(e) => setObsTexto(e.target.value)} placeholder="Ex.: aguardando tecido do fornecedor" />
-              <BtnPrimary onClick={() => { if (obsTexto.trim()) { onAddObs(obsTexto.trim(), obsData); setObsTexto('') } }} disabled={saving || !obsTexto.trim()}>Adicionar</BtnPrimary>
+              <BtnPrimary onClick={() => { if (obsTexto.trim()) { onAddObs(obsTexto.trim(), obsData, obsMencao); setObsTexto(''); setObsMencao([]) } }} disabled={saving || !obsTexto.trim()}>Adicionar</BtnPrimary>
+            </div>
+            <div className="mt-2">
+              <MentionPicker selecionados={obsMencao} onChange={setObsMencao} />
+              {obsMencao.length > 0 && <p className="mt-1 text-[11px] text-muted">As pessoas marcadas receberão um alerta com esta observação.</p>}
             </div>
           </div>
 

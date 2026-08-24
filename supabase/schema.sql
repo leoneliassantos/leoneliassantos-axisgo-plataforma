@@ -87,3 +87,35 @@ create policy "perfil_update"
 -- pois a criação com senha exige privilégio de administrador do Auth.
 -- A função esperada pelo front-end chama-se `admin-create-user`.
 -- Ver supabase/README-supabase.md.
+
+-- ==================================================================
+-- 5) Notificações (menções em observações) + usuários mencionáveis
+-- ==================================================================
+create table if not exists public.notificacoes (
+  id             uuid primary key default gen_random_uuid(),
+  user_id        uuid not null references auth.users on delete cascade,
+  de_nome        text,
+  mensagem       text not null,
+  contexto       text,
+  ref_op_id      uuid,
+  ref_produto_id uuid,
+  lida           boolean not null default false,
+  created_at     timestamptz not null default now()
+);
+alter table public.notificacoes enable row level security;
+
+-- Destinatário lê e marca como lida; qualquer autenticado pode criar (mencionar).
+drop policy if exists "notif_select" on public.notificacoes;
+create policy "notif_select" on public.notificacoes for select to authenticated using (user_id = auth.uid());
+drop policy if exists "notif_insert" on public.notificacoes;
+create policy "notif_insert" on public.notificacoes for insert to authenticated with check (true);
+drop policy if exists "notif_update" on public.notificacoes;
+create policy "notif_update" on public.notificacoes for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+create index if not exists notificacoes_user_idx on public.notificacoes (user_id, lida, created_at desc);
+
+-- Lista de usuários mencionáveis (só id + nome; não expõe e-mail/perfil).
+-- View owner (postgres) → ignora a RLS de profiles; qualquer autenticado lê.
+create or replace view public.usuarios_mencionaveis as
+  select id, nome from public.profiles where coalesce(bloqueado, false) = false;
+grant select on public.usuarios_mencionaveis to authenticated;

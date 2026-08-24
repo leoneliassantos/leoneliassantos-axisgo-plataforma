@@ -6,6 +6,8 @@ import { NovaOP } from './NovaOP'
 import { NovoItem } from './NovoItem'
 import { ItemModal } from './ItemModal'
 import { NfModal } from './NotaFiscal'
+import { MentionPicker } from '../../components/MentionPicker'
+import { criarNotificacoes } from '../../lib/notificacoes'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
 import {
   resumoPedido, contagemPorEtapa, statusClasse, prioCor, fmtBR, fmtBRfull, hojeISO, daysBetween, itemFiltraTexto,
@@ -13,13 +15,19 @@ import {
 } from './helpers'
 import {
   loadCadastros, loadPedidos, addCadastro, createPedido, addProduto, updateProduto, updatePedido, setProdutoLogos, moveProduto, addObservacao, temNf,
-  isDemo, ETAPAS, ETAPA_COR, STATUS_LABEL, PRIO_LABEL, SITUACAO_REGRA,
+  isDemo, ETAPAS, ETAPA_COR, STATUS_LABEL, PRIO_LABEL, SITUACAO_REGRA, etapaLabel,
   type Cadastros, type Pedido, type Produto, type ProdutoPatch, type NovoPedidoInput, type NovoProdutoInput, type StatusProd, type LogoInput, type Nf,
 } from './data'
 
 const CADASTROS_VAZIO: Cadastros = { clientes: [], uniformes: [], cores: [], tecidos: [], fornecedores: [] }
 
 interface MoveAlvo { produtoId: string; de: string; para: string }
+
+/** Texto de contexto da menção: "Uniforme · Cliente · Pedido N". */
+function contextoItem(prod: Produto | null | undefined, ped: Pedido | null | undefined): string {
+  if (!prod) return ''
+  return [prod.uniformeNome, ped?.clienteNome, ped?.numeroPedido ? `Pedido ${ped.numeroPedido}` : ''].filter(Boolean).join(' · ')
+}
 
 export function FluxoProducao() {
   const { user } = useAuth()
@@ -130,10 +138,19 @@ export function FluxoProducao() {
     finally { setSaving(false) }
   }
 
-  async function handleConfirmMove(data: string, obs: string) {
+  async function handleConfirmMove(data: string, obs: string, mencionados: string[]) {
     if (!moveAlvo) return
     setSaving(true)
-    try { await moveProduto(moveAlvo.produtoId, moveAlvo.de, moveAlvo.para, data, obs, usuario); await refreshPedidos(); setMoveAlvo(null) }
+    try {
+      await moveProduto(moveAlvo.produtoId, moveAlvo.de, moveAlvo.para, data, obs, usuario)
+      if (mencionados.length) {
+        const prod = pedidos.flatMap((p) => p.produtos).find((x) => x.id === moveAlvo.produtoId)
+        const ped = pedidos.find((p) => p.produtos.some((x) => x.id === moveAlvo.produtoId))
+        const msg = obs.trim() || `Movido para “${etapaLabel(moveAlvo.para)}”`
+        await criarNotificacoes(mencionados, msg, contextoItem(prod, ped), usuario, { opId: ped?.id, produtoId: moveAlvo.produtoId })
+      }
+      await refreshPedidos(); setMoveAlvo(null)
+    }
     catch (e) { alert('Não foi possível mover o item: ' + (e instanceof Error ? e.message : '')) }
     finally { setSaving(false) }
   }
@@ -154,10 +171,14 @@ export function FluxoProducao() {
     finally { setSaving(false) }
   }
 
-  async function handleAddObs(texto: string, data: string) {
+  async function handleAddObs(texto: string, data: string, mencionados: string[]) {
     if (!itemId) return
     setSaving(true)
-    try { await addObservacao(itemId, data, texto, usuario); await refreshPedidos() }
+    try {
+      await addObservacao(itemId, data, texto, usuario)
+      if (mencionados.length) await criarNotificacoes(mencionados, texto, contextoItem(itemAberto, currentOrder), usuario, { opId: currentOrder?.id, produtoId: itemId })
+      await refreshPedidos()
+    }
     catch (e) { alert('Não foi possível adicionar a observação: ' + (e instanceof Error ? e.message : '')) }
     finally { setSaving(false) }
   }
@@ -574,21 +595,26 @@ function CardItem({ it, onAbrir, dragId }: { it: Produto; onAbrir: (id: string) 
 }
 
 /* =========================== Modal: concluir etapa =========================== */
-function MoveModal({ alvo, saving, onConfirm, onClose }: { alvo: MoveAlvo; saving: boolean; onConfirm: (data: string, obs: string) => void; onClose: () => void }) {
+function MoveModal({ alvo, saving, onConfirm, onClose }: { alvo: MoveAlvo; saving: boolean; onConfirm: (data: string, obs: string, mencionados: string[]) => void; onClose: () => void }) {
   const [data, setData] = useState(hojeISO())
   const [obs, setObs] = useState('')
+  const [mencao, setMencao] = useState<string[]>([])
   const de = ETAPAS.find((e) => e.id === alvo.de)?.label ?? alvo.de
   const para = ETAPAS.find((e) => e.id === alvo.para)?.label ?? alvo.para
   const avanco = ETAPAS.findIndex((e) => e.id === alvo.para) > ETAPAS.findIndex((e) => e.id === alvo.de)
   const inp = 'w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-ink/40 focus:outline-none'
   return (
     <Modal title={avanco ? 'Concluir etapa' : 'Retornar etapa'} subtitle={`${de} → ${para}`} width={440} onClose={onClose}
-      footer={<><BtnGhost onClick={onClose} disabled={saving}>Cancelar</BtnGhost><BtnPrimary onClick={() => onConfirm(data, obs.trim())} disabled={saving}>{saving ? 'Movendo…' : 'Confirmar'}</BtnPrimary></>}>
+      footer={<><BtnGhost onClick={onClose} disabled={saving}>Cancelar</BtnGhost><BtnPrimary onClick={() => onConfirm(data, obs.trim(), mencao)} disabled={saving}>{saving ? 'Movendo…' : 'Confirmar'}</BtnPrimary></>}>
       {!avanco && <p className="mb-3 rounded-lg bg-amber-500/10 px-3 py-2 text-[12px] text-amber-700">O item está voltando de <b>{de}</b> para <b>{para}</b>. A movimentação será registrada no histórico.</p>}
       <label className="block text-[12px] font-medium text-muted mb-1">{avanco ? `Data de conclusão de “${de}”` : 'Data da movimentação'}</label>
       <input type="date" className={inp} value={data} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`} onChange={(e) => setData(e.target.value)} />
       <label className="mt-3 block text-[12px] font-medium text-muted mb-1">Observação (opcional)</label>
       <input className={inp} value={obs} onChange={(e) => setObs(e.target.value)} placeholder={avanco ? 'Ex.: enviado para a oficina' : 'Ex.: retornou para ajuste de modelagem'} />
+      <div className="mt-3">
+        <MentionPicker selecionados={mencao} onChange={setMencao} />
+        {mencao.length > 0 && <p className="mt-1 text-[11px] text-muted">As pessoas marcadas receberão um alerta com esta movimentação.</p>}
+      </div>
     </Modal>
   )
 }
