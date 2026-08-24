@@ -89,6 +89,11 @@ export function resumoPedido(ped: Pedido): ResumoPedido {
   return { total, entregues, atrasados, alertas, aguardando, progresso, situacao, prioridade }
 }
 
+/** Valor total do pedido = soma de (quantidade × valor unitário) de cada item. */
+export function valorPedido(ped: Pedido): number {
+  return ped.produtos.reduce((s, i) => s + (i.qtd || 0) * (i.valorUnitario || 0), 0)
+}
+
 /** Contagem de itens por etapa (para o mini-mapa da lista). */
 export function contagemPorEtapa(ped: Pedido): Record<string, number> {
   const m: Record<string, number> = {}

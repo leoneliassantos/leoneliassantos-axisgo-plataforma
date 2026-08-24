@@ -134,6 +134,7 @@ export interface Produto {
   numeroPedido: string
   vendedor: string
   qtd: number
+  valorUnitario: number // valor de venda por peça (0 = não informado)
   prioridade: Prioridade
   status: StatusProd // situação EFETIVA (automática ou manual) — usada em toda exibição/resumo
   situacaoAuto: boolean // true = situação calculada pela data de entrega; false = manual
@@ -184,6 +185,7 @@ export interface NovoProdutoInput {
   numeroPedido: string
   vendedor: string
   qtd: number
+  valorUnitario: number
   prioridade: Prioridade
   previsaoEntrega: string
   observacao: string
@@ -397,13 +399,13 @@ export async function loadPedidos(): Promise<Pedido[]> {
       produtos: ped.produtos.map((p) => {
         const situacaoAuto = p.situacaoAuto ?? true
         const situacaoManual = p.situacaoManual ?? p.status ?? 'ok'
-        return { ...p, vendedor: p.vendedor ?? '', oficina: p.oficina ?? { ...OFICINA_VAZIA }, evento: !!p.evento, amostra: !!p.amostra, situacaoAuto, situacaoManual, status: situacaoEfetiva({ situacaoAuto, situacaoManual, previsaoEntrega: p.previsaoEntrega, etapaId: p.etapaId }) }
+        return { ...p, vendedor: p.vendedor ?? '', valorUnitario: p.valorUnitario ?? 0, oficina: p.oficina ?? { ...OFICINA_VAZIA }, evento: !!p.evento, amostra: !!p.amostra, situacaoAuto, situacaoManual, status: situacaoEfetiva({ situacaoAuto, situacaoManual, previsaoEntrega: p.previsaoEntrega, etapaId: p.etapaId }) }
       }),
     }))
   }
   const [ops, prods, logos, datas, hist] = await Promise.all([
     supabase!.from('op').select('id, cliente_id, numero_proposta, numero_pedido, vendedor, data_pedido, prioridade, evento, amostra, data_entrega, observacao, clientes(nome)').order('data_pedido', { ascending: false }),
-    supabase!.from('op_produtos').select('id, op_id, uniforme_id, cor_id, tecido_id, numero_proposta, numero_pedido, vendedor, qtd, prioridade, status, situacao_auto, etapa_id, progresso, responsavel, previsao_entrega, observacao, evento, amostra, grade, oficina_fornecedor_id, oficina_mes_fechamento, oficina_data_envio, oficina_valor_unitario, uniformes(nome), cores(nome), tecidos(nome)'),
+    supabase!.from('op_produtos').select('id, op_id, uniforme_id, cor_id, tecido_id, numero_proposta, numero_pedido, vendedor, qtd, valor_unitario, prioridade, status, situacao_auto, etapa_id, progresso, responsavel, previsao_entrega, observacao, evento, amostra, grade, oficina_fornecedor_id, oficina_mes_fechamento, oficina_data_envio, oficina_valor_unitario, uniformes(nome), cores(nome), tecidos(nome)'),
     supabase!.from('op_produto_logo').select('produto_id, tipo, fornecedor_id, mes_fechamento, data_envio, valor_unitario, fornecedores(nome)'),
     supabase!.from('op_produto_etapa').select('produto_id, etapa_id, data_conclusao'),
     supabase!.from('op_etapa_historico').select('id, produto_id, kind, etapa_de, etapa_para, data, texto, usuario').order('created_at'),
@@ -451,7 +453,7 @@ export async function loadPedidos(): Promise<Pedido[]> {
       tecidoId: (p.tecido_id as string) ?? null, tecidoNome: rel(p.tecidos),
       numeroProposta: (p.numero_proposta as string) ?? '', numeroPedido: (p.numero_pedido as string) ?? '',
       vendedor: (p.vendedor as string) ?? '',
-      qtd: Number(p.qtd) || 0, prioridade: (p.prioridade as Prioridade) ?? 'media',
+      qtd: Number(p.qtd) || 0, valorUnitario: Number(p.valor_unitario) || 0, prioridade: (p.prioridade as Prioridade) ?? 'media',
       status: situacaoEfetiva({ situacaoAuto: auto, situacaoManual: manual, previsaoEntrega: prev, etapaId: etapa }),
       situacaoAuto: auto, situacaoManual: manual,
       etapaId: etapa,
@@ -552,7 +554,7 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
         id: uid(), opId, uniformeId: p.uniformeId, uniformeNome: uni?.nome ?? '',
         corId: p.corId, corNome: cor?.nome ?? '', tecidoId: p.tecidoId, tecidoNome: tec?.nome ?? '',
         numeroProposta: p.numeroProposta || input.numeroProposta,
-        numeroPedido: p.numeroPedido, vendedor: p.vendedor, qtd: p.qtd, prioridade: p.prioridade, status: 'ok', situacaoAuto: true, situacaoManual: 'ok',
+        numeroPedido: p.numeroPedido, vendedor: p.vendedor, qtd: p.qtd, valorUnitario: p.valorUnitario, prioridade: p.prioridade, status: 'ok', situacaoAuto: true, situacaoManual: 'ok',
         etapaId: 'pedido', progresso: progressoDaEtapa('pedido'), responsavel: '',
         previsaoEntrega: p.previsaoEntrega, observacao: p.observacao, evento: p.evento, amostra: p.amostra, grade: p.grade ?? {},
         oficina: oficinaFromInput(p.oficina, db.fornecedores),
@@ -583,7 +585,7 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
         op_id: opId, uniforme_id: p.uniformeId, cor_id: p.corId, tecido_id: p.tecidoId,
         numero_proposta: p.numeroProposta || input.numeroProposta || null, numero_pedido: p.numeroPedido || input.numeroPedido || null,
         vendedor: p.vendedor || input.vendedor || null,
-        qtd: p.qtd, prioridade: p.prioridade, status: 'ok', situacao_auto: true, etapa_id: 'pedido', progresso: progressoDaEtapa('pedido'),
+        qtd: p.qtd, valor_unitario: p.valorUnitario || null, prioridade: p.prioridade, status: 'ok', situacao_auto: true, etapa_id: 'pedido', progresso: progressoDaEtapa('pedido'),
         previsao_entrega: p.previsaoEntrega || null, observacao: p.observacao || null, evento: p.evento, amostra: p.amostra, grade: p.grade ?? {},
         ...oficinaColumns(p.oficina),
       })
@@ -635,7 +637,7 @@ export async function addProduto(opId: string, p: NovoProdutoInput): Promise<voi
     ped.produtos.push({
       id: uid(), opId, uniformeId: p.uniformeId, uniformeNome: uni?.nome ?? '',
       corId: p.corId, corNome: cor?.nome ?? '', tecidoId: p.tecidoId, tecidoNome: tec?.nome ?? '',
-      numeroProposta: p.numeroProposta, numeroPedido: p.numeroPedido, vendedor: p.vendedor, qtd: p.qtd,
+      numeroProposta: p.numeroProposta, numeroPedido: p.numeroPedido, vendedor: p.vendedor, qtd: p.qtd, valorUnitario: p.valorUnitario,
       prioridade: p.prioridade, status: 'ok', situacaoAuto: true, situacaoManual: 'ok', etapaId: 'pedido', progresso: progressoDaEtapa('pedido'),
       responsavel: '', previsaoEntrega: p.previsaoEntrega, observacao: p.observacao, evento: p.evento, amostra: p.amostra, grade: p.grade ?? {},
       oficina: oficinaFromInput(p.oficina, db.fornecedores),
@@ -650,7 +652,7 @@ export async function addProduto(opId: string, p: NovoProdutoInput): Promise<voi
     .insert({
       op_id: opId, uniforme_id: p.uniformeId, cor_id: p.corId, tecido_id: p.tecidoId,
       numero_proposta: p.numeroProposta || null, numero_pedido: p.numeroPedido || null, vendedor: p.vendedor || null,
-      qtd: p.qtd, prioridade: p.prioridade, status: 'ok', situacao_auto: true, etapa_id: 'pedido', progresso: progressoDaEtapa('pedido'),
+      qtd: p.qtd, valor_unitario: p.valorUnitario || null, prioridade: p.prioridade, status: 'ok', situacao_auto: true, etapa_id: 'pedido', progresso: progressoDaEtapa('pedido'),
       previsao_entrega: p.previsaoEntrega || null, observacao: p.observacao || null, evento: p.evento, amostra: p.amostra, grade: p.grade ?? {},
       ...oficinaColumns(p.oficina),
     })
@@ -674,6 +676,7 @@ export interface ProdutoPatch {
   numeroPedido?: string
   vendedor?: string
   qtd?: number
+  valorUnitario?: number
   prioridade?: Prioridade
   situacaoAuto?: boolean
   situacaoManual?: StatusProd
@@ -699,6 +702,7 @@ export async function updateProduto(id: string, patch: ProdutoPatch): Promise<vo
         if (patch.numeroPedido !== undefined) prod.numeroPedido = patch.numeroPedido
         if (patch.vendedor !== undefined) prod.vendedor = patch.vendedor
         if (patch.qtd !== undefined) prod.qtd = patch.qtd
+        if (patch.valorUnitario !== undefined) prod.valorUnitario = patch.valorUnitario
         if (patch.prioridade !== undefined) prod.prioridade = patch.prioridade
         if (patch.situacaoAuto !== undefined) prod.situacaoAuto = patch.situacaoAuto
         if (patch.situacaoManual !== undefined) prod.situacaoManual = patch.situacaoManual
@@ -724,6 +728,7 @@ export async function updateProduto(id: string, patch: ProdutoPatch): Promise<vo
   if (patch.numeroPedido !== undefined) payload.numero_pedido = patch.numeroPedido || null
   if (patch.vendedor !== undefined) payload.vendedor = patch.vendedor || null
   if (patch.qtd !== undefined) payload.qtd = patch.qtd
+  if (patch.valorUnitario !== undefined) payload.valor_unitario = patch.valorUnitario || null
   if (patch.prioridade !== undefined) payload.prioridade = patch.prioridade
   if (patch.situacaoAuto !== undefined) payload.situacao_auto = patch.situacaoAuto
   if (patch.situacaoManual !== undefined) payload.status = patch.situacaoManual

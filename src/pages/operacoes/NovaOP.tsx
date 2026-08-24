@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
 import { Combobox } from './Combobox'
-import { hojeISO, ANO_MIN, ANO_MAX } from './helpers'
+import { hojeISO, ANO_MIN, ANO_MAX, fmtBRL } from './helpers'
 import { ProdutoFields, FlagSimNao, novaLinha, draftToInput, gradeErro, type ProdutoDraft, type TabCad } from './ProdutoFields'
 import { type Cadastro, type Cadastros, type NovoPedidoInput, type Prioridade, PRIO_LABEL } from './data'
 
@@ -71,6 +71,8 @@ export function NovaOP({
     onCreate(input)
   }
 
+  const valorTotalPedido = produtos.reduce((s, p) => s + (Number(p.qtd) || 0) * (Number(p.valorUnitario) || 0), 0)
+
   const lab = 'block text-[12px] font-medium text-muted mb-1'
   const inp = 'w-full rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-ink/40 focus:outline-none'
 
@@ -120,6 +122,15 @@ export function NovaOP({
             <option value="baixa">{PRIO_LABEL.baixa}</option>
           </select>
         </div>
+      </div>
+
+      {/* Valor Total do Pedido — soma do valor total de todos os itens */}
+      <div className="mt-4 flex items-center justify-between rounded-lg border border-brand/30 bg-brand/5 px-4 py-3">
+        <div>
+          <div className="text-[12px] font-semibold uppercase tracking-wide text-muted">Valor Total do Pedido</div>
+          <div className="text-[11px] text-muted">Soma do valor total de todos os itens.</div>
+        </div>
+        <div className="font-serif text-xl font-semibold tabular-nums text-brand">{fmtBRL(valorTotalPedido)}</div>
       </div>
 
       {/* Controle do processo */}

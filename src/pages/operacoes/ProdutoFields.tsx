@@ -30,6 +30,7 @@ export interface ProdutoDraft {
   pedidoEdit: boolean
   vendedorEdit: boolean
   qtd: string
+  valorUnitario: string
   previsaoEntrega: string
   previsaoEdit: boolean
   prioridade: Prioridade
@@ -52,7 +53,7 @@ export const novaLinha = (): ProdutoDraft => ({
   key: Math.random().toString(36).slice(2),
   uniformeId: null, corId: null, tecidoId: null,
   numeroProposta: '', numeroPedido: '', vendedor: '', propostaEdit: false, pedidoEdit: false, vendedorEdit: false,
-  qtd: '', previsaoEntrega: '', previsaoEdit: false, prioridade: 'media', prioridadeEdit: false,
+  qtd: '', valorUnitario: '', previsaoEntrega: '', previsaoEdit: false, prioridade: 'media', prioridadeEdit: false,
   evento: false, eventoEdit: false, amostra: false, amostraEdit: false, observacao: '', grade: {},
   temOficina: false, oficina: { fornecedorId: null, mesFechamento: '', dataEnvio: '', valorUnitario: '' },
   temLogo: false,
@@ -70,7 +71,7 @@ export function produtoToDraft(p: Produto): ProdutoDraft {
     key: p.id,
     uniformeId: p.uniformeId, corId: p.corId, tecidoId: p.tecidoId,
     numeroProposta: p.numeroProposta, numeroPedido: p.numeroPedido, vendedor: p.vendedor, propostaEdit: true, pedidoEdit: true, vendedorEdit: true,
-    qtd: String(p.qtd), previsaoEntrega: p.previsaoEntrega, previsaoEdit: true, prioridade: p.prioridade, prioridadeEdit: true,
+    qtd: String(p.qtd), valorUnitario: p.valorUnitario ? String(p.valorUnitario) : '', previsaoEntrega: p.previsaoEntrega, previsaoEdit: true, prioridade: p.prioridade, prioridadeEdit: true,
     evento: p.evento, eventoEdit: true, amostra: p.amostra, amostraEdit: true,
     observacao: p.observacao ?? '', grade: { ...(p.grade ?? {}) },
     temOficina: !!(p.oficina.fornecedorId || p.oficina.mesFechamento || p.oficina.dataEnvio || p.oficina.valorUnitario),
@@ -142,7 +143,7 @@ export function draftToInput(d: ProdutoDraft, opProposta: string, opPedido: stri
     numeroProposta: propostaEfetiva(d, opProposta).trim(),
     numeroPedido: pedidoEfetivo(d, opPedido).trim(),
     vendedor: vendedorEfetivo(d, opVendedor).trim(),
-    qtd: Number(d.qtd), prioridade: prioridadeEfetiva(d, opPrioridade), previsaoEntrega: previsaoEfetiva(d, opPrevisao),
+    qtd: Number(d.qtd), valorUnitario: Number(d.valorUnitario) || 0, prioridade: prioridadeEfetiva(d, opPrioridade), previsaoEntrega: previsaoEfetiva(d, opPrevisao),
     observacao: d.observacao.trim(), evento: eventoEfetivo(d, opEvento), amostra: amostraEfetiva(d, opAmostra), grade: d.grade,
     oficina: oficinaDraftToInput(d),
     logos: logosDraftToInput(d),
@@ -203,6 +204,7 @@ export function ProdutoFields({
   }
   const ofValorUnit = Number(draft.oficina.valorUnitario) || 0
   const ofValorTotal = (Number(draft.qtd) || 0) * ofValorUnit
+  const itemValorTotal = (Number(draft.qtd) || 0) * (Number(draft.valorUnitario) || 0)
   const setGrade = (t: string, v: string) => {
     const n = Math.max(0, Math.floor(Number(v) || 0))
     const g = { ...draft.grade }
@@ -248,6 +250,15 @@ export function ProdutoFields({
         <div>
           <label className={lab}>Quantidade (peças) *</label>
           <input type="number" min={0} className={inp} value={draft.qtd} onChange={(e) => onChange({ qtd: e.target.value })} placeholder="0" />
+        </div>
+        <div>
+          <label className={lab}>Valor Unitário</label>
+          <input type="number" min={0} step="0.01" inputMode="decimal" className={inp} value={draft.valorUnitario} onChange={(e) => onChange({ valorUnitario: e.target.value })} placeholder="0,00" />
+        </div>
+        <div>
+          <label className={lab}>Valor Total do Item</label>
+          <div className="flex h-[38px] items-center rounded-lg border border-line bg-paper px-3 text-sm font-semibold tabular-nums text-ink">{fmtBRL(itemValorTotal)}</div>
+          <span className="mt-1 block text-[11px] text-muted">Quantidade × Valor Unitário.</span>
         </div>
         <div>
           <label className={lab}>Previsão de entrega</label>

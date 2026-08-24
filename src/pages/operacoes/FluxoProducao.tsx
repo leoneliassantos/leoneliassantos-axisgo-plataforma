@@ -7,7 +7,7 @@ import { ItemModal } from './ItemModal'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
 import {
   resumoPedido, contagemPorEtapa, statusClasse, prioCor, fmtBR, fmtBRfull, hojeISO, daysBetween, itemFiltraTexto,
-  dataValida, ANO_MIN, ANO_MAX,
+  dataValida, ANO_MIN, ANO_MAX, valorPedido, fmtBRL,
 } from './helpers'
 import {
   loadCadastros, loadPedidos, addCadastro, createPedido, addProduto, updateProduto, updatePedido, setProdutoLogos, moveProduto, addObservacao,
@@ -468,7 +468,7 @@ function Quadro({
             <div className="text-[13px] text-muted">
               {order.numeroProposta && <>PC Cliente <b className="text-ink/80">{order.numeroProposta}</b> · </>}
               {order.numeroPedido && <>Pedido <b className="text-ink/80">{order.numeroPedido}</b> · </>}
-              {r.total} itens · {r.entregues} entregues · {r.progresso}%
+              {r.total} itens · {r.entregues} entregues · {r.progresso}% · Valor total <b className="tnum text-ink/80">{fmtBRL(valorPedido(order))}</b>
             </div>
             <EntregaEditavel order={order} onSalvar={onSaveEntrega} saving={saving} />
           </div>

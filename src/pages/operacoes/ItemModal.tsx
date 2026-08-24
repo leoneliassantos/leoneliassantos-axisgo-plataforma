@@ -66,6 +66,8 @@ export function ItemModal({
     if (draft.vendedor.trim() !== (produto.vendedor || '')) ch.push(`Vendedor: "${produto.vendedor || '—'}" → "${draft.vendedor.trim() || '—'}"`)
     const qtd = Number(draft.qtd) || 0
     if (qtd !== produto.qtd) ch.push(`Quantidade: ${produto.qtd} → ${qtd}`)
+    const vu = Number(draft.valorUnitario) || 0
+    if (vu !== produto.valorUnitario) ch.push(`Valor unitário do item: ${fmtBRL(produto.valorUnitario)} → ${fmtBRL(vu)}`)
     if (draft.prioridade !== produto.prioridade) ch.push(`Prioridade: ${PRIO_LABEL[produto.prioridade]} → ${PRIO_LABEL[draft.prioridade]}`)
     const novaAuto = sitSel === 'auto'
     if (novaAuto !== produto.situacaoAuto || (!novaAuto && sitSel !== produto.situacaoManual)) {
@@ -112,7 +114,7 @@ export function ItemModal({
     const patch: ProdutoPatch = {
       uniformeId: draft.uniformeId, corId: draft.corId, tecidoId: draft.tecidoId,
       numeroProposta: draft.numeroProposta.trim(), numeroPedido: draft.numeroPedido.trim(), vendedor: draft.vendedor.trim(),
-      qtd: Number(draft.qtd) || 0, prioridade: draft.prioridade, responsavel: responsavel.trim(), previsaoEntrega: draft.previsaoEntrega,
+      qtd: Number(draft.qtd) || 0, valorUnitario: Number(draft.valorUnitario) || 0, prioridade: draft.prioridade, responsavel: responsavel.trim(), previsaoEntrega: draft.previsaoEntrega,
       situacaoAuto: sitSel === 'auto', situacaoManual: sitSel === 'auto' ? produto.situacaoManual : sitSel,
       evento: draft.evento, amostra: draft.amostra,
       observacao: draft.observacao.trim(), grade: draft.grade,
