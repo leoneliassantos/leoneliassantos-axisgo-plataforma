@@ -289,6 +289,9 @@ export function RentabilidadeLista() {
                 <th className="l">Cliente</th>
                 <th className="l">Empresa</th>
                 <th>Data</th>
+                <th className="l">PIT</th>
+                <th className="l">EC</th>
+                <th className="l">Competência</th>
                 <th className="l">Unidade</th>
                 <th className="l">Campanha</th>
                 <th>Faturado</th>
@@ -308,6 +311,9 @@ export function RentabilidadeLista() {
                   <td className="l strong">{j.cliente}</td>
                   <td className="l">{j.empresa}</td>
                   <td className="tnum">{fmtData(j.data)}</td>
+                  <td className="l muted">{j.pit || '—'}</td>
+                  <td className="l muted">{j.ec || '—'}</td>
+                  <td className="l">{j.competencia || '—'}</td>
                   <td className="l">{j.unidadeNegocio || '—'}</td>
                   <td className="l">{j.campanha || '—'}</td>
                   <td className="tnum">{fmt0(j.valorFaturado)}</td>
@@ -335,7 +341,7 @@ export function RentabilidadeLista() {
             </tbody>
             <tfoot>
               <tr>
-                <td className="l" colSpan={5}>Total ({resumo.qtd} job{resumo.qtd === 1 ? '' : 's'})</td>
+                <td className="l" colSpan={8}>Total ({resumo.qtd} job{resumo.qtd === 1 ? '' : 's'})</td>
                 <td className="tnum">{fmt0(resumo.faturado)}</td>
                 <td className="tnum">{fmt0(resumo.custo)}</td>
                 <td className="tnum calc">{fmt0(resumo.receita)}</td>
@@ -488,7 +494,7 @@ function ScopedStyle() {
 .rent-mod .botao-pri:hover:not(:disabled){background:#1c3350}
 .rent-mod .botao-sec:disabled,.rent-mod .botao-pri:disabled{opacity:.5;cursor:default}
 .rent-mod .rent-scroller{overflow:auto;border:1px solid #E7E2DA;border-radius:14px;background:#fff;max-height:calc(100vh - var(--topo-h,150px) - 40px)}
-.rent-mod table.rent{border-collapse:separate;border-spacing:0;width:100%;min-width:1240px;font-size:12.5px}
+.rent-mod table.rent{border-collapse:separate;border-spacing:0;width:100%;min-width:1480px;font-size:12.5px}
 .rent-mod table.rent th,.rent-mod table.rent td{padding:7px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid #F0EEEC}
 .rent-mod table.rent th.l,.rent-mod table.rent td.l{text-align:left}
 .rent-mod table.rent thead th{position:sticky;top:0;z-index:2;background:#EEF3F9;color:#4B5563;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;font-weight:700;border-bottom:2px solid #DBE4EF}
@@ -496,6 +502,7 @@ function ScopedStyle() {
 .rent-mod table.rent td.calc{background:rgb(251 84 3 / 0.035)}
 .rent-mod table.rent td.strong{font-weight:700;color:#1F2937;max-width:220px;overflow:hidden;text-overflow:ellipsis}
 .rent-mod table.rent td.l{max-width:210px;overflow:hidden;text-overflow:ellipsis}
+.rent-mod table.rent td.muted{color:#9aa0a6}
 .rent-mod table.rent tbody tr:hover td{background:#F8FAFC}
 .rent-mod table.rent tbody tr:hover td.calc{background:#FBEEE5}
 .rent-mod table.rent td.col-total,.rent-mod table.rent th.col-total{font-weight:800;border-left:1px solid #F0D6C4;color:#B4530E}
