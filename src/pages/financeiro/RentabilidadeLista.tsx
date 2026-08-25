@@ -493,7 +493,7 @@ function ScopedStyle() {
 .rent-mod .botao-pri{display:inline-flex;align-items:center;gap:7px;border:0;background:#122238;color:#fff;border-radius:9px;padding:9px 15px;font:inherit;font-size:13px;font-weight:800;cursor:pointer;transition:.12s;box-shadow:0 2px 8px rgba(18,34,56,.28)}
 .rent-mod .botao-pri:hover:not(:disabled){background:#1c3350}
 .rent-mod .botao-sec:disabled,.rent-mod .botao-pri:disabled{opacity:.5;cursor:default}
-.rent-mod .rent-scroller{overflow:auto;border:1px solid #E7E2DA;border-radius:14px;background:#fff;max-height:calc(100vh - var(--topo-h,150px) - 40px)}
+.rent-mod .rent-scroller{overflow:auto;border:1px solid #E7E2DA;border-radius:14px;background:#fff;max-height:calc(100vh - var(--topo-h,150px) - 120px)}
 .rent-mod table.rent{border-collapse:separate;border-spacing:0;width:100%;min-width:1480px;font-size:12.5px}
 .rent-mod table.rent th,.rent-mod table.rent td{padding:7px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid #F0EEEC}
 .rent-mod table.rent th.l,.rent-mod table.rent td.l{text-align:left}

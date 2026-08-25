@@ -494,7 +494,7 @@ function ScopedStyle() {
 .fat-mod .seg{display:inline-flex;background:#EEEAE3;border-radius:9px;padding:3px;gap:2px}
 .fat-mod .seg button{border:0;background:transparent;font:inherit;font-size:12px;font-weight:700;color:#7a756c;padding:5px 13px;border-radius:7px;cursor:pointer;white-space:nowrap}
 .fat-mod .seg button.on{background:#fff;color:#1F2937;box-shadow:0 1px 2px rgba(0,0,0,.08)}
-.fat-mod .fat-scroller{overflow:auto;border:1px solid #E7E2DA;border-radius:14px;background:#fff;max-height:calc(100vh - var(--topo-h,150px) - 40px)}
+.fat-mod .fat-scroller{overflow:auto;border:1px solid #E7E2DA;border-radius:14px;background:#fff;max-height:calc(100vh - var(--topo-h,150px) - 120px)}
 .fat-mod table.fat{border-collapse:separate;border-spacing:0;width:100%;min-width:1180px;font-size:12.5px}
 .fat-mod table.fat th,.fat-mod table.fat td{padding:7px 10px;text-align:right;white-space:nowrap;border-bottom:1px solid #F0EEEC}
 .fat-mod table.fat th.l,.fat-mod table.fat td.l{text-align:left}
