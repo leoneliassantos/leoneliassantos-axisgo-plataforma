@@ -20,8 +20,8 @@ import {
 const CONSOLIDADO = '__consolidado__'
 const GRAD_KPI = 'linear-gradient(180deg, #FE9F2E 0%, #FB5403 55%, #F5390A 100%)'
 const PAL = ['#F5390A', '#FB5403', '#FD7E14', '#FE9F2E', '#FFBF4D', '#FFD466', '#FFE38C']
-const COR_FAT = '#FB5403'
-const COR_REC = '#2F4A73'
+const COR_REC = '#FB5403'    // receita (base da barra empilhada)
+const COR_CUSTO = '#F0D3B8'  // custo/impostos (topo da barra)
 const COR_TOTAL = '#B0451F'
 const MESES_ABREV = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 
@@ -242,17 +242,17 @@ export function RentabilidadeIndicadores() {
 
       {/* Grid de gráficos — 2 linhas que preenchem a altura */}
       <div className="grid min-h-0 flex-1 grid-cols-12 grid-rows-2 gap-2">
-        <Tile className="col-span-12 lg:col-span-5 lg:row-span-2" titulo="Evolução mensal · faturado × receita" tip="Faturado (área) e receita (linha) por mês. A distância entre as duas é o custo/impostos." onDetalhes={() => setDetalhe(detEvolucao())}>
-          <AreaFatReceita serie={serie} />
+        <Tile className="col-span-12 lg:col-span-4" titulo="Margem por cliente" tip="Maiores clientes por receita, com a margem 1 de cada um. Detalhes traz a lista completa." onDetalhes={() => setDetalhe(detClientes())}>
+          <BarrasCliente itens={ind.porCliente.slice(0, 6)} />
         </Tile>
-        <Tile className="col-span-12 lg:col-span-4" titulo="Receita por unidade (waterfall)" tip="Cada unidade de negócio empilha a sua receita até a receita total do período. A última barra é o Total." onDetalhes={() => setDetalhe(detUnidade())}>
+        <Tile className="col-span-12 lg:col-span-5" titulo="Receita por unidade (waterfall)" tip="Cada unidade de negócio empilha a sua receita até a receita total do período. A última barra é o Total." onDetalhes={() => setDetalhe(detUnidade())}>
           <WaterfallUnidade itens={ind.porUnidade} total={ind.totalReceita} />
         </Tile>
         <Tile className="col-span-12 lg:col-span-3 lg:row-span-2" titulo="Concentração da receita" tip="Participação de cada cliente na receita. O donut resume os 6 maiores (o resto em “Outros”); veja Detalhes para todos." onDetalhes={() => setDetalhe(detClientes())}>
           <DonutClientes itens={donutCli} total={ind.totalReceita} />
         </Tile>
-        <Tile className="col-span-12 lg:col-span-4" titulo="Margem por cliente" tip="Maiores clientes por receita, com a margem 1 de cada um. Detalhes traz a lista completa." onDetalhes={() => setDetalhe(detClientes())}>
-          <BarrasCliente itens={ind.porCliente.slice(0, 6)} />
+        <Tile className="col-span-12 lg:col-span-9" titulo="Evolução mensal · faturado × receita" tip="Cada mês é uma barra: a barra inteira é o faturamento; a parte de baixo (laranja) é a receita e o topo (claro) é o custo/impostos." onDetalhes={() => setDetalhe(detEvolucao())}>
+          <BarsFatReceita serie={serie} />
         </Tile>
       </div>
 
@@ -385,58 +385,70 @@ function useMedida() {
   return { ref, ...dim }
 }
 
-/* ============ Evolução: faturado (área) × receita (linha) ============ */
-function AreaFatReceita({ serie }: { serie: SerieLocal[] }) {
+/* ====== Evolução: barras verticais empilhadas (receita + custo = faturado) ====== */
+function BarsFatReceita({ serie }: { serie: SerieLocal[] }) {
   const { ref, w: W, h: H } = useMedida()
-  const padL = 12, padR = 14, padT = 26, padB = 40
+  const padL = 44, padR = 12, padT = 24, padB = 40
   const innerW = W - padL - padR
   const innerH = H - padT - padB
   const n = serie.length
-  const denom = Math.max(1, n - 1)
-  const vmax = Math.max(1, ...serie.map((s) => Math.max(s.faturado, s.receita)))
-  const xs = (i: number) => (n === 1 ? padL + innerW / 2 : padL + (innerW * i) / denom)
+  const vmax = Math.max(1, ...serie.map((s) => s.faturado))
   const ys = (v: number) => padT + innerH * (1 - v / vmax)
   const baseY = padT + innerH
-  const ptsFat = serie.map((s, i) => `${xs(i)},${ys(s.faturado)}`).join(' ')
-  const ptsRec = serie.map((s, i) => `${xs(i)},${ys(s.receita)}`).join(' ')
-  const area = n ? `M ${xs(0)},${baseY} L ${ptsFat} L ${xs(n - 1)},${baseY} Z` : ''
-  const passo = n > 10 ? Math.ceil(n / 10) : 1
+  const slot = n ? innerW / n : innerW
+  const bw = Math.min(64, slot * 0.6)
+  const cx = (i: number) => padL + slot * i + slot / 2
+  const grid = [0, 0.25, 0.5, 0.75, 1]
 
   return (
     <div ref={ref} className="h-full w-full">
       {n === 0 ? (
         <div className="flex h-full items-center text-[12px] text-muted">Sem dados no filtro.</div>
       ) : (
-        <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }} role="img" aria-label="Evolução de faturado e receita">
+        <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }} role="img" aria-label="Evolução de faturado e receita por mês">
           {/* legenda */}
           <g>
-            <rect x={padL} y={6} width={10} height={10} rx={2} fill={COR_FAT} fillOpacity={0.5} />
-            <text x={padL + 14} y={15} fontSize={11} fill="#6B7280">Faturado</text>
-            <line x1={padL + 74} y1={11} x2={padL + 90} y2={11} stroke={COR_REC} strokeWidth={2.5} />
-            <text x={padL + 94} y={15} fontSize={11} fill="#6B7280">Receita</text>
+            <rect x={padL} y={6} width={10} height={10} rx={2} fill={COR_REC} />
+            <text x={padL + 14} y={15} fontSize={11} fill="#6B7280">Receita</text>
+            <rect x={padL + 72} y={6} width={10} height={10} rx={2} fill={COR_CUSTO} />
+            <text x={padL + 86} y={15} fontSize={11} fill="#6B7280">Custo</text>
           </g>
-          <line x1={padL} y1={baseY} x2={W - padR} y2={baseY} stroke="#E2DACE" strokeWidth={1} />
-          {area && <path d={area} style={{ fill: COR_FAT, fillOpacity: 0.13 }} />}
-          <polyline points={ptsFat} fill="none" stroke={COR_FAT} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" strokeOpacity={0.85} />
-          <polyline points={ptsRec} fill="none" stroke={COR_REC} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
-          {serie.map((s, i) => {
-            const mostra = i % passo === 0 || i === n - 1
-            const anchor = i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'
-            const lx = i === 0 ? xs(i) + 2 : i === n - 1 ? xs(i) - 2 : xs(i)
-            const m = s.faturado ? s.receita / s.faturado : 0
+          {/* gridlines + eixo Y */}
+          {grid.map((g) => {
+            const y = padT + innerH * (1 - g)
             return (
-              <g key={s.mes}>
-                <circle cx={xs(i)} cy={ys(s.receita)} r={3} fill="#fff" stroke={COR_REC} strokeWidth={2}>
-                  <title>{`${s.label} · Faturado ${fmtBRL(s.faturado)} · Receita ${fmtBRL(s.receita)} · Margem ${pct1(m)}`}</title>
-                </circle>
-                {mostra && s.receita > 0 && <text x={lx} y={ys(s.receita) - 8} fontSize={10.5} fontWeight={600} textAnchor={anchor} fill={COR_REC}>{fmtCompacto(s.receita)}</text>}
-                {mostra && (
-                  <text x={xs(i)} y={H - 20} fontSize={10.5} textAnchor="middle" fill="#77706a">{s.label}</text>
-                )}
-                {mostra && <text x={xs(i)} y={H - 7} fontSize={10} fontWeight={700} textAnchor="middle" fill={COR_TOTAL}>{pct1(m)}</text>}
+              <g key={g}>
+                <line x1={padL} y1={y} x2={W - padR} y2={y} stroke="#EEE7DC" strokeWidth={1} />
+                <text x={padL - 6} y={y + 3} fontSize={9.5} textAnchor="end" fill="#9aa0a6">{fmtCompacto(vmax * g)}</text>
               </g>
             )
           })}
+          {serie.map((s, i) => {
+            const rec = Math.max(0, s.receita)
+            const yRec = ys(rec)
+            const yFat = ys(s.faturado)
+            const x = cx(i) - bw / 2
+            const m = s.faturado ? s.receita / s.faturado : 0
+            const temFat = s.faturado > 0
+            return (
+              <g key={s.mes}>
+                {/* custo (topo, claro) */}
+                {temFat && <rect x={x} y={yFat} width={bw} height={Math.max(0, yRec - yFat)} fill={COR_CUSTO} rx={1.5}>
+                  <title>{`${s.label} · Custo ${fmtBRL(s.faturado - s.receita)}`}</title>
+                </rect>}
+                {/* receita (base, laranja) */}
+                {temFat && <rect x={x} y={yRec} width={bw} height={Math.max(0, baseY - yRec)} fill={COR_REC} rx={1.5}>
+                  <title>{`${s.label} · Receita ${fmtBRL(s.receita)} (${pct1(m)})`}</title>
+                </rect>}
+                {/* total (faturado) em cima da barra */}
+                {temFat && <text x={cx(i)} y={yFat - 5} fontSize={10.5} fontWeight={700} textAnchor="middle" fill="#4B5563">{fmtCompacto(s.faturado)}</text>}
+                {/* rótulos do eixo X: mês + margem */}
+                <text x={cx(i)} y={H - 20} fontSize={10.5} textAnchor="middle" fill="#77706a">{s.label}</text>
+                {temFat && <text x={cx(i)} y={H - 7} fontSize={10} fontWeight={700} textAnchor="middle" fill={COR_TOTAL}>{pct1(m)}</text>}
+              </g>
+            )
+          })}
+          <line x1={padL} y1={baseY} x2={W - padR} y2={baseY} stroke="#D8CFC1" strokeWidth={1} />
         </svg>
       )}
     </div>
