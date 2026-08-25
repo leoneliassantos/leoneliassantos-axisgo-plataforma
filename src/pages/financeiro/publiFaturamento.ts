@@ -8,6 +8,7 @@
  * ================================================================== */
 
 export interface FaturamentoRow {
+  id?: number // presente quando vem do banco (usado para excluir a nota); ausente no parse
   empresa: string
   cliente: string
   sacado: string

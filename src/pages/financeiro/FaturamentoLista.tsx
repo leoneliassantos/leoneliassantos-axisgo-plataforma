@@ -67,7 +67,7 @@ export function FaturamentoLista() {
     const { data, error } = await fetchAllRows((from, to) =>
       supabase!
         .from('faturamento')
-        .select('empresa, cliente, sacado, origem, descricao, documento, ecs, pit, emissao, vencimento, pagamento, valor')
+        .select('id, empresa, cliente, sacado, origem, descricao, documento, ecs, pit, emissao, vencimento, pagamento, valor')
         .order('emissao', { ascending: false })
         .order('id')
         .range(from, to),
@@ -79,6 +79,7 @@ export function FaturamentoLista() {
     }
     setRows(
       (data ?? []).map((r) => ({
+        id: r.id ?? undefined,
         empresa: (r.empresa ?? '').toString(),
         cliente: (r.cliente ?? '').toString(),
         sacado: (r.sacado ?? '').toString(),
@@ -148,6 +149,76 @@ export function FaturamentoLista() {
       setAviso(`${uploadEmpresa}: ${rotuloMes} atualizado — ${rowsMes.length} nota(s). Meses fechados não foram alterados${obsIgnorados}.`)
     } catch (e) {
       setErro(`Não consegui importar a base do Publi: ${(e as Error).message}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /* ---------- excluir base de um mês (empresa + competência) ---------- */
+  async function excluirCompetencia() {
+    setErro(null)
+    setAviso(null)
+    const ymAlvo = `${uploadAno}-${String(uploadMes).padStart(2, '0')}`
+    const rotuloMes = `${MESES_FULL[uploadMes - 1]}/${uploadAno}`
+    const alvo = rows.filter((r) => r.empresa === uploadEmpresa && (r.emissao ?? '').slice(0, 7) === ymAlvo)
+    if (!alvo.length) {
+      setErro(`Não há notas de ${rotuloMes} em ${uploadEmpresa} para excluir.`)
+      return
+    }
+    const total = alvo.reduce((s, r) => s + r.valor, 0)
+    const ok = window.confirm(
+      `Excluir a base de ${rotuloMes} da empresa ${uploadEmpresa}?\n\n` +
+        `Serão removidas ${alvo.length} nota(s), somando R$ ${fmt0(total)}.\n\n` +
+        `Isso apaga só esse mês dessa empresa — os demais meses e a outra empresa não são tocados. Esta ação não pode ser desfeita.`,
+    )
+    if (!ok) return
+    setBusy(true)
+    try {
+      if (mode === 'supabase' && supabase) {
+        const { data, error } = await supabase.rpc('faturamento_apagar_competencia', {
+          p_empresa: uploadEmpresa,
+          p_ano: uploadAno,
+          p_mes: uploadMes,
+        })
+        if (error) throw new Error(error.message)
+        await carregar()
+        setAviso(`${uploadEmpresa}: ${rotuloMes} excluído — ${data ?? alvo.length} nota(s) removida(s).`)
+      } else {
+        setRows((prev) => prev.filter((r) => !(r.empresa === uploadEmpresa && (r.emissao ?? '').slice(0, 7) === ymAlvo)))
+        setAviso(`${uploadEmpresa}: ${rotuloMes} excluído — ${alvo.length} nota(s) removida(s).`)
+      }
+      setMesSel('todos')
+    } catch (e) {
+      setErro(`Não consegui excluir: ${(e as Error).message}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /* ---------- excluir uma nota específica ---------- */
+  async function excluirNota(r: FaturamentoRow) {
+    setErro(null)
+    setAviso(null)
+    const ok = window.confirm(
+      `Excluir esta nota?\n\n` +
+        `${r.empresa} · ${r.cliente}\n` +
+        `NF ${r.documento || '—'} · ${fmtData(r.emissao)} · R$ ${fmt0(r.valor)}\n\n` +
+        `Esta ação não pode ser desfeita.`,
+    )
+    if (!ok) return
+    setBusy(true)
+    try {
+      if (mode === 'supabase' && supabase) {
+        if (r.id == null) throw new Error('nota sem identificador; recarregue a página e tente de novo.')
+        const { error } = await supabase.rpc('faturamento_apagar_nota', { p_id: r.id })
+        if (error) throw new Error(error.message)
+        await carregar()
+      } else {
+        setRows((prev) => prev.filter((x) => x !== r))
+      }
+      setAviso(`Nota de ${r.cliente} (NF ${r.documento || '—'}) excluída.`)
+    } catch (e) {
+      setErro(`Não consegui excluir a nota: ${(e as Error).message}`)
     } finally {
       setBusy(false)
     }
@@ -271,6 +342,15 @@ export function FaturamentoLista() {
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21V9" /><path d="m7 14 5-5 5 5" /><path d="M5 3h14" /></svg>
                   {busy ? 'Processando…' : 'Subir base do mês'}
                 </button>
+                <button
+                  className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2.5 text-[13px] font-bold text-red-700 transition hover:bg-red-50 disabled:opacity-50"
+                  onClick={excluirCompetencia}
+                  disabled={busy}
+                  title={`Excluir do banco todas as notas de ${MESES_FULL[uploadMes - 1]}/${uploadAno} da empresa ${uploadEmpresa} (use se subiu na empresa errada ou em duplicidade)`}
+                >
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /></svg>
+                  Excluir mês
+                </button>
               </div>
             )}
             <input ref={fileRef} type="file" accept=".xls,.xlsx" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
@@ -341,6 +421,7 @@ export function FaturamentoLista() {
                 <th>Pagamento</th>
                 <th>Situação</th>
                 <th className="col-total">Valor Faturado</th>
+                {isAdmin && <th className="col-acao" aria-label="Excluir"></th>}
               </tr>
             </thead>
             <tbody>
@@ -360,6 +441,19 @@ export function FaturamentoLista() {
                     <span className={`chip ${r.pagamento ? 'pago' : 'areceber'}`}>{r.pagamento ? 'Pago' : 'A receber'}</span>
                   </td>
                   <td className="tnum col-total">{fmt0(r.valor)}</td>
+                  {isAdmin && (
+                    <td className="col-acao">
+                      <button
+                        className="lixeira"
+                        onClick={() => excluirNota(r)}
+                        disabled={busy}
+                        title="Excluir esta nota"
+                        aria-label="Excluir esta nota"
+                      >
+                        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /></svg>
+                      </button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -367,6 +461,7 @@ export function FaturamentoLista() {
               <tr>
                 <td className="l" colSpan={11}>Total ({resumo.qtd} nota{resumo.qtd === 1 ? '' : 's'})</td>
                 <td className="tnum col-total">{fmt0(resumo.total)}</td>
+                {isAdmin && <td className="col-acao"></td>}
               </tr>
             </tfoot>
           </table>
@@ -413,6 +508,10 @@ function ScopedStyle() {
 .fat-mod .chip{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:.3px}
 .fat-mod .chip.pago{background:#E6F4EA;color:#15734F}
 .fat-mod .chip.areceber{background:#FDECDD;color:#B4530E}
+.fat-mod table.fat th.col-acao,.fat-mod table.fat td.col-acao{width:40px;text-align:center;padding:4px 6px}
+.fat-mod .lixeira{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border:1px solid #F0D2D2;border-radius:7px;background:#fff;color:#B91C1C;cursor:pointer;transition:.12s}
+.fat-mod .lixeira:hover{background:#FEECEC;border-color:#E7A6A6}
+.fat-mod .lixeira:disabled{opacity:.4;cursor:default}
 `}</style>
   )
 }

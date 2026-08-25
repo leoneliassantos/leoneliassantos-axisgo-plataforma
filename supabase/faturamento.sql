@@ -74,3 +74,53 @@ $$;
 
 revoke all on function public.faturamento_upload(text, jsonb) from public, anon;
 grant execute on function public.faturamento_upload(text, jsonb) to authenticated;
+
+-- Excluir a base de uma competência inteira (empresa + ano/mês de emissão).
+-- Útil quando a base foi subida na empresa errada ou em duplicidade.
+create or replace function public.faturamento_apagar_competencia(p_empresa text, p_ano int, p_mes int)
+returns integer
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  n integer;
+  ym text := p_ano::text || '-' || lpad(p_mes::text, 2, '0');
+begin
+  if not public.is_admin() then
+    raise exception 'Apenas administradores podem apagar dados.';
+  end if;
+
+  delete from public.faturamento f
+  where f.empresa = p_empresa
+    and to_char(f.emissao, 'YYYY-MM') = ym;
+
+  get diagnostics n = row_count;
+  return n;
+end;
+$$;
+
+revoke all on function public.faturamento_apagar_competencia(text, int, int) from public, anon;
+grant execute on function public.faturamento_apagar_competencia(text, int, int) to authenticated;
+
+-- Excluir uma nota específica pelo id (lançamento incorreto pontual).
+create or replace function public.faturamento_apagar_nota(p_id bigint)
+returns integer
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  n integer;
+begin
+  if not public.is_admin() then
+    raise exception 'Apenas administradores podem apagar dados.';
+  end if;
+
+  delete from public.faturamento f where f.id = p_id;
+
+  get diagnostics n = row_count;
+  return n;
+end;
+$$;
+
+revoke all on function public.faturamento_apagar_nota(bigint) from public, anon;
+grant execute on function public.faturamento_apagar_nota(bigint) to authenticated;
