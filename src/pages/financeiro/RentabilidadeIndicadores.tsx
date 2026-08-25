@@ -24,13 +24,14 @@ const fmtPct = (f: number) => `${(f * 100).toFixed(1).replace('.', ',')}%`
 type DbRow = {
   id?: number; empresa: string; cliente: string; data: string | null; competencia: string | null
   unidade_negocio: string | null; campanha: string | null
-  valor_faturado: number; custo_total: number; encargos: number
+  valor_faturado: number; custo_total: number; encargos: number; receita: number | null
 }
 const fromDb = (r: DbRow): MargemJob => ({
   id: r.id, empresa: r.empresa ?? '', cliente: r.cliente ?? '', data: r.data ?? null,
   competencia: r.competencia ?? '', pit: '', ec: '', unidadeNegocio: r.unidade_negocio ?? '',
   campanha: r.campanha ?? '', valorFaturado: Number(r.valor_faturado) || 0,
   custoTotal: Number(r.custo_total) || 0, encargos: Number(r.encargos) || 0,
+  receita: r.receita == null ? null : Number(r.receita),
 })
 
 export function RentabilidadeIndicadores() {
@@ -50,7 +51,7 @@ export function RentabilidadeIndicadores() {
     const [{ data, error }, cfg] = await Promise.all([
       fetchAllRows<DbRow>((from, to) =>
         supabase!.from('margem_job')
-          .select('id, empresa, cliente, data, competencia, unidade_negocio, campanha, valor_faturado, custo_total, encargos')
+          .select('id, empresa, cliente, data, competencia, unidade_negocio, campanha, valor_faturado, custo_total, encargos, receita')
           .order('data', { ascending: true }).range(from, to)),
       supabase!.from('margem_config').select('taxa_ganho_trib').eq('id', 1).maybeSingle(),
     ])

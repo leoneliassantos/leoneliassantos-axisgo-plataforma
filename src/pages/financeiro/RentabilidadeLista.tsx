@@ -4,7 +4,7 @@ import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { ModuloTopo } from '../../components/ModuloTopo'
 import {
-  calcularJob, competenciaDaData,
+  calcularJob, receitaEfetiva, competenciaDaData,
   TAXA_GANHO_TRIB_PADRAO, UNIDADES_NEGOCIO, EMPRESAS, MESES_FULL,
   type MargemJob,
 } from './margemJob'
@@ -36,18 +36,20 @@ const parseNum = (s: string) => {
 type DbRow = {
   id?: number; empresa: string; cliente: string; data: string | null; competencia: string | null
   pit: string | null; ec: string | null; unidade_negocio: string | null; campanha: string | null
-  valor_faturado: number; custo_total: number; encargos: number
+  valor_faturado: number; custo_total: number; encargos: number; receita: number | null
 }
 const fromDb = (r: DbRow): MargemJob => ({
   id: r.id, empresa: r.empresa ?? '', cliente: r.cliente ?? '', data: r.data ?? null,
   competencia: r.competencia ?? '', pit: r.pit ?? '', ec: r.ec ?? '',
   unidadeNegocio: r.unidade_negocio ?? '', campanha: r.campanha ?? '',
   valorFaturado: Number(r.valor_faturado) || 0, custoTotal: Number(r.custo_total) || 0, encargos: Number(r.encargos) || 0,
+  receita: r.receita == null ? null : Number(r.receita),
 })
 const toDb = (j: MargemJob) => ({
   empresa: j.empresa, cliente: j.cliente, data: j.data, competencia: j.competencia,
   pit: j.pit, ec: j.ec, unidade_negocio: j.unidadeNegocio, campanha: j.campanha,
   valor_faturado: j.valorFaturado, custo_total: j.custoTotal, encargos: j.encargos,
+  receita: j.receita ?? null,
 })
 
 const jobVazio = (): MargemJob => ({
@@ -80,7 +82,7 @@ export function RentabilidadeLista() {
     const [{ data, error }, cfg] = await Promise.all([
       fetchAllRows<DbRow>((from, to) =>
         supabase!.from('margem_job')
-          .select('id, empresa, cliente, data, competencia, pit, ec, unidade_negocio, campanha, valor_faturado, custo_total, encargos')
+          .select('id, empresa, cliente, data, competencia, pit, ec, unidade_negocio, campanha, valor_faturado, custo_total, encargos, receita')
           .order('data', { ascending: false }).order('id').range(from, to)),
       supabase!.from('margem_config').select('taxa_ganho_trib').eq('id', 1).maybeSingle(),
     ])
@@ -426,13 +428,24 @@ function FormJob({ inicial, taxa, clientes, onCancel, onSave, busy }:
             <L t="Campanha" wide><input className="inp" value={j.campanha} onChange={(e) => set({ campanha: e.target.value })} placeholder="Nome do evento/campanha" /></L>
             <L t="Valor Faturado (R$)"><input className="inp tnum" inputMode="decimal" value={j.valorFaturado || ''} onChange={(e) => set({ valorFaturado: parseNum(e.target.value) })} /></L>
             <L t="Custo Total /Impostos (R$)"><input className="inp tnum" inputMode="decimal" value={j.custoTotal || ''} onChange={(e) => set({ custoTotal: parseNum(e.target.value) })} /></L>
+            <label className="flex flex-col gap-1">
+              <span className="lbl flex items-center justify-between gap-2">
+                <span>Receita (R$)</span>
+                {j.receita == null
+                  ? <span className="rec-auto">automática</span>
+                  : <button type="button" className="rec-reset" onClick={() => set({ receita: null })} title="Voltar ao cálculo Faturado − Custo">usar automática</button>}
+              </span>
+              <input className="inp tnum" inputMode="decimal"
+                value={receitaEfetiva(j) || ''}
+                onChange={(e) => set({ receita: parseNum(e.target.value) })}
+                title="Começa em Faturado − Custo; edite se a receita do job variou" />
+            </label>
             <L t="Encargos (R$)"><input className="inp tnum" inputMode="decimal" value={j.encargos || ''} onChange={(e) => set({ encargos: parseNum(e.target.value) })} /></L>
           </div>
 
           <div className="calc-box">
             <div className="cb-tit">Calculado automaticamente</div>
             <div className="cb-grid">
-              <CB t="Receita" v={`R$ ${fmt0(calc.receita)}`} />
               <CB t="Margem 1" v={fmtPct(calc.margem1)} hi />
               <CB t={`Ganho trib. (${fmtPct(taxa)})`} v={`R$ ${fmt0(calc.ganhoTrib)}`} />
               <CB t="Margem c/ encargos" v={`R$ ${fmt0(calc.margemEncargos)}`} />
@@ -507,7 +520,9 @@ function ScopedStyle() {
 .rent-modal .col-span-2{grid-column:span 2}
 .rent-modal .calc-box{margin-top:16px;border:1px solid #F0D6C4;background:#FDF6F1;border-radius:12px;padding:12px 14px}
 .rent-modal .cb-tit{font-size:10.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#B4530E;margin-bottom:8px}
-.rent-modal .cb-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.rent-modal .cb-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.rent-modal .rec-auto{font-size:9px;font-weight:700;text-transform:none;letter-spacing:0;color:#8a8578;background:#F0ECE4;border-radius:5px;padding:1px 6px}
+.rent-modal .rec-reset{font-size:9.5px;font-weight:700;text-transform:none;letter-spacing:0;color:#B4530E;background:none;border:0;cursor:pointer;padding:0;text-decoration:underline}
 .rent-modal .cb{background:#fff;border:1px solid #F0DBCB;border-radius:9px;padding:7px 9px}
 .rent-modal .cb.hi{background:#FB5403;border-color:#FB5403}
 .rent-modal .cb.hi .cb-t,.rent-modal .cb.hi .cb-v{color:#fff}

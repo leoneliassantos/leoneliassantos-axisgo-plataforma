@@ -17,8 +17,12 @@ create table if not exists public.margem_job (
   valor_faturado   numeric(16, 2) not null default 0,
   custo_total      numeric(16, 2) not null default 0,  -- CUSTO TOTAL /IMPOSTOS
   encargos         numeric(16, 2) not null default 0,
+  receita          numeric(16, 2),                     -- override manual; null = Faturado − Custo
   created_at       timestamptz not null default now()
 );
+
+-- Para bases já criadas antes da receita editável:
+alter table public.margem_job add column if not exists receita numeric(16, 2);
 
 create index if not exists margem_job_emp_idx on public.margem_job (empresa, data);
 create index if not exists margem_job_cli_idx on public.margem_job (cliente);

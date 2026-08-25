@@ -48,6 +48,12 @@ export interface MargemJob {
   valorFaturado: number
   custoTotal: number // CUSTO TOTAL /IMPOSTOS
   encargos: number
+  /**
+   * Receita informada manualmente (override). Quando null/ausente, a receita
+   * é calculada como Faturado − Custo. O usuário pode ajustar porque a receita
+   * de um job varia com o andamento do projeto.
+   */
+  receita?: number | null
 }
 
 /** Job com as margens já calculadas. */
@@ -59,9 +65,14 @@ export interface MargemJobCalc extends MargemJob {
   margem2: number // fração (0..1)
 }
 
+/** Receita vigente: o override manual, se houver; senão Faturado − Custo. */
+export function receitaEfetiva(j: MargemJob): number {
+  return j.receita != null ? j.receita : j.valorFaturado - j.custoTotal
+}
+
 /** Aplica as fórmulas da planilha a um job. `taxa` = ganho tributário sobre encargos. */
 export function calcularJob(j: MargemJob, taxa = TAXA_GANHO_TRIB_PADRAO): MargemJobCalc {
-  const receita = j.valorFaturado - j.custoTotal
+  const receita = receitaEfetiva(j)
   const margem1 = j.valorFaturado ? receita / j.valorFaturado : 0
   const ganhoTrib = j.encargos * taxa
   const margemEncargos = receita + ganhoTrib
