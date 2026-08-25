@@ -44,6 +44,8 @@ export function RentabilidadeIndicadores() {
   const [empresaSel, setEmpresaSel] = useState(CONSOLIDADO)
   const [mesIni, setMesIni] = useState('')
   const [mesFim, setMesFim] = useState('')
+  const [clienteSel, setClienteSel] = useState('todos')
+  const [unidadeSel, setUnidadeSel] = useState('todos')
 
   const carregar = useCallback(async () => {
     setLoading(true); setErro(null)
@@ -65,13 +67,23 @@ export function RentabilidadeIndicadores() {
   const empresas = useMemo(() => [...new Set(jobs.map((j) => j.empresa))].filter(Boolean).sort(), [jobs])
   const jobsEmp = useMemo(() => empresaSel === CONSOLIDADO ? jobs : jobs.filter((j) => j.empresa === empresaSel), [jobs, empresaSel])
   const mesesDisp = useMemo(() => [...new Set(jobsEmp.map((j) => (j.data ?? '').slice(0, 7)))].filter(Boolean).sort(), [jobsEmp])
+  const clientesDisp = useMemo(() => [...new Set(jobsEmp.map((j) => j.cliente))].filter(Boolean).sort(), [jobsEmp])
+  const unidadesDisp = useMemo(() => [...new Set(jobsEmp.map((j) => j.unidadeNegocio))].filter(Boolean).sort(), [jobsEmp])
 
   const jobsPer = useMemo(() => jobsEmp.filter((j) => {
     const ym = (j.data ?? '').slice(0, 7)
     if (mesIni && ym && ym < mesIni) return false
     if (mesFim && ym && ym > mesFim) return false
+    if (clienteSel !== 'todos' && j.cliente !== clienteSel) return false
+    if (unidadeSel !== 'todos' && j.unidadeNegocio !== unidadeSel) return false
     return true
-  }), [jobsEmp, mesIni, mesFim])
+  }), [jobsEmp, mesIni, mesFim, clienteSel, unidadeSel])
+
+  // Se o cliente/unidade selecionado sumir (ex.: trocou de empresa), volta a "Todos".
+  useEffect(() => {
+    if (clienteSel !== 'todos' && !clientesDisp.includes(clienteSel)) setClienteSel('todos')
+    if (unidadeSel !== 'todos' && !unidadesDisp.includes(unidadeSel)) setUnidadeSel('todos')
+  }, [clientesDisp, unidadesDisp, clienteSel, unidadeSel])
 
   const ind = useMemo(() => buildIndicadoresMargem(jobsPer, taxa), [jobsPer, taxa])
 
@@ -100,6 +112,14 @@ export function RentabilidadeIndicadores() {
               <span className="text-muted text-xs">até</span>
               <select className="sel" value={mesFim} onChange={(e) => setMesFim(e.target.value)} title="Até (mês)">
                 <option value="">Fim</option>{mesesDisp.map((m) => <option key={m} value={m}>{optMes(m)}</option>)}
+              </select>
+              <select className="sel" value={clienteSel} onChange={(e) => setClienteSel(e.target.value)} title="Cliente">
+                <option value="todos">Todos os clientes</option>
+                {clientesDisp.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <select className="sel" value={unidadeSel} onChange={(e) => setUnidadeSel(e.target.value)} title="Unidade de Negócio">
+                <option value="todos">Todas as unidades</option>
+                {unidadesDisp.map((u) => <option key={u} value={u}>{u}</option>)}
               </select>
             </div>
           )}
