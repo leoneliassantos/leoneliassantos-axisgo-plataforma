@@ -32,3 +32,9 @@ body {
 .tnum {
   font-variant-numeric: tabular-nums;
 }
+
+/* Botões sem sombra em toda a plataforma (padrão flat, em todos os módulos).
+   Atinge só <button> — modais, dropdowns e cards (div/a) mantêm a sombra. */
+button {
+  box-shadow: none !important;
+}
