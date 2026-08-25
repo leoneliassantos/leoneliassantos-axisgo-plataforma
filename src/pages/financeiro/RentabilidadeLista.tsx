@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { ModuloTopo } from '../../components/ModuloTopo'
-import { readFirstSheetAOA } from '../../lib/xls'
 import {
-  calcularJob, parseMargemJobAOA, competenciaDaData,
+  calcularJob, competenciaDaData,
   TAXA_GANHO_TRIB_PADRAO, UNIDADES_NEGOCIO, EMPRESAS, MESES_FULL,
   type MargemJob,
 } from './margemJob'
@@ -73,7 +72,6 @@ export function RentabilidadeLista() {
   const [unidadeSel, setUnidadeSel] = useState('todos')
   const [busca, setBusca] = useState('')
   const [form, setForm] = useState<MargemJob | null>(null) // modal de lançar/editar
-  const fileRef = useRef<HTMLInputElement>(null)
 
   /* ---------- carregar ---------- */
   const carregar = useCallback(async () => {
@@ -150,31 +148,6 @@ export function RentabilidadeLista() {
       }
       setAviso('Lançamento excluído.')
     } catch (e) { setErro(`Não consegui excluir: ${(e as Error).message}`) } finally { setBusy(false) }
-  }
-
-  /* ---------- importar planilha (carga inicial) ---------- */
-  async function handleFile(file: File) {
-    setErro(null); setAviso(null); setBusy(true)
-    try {
-      const XLSX = await import('xlsx')
-      const buf = await file.arrayBuffer()
-      const aoa = readFirstSheetAOA(XLSX, buf)
-      if (!aoa.length) throw new Error('não consegui ler a planilha (arquivo vazio ou formato não suportado).')
-      const novos = parseMargemJobAOA(aoa)
-      if (!novos.length) throw new Error('não encontrei jobs na planilha. Confira se é o "Margem Job".')
-      if (jobs.length) {
-        const ok = window.confirm(`A base já tem ${jobs.length} lançamento(s). Importar vai ADICIONAR ${novos.length} da planilha (não substitui).\n\nUse a importação só na carga inicial. Continuar?`)
-        if (!ok) { setBusy(false); return }
-      }
-      if (!demo && supabase) {
-        const { error } = await supabase.from('margem_job').insert(novos.map(toDb))
-        if (error) throw new Error(error.message)
-        await carregar()
-      } else {
-        setJobs((prev) => [...prev, ...novos.map((n, i) => ({ ...n, id: Date.now() + i }))])
-      }
-      setAviso(`${novos.length} job(s) importado(s) da planilha.`)
-    } catch (e) { setErro(`Não consegui importar: ${(e as Error).message}`) } finally { setBusy(false) }
   }
 
   /* ---------- derivações ---------- */
@@ -255,17 +228,12 @@ export function RentabilidadeLista() {
                   <button className="botao-sec !py-1.5" onClick={salvarTaxa}
                     disabled={busy || parseNum(taxaEdit) / 100 === taxa} title="Salvar a taxa e recalcular">Salvar</button>
                 </div>
-                <button className="botao-sec" onClick={() => fileRef.current?.click()} disabled={busy} title="Importar a planilha Margem Job (carga inicial)">
-                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21V9" /><path d="m7 14 5-5 5 5" /><path d="M5 3h14" /></svg>
-                  {busy ? 'Processando…' : 'Importar planilha'}
-                </button>
                 <button className="botao-pri" onClick={() => setForm(jobVazio())} disabled={busy} title="Adicionar um novo job">
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>
                   Novo lançamento
                 </button>
               </>
             )}
-            <input ref={fileRef} type="file" accept=".xls,.xlsx" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
           </div>
         </div>
 
@@ -308,7 +276,7 @@ export function RentabilidadeLista() {
         <div className="rounded-xl border border-line bg-surface px-4 py-10 text-center text-[13px] text-muted">Carregando…</div>
       ) : vazio ? (
         <div className="rounded-xl border border-line bg-surface px-4 py-10 text-center text-[13px] text-muted">
-          Nenhum job ainda.{isAdmin ? ' Use “Novo lançamento” para cadastrar, ou “Importar planilha” para a carga inicial.' : ' Peça a um administrador para carregar a base.'}
+          Nenhum job ainda.{isAdmin ? ' Use “Novo lançamento” para cadastrar um job.' : ' Peça a um administrador para carregar a base.'}
           {demo && <div className="mt-1 text-[12px]">Modo demonstração: os dados ficam só nesta sessão.</div>}
         </div>
       ) : (
