@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Criar a base de Rentabilidade de Projetos (Supabase)</title>
+<style>
+  body{margin:0;background:#f4f2eb;color:#16211d;font-family:ui-sans-serif,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;line-height:1.5}
+  .wrap{max-width:820px;margin:0 auto;padding:28px 20px 60px}
+  h1{font-family:Georgia,serif;font-size:23px;margin:0 0 4px}
+  p{color:#4a4a42;margin:6px 0}
+  .card{background:#fff;border:1px solid #e2ddd1;border-radius:14px;padding:20px;box-shadow:0 8px 24px rgba(22,33,29,.06);margin-top:16px}
+  .btn{display:inline-flex;align-items:center;gap:8px;background:#FB5403;color:#fff;border:0;border-radius:10px;padding:13px 20px;font-size:16px;font-weight:700;cursor:pointer;transition:.15s}
+  .btn:hover{background:#d84703}.btn.ok{background:#15734f}
+  textarea{width:100%;height:320px;margin-top:12px;border:1px solid #e2ddd1;border-radius:10px;padding:11px;font-family:ui-monospace,Consolas,monospace;font-size:12px;color:#16211d;background:#fbfaf6;resize:vertical}
+  .status{margin-left:12px;font-weight:600;color:#15734f}
+  code{background:#eef0e9;padding:1px 6px;border-radius:5px;font-size:13px}
+  a{color:#d84703;font-weight:600}
+  ol{padding-left:20px}li{margin:8px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Criar a base de Rentabilidade de Projetos no Supabase</h1>
+  <p>Isso cria as tabelas do modulo <b>Margem Job</b> (base dos jobs + parametro da taxa do ganho
+     tributario), seguras e so para o time da Batux. Pode rodar mesmo se ja tiver rodado antes.</p>
+
+  <div class="card">
+    <button class="btn" id="copiar" type="button">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8">
+        <rect x="9" y="9" width="12" height="12" rx="2"></rect><path d="M5 15V5a2 2 0 012-2h10"></path>
+      </svg>
+      Copiar o codigo SQL
+    </button>
+    <span class="status" id="status"></span>
+    <textarea id="sql" readonly spellcheck="false">-- AxisGo - Modulo Financeiro -> Rentabilidade de Projetos (Margem Job)
+-- Base dos jobs + parametros. Roda uma vez (e seguro repetir).
+
+create table if not exists public.margem_job (
+  id               bigint generated always as identity primary key,
+  empresa          text not null,
+  cliente          text not null,
+  data             date,
+  competencia      text,
+  pit              text,
+  ec               text,
+  unidade_negocio  text,
+  campanha         text,
+  valor_faturado   numeric(16, 2) not null default 0,
+  custo_total      numeric(16, 2) not null default 0,
+  encargos         numeric(16, 2) not null default 0,
+  created_at       timestamptz not null default now()
+);
+
+create index if not exists margem_job_emp_idx on public.margem_job (empresa, data);
+create index if not exists margem_job_cli_idx on public.margem_job (cliente);
+
+alter table public.margem_job enable row level security;
+
+drop policy if exists "margem_job_leitura" on public.margem_job;
+create policy "margem_job_leitura"
+  on public.margem_job for select to authenticated using (true);
+
+drop policy if exists "margem_job_escrita_admin" on public.margem_job;
+create policy "margem_job_escrita_admin"
+  on public.margem_job for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+
+-- Parametros do modulo (linha unica, id = 1). taxa_ganho_trib padrao 52%.
+create table if not exists public.margem_config (
+  id               smallint primary key default 1,
+  taxa_ganho_trib  numeric(6, 4) not null default 0.52,
+  atualizado_em    timestamptz not null default now(),
+  constraint margem_config_unica check (id = 1)
+);
+
+insert into public.margem_config (id) values (1) on conflict (id) do nothing;
+
+alter table public.margem_config enable row level security;
+
+drop policy if exists "margem_config_leitura" on public.margem_config;
+create policy "margem_config_leitura"
+  on public.margem_config for select to authenticated using (true);
+
+drop policy if exists "margem_config_escrita_admin" on public.margem_config;
+create policy "margem_config_escrita_admin"
+  on public.margem_config for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());</textarea>
+  </div>
+
+  <div class="card">
+    <p style="font-weight:700;margin-top:0">Passo a passo:</p>
+    <ol>
+      <li>Clique em <b>Copiar o codigo SQL</b> acima.</li>
+      <li>Abra o <a href="https://supabase.com/dashboard/project/kfbmiasyqfpskxezzvvj/sql/new" target="_blank" rel="noopener">SQL Editor do Supabase</a> (projeto da Batux).</li>
+      <li>Cole (<b>Ctrl+V</b>) e clique em <b>Run</b>.</li>
+      <li>Deve aparecer <code>Success. No rows returned</code>. Pronto - agora da para importar a planilha Margem Job e lancar jobs pela tela de Rentabilidade de Projetos.</li>
+    </ol>
+    <p class="status" style="color:#4a4a42">Apareceu erro em vermelho? Copie e cole no chat que eu ajudo.</p>
+  </div>
+</div>
+<script>
+const area=document.getElementById('sql'),btn=document.getElementById('copiar'),status=document.getElementById('status');
+btn.addEventListener('click',async()=>{
+  try{await navigator.clipboard.writeText(area.value)}catch{area.focus();area.select();document.execCommand('copy')}
+  status.textContent='✓ Copiado!';btn.classList.add('ok');btn.lastChild.textContent=' Copiado!';
+  setTimeout(()=>{status.textContent='';btn.classList.remove('ok');btn.lastChild.textContent=' Copiar o codigo SQL'},2500);
+});
+</script>
+</body>
+</html>
