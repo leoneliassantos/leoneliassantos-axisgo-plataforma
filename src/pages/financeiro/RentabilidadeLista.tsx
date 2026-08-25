@@ -471,8 +471,8 @@ function ScopedStyle() {
 .rent-mod .seg button.on{background:#fff;color:#1F2937;box-shadow:0 1px 2px rgba(0,0,0,.08)}
 .rent-mod .botao-sec{display:inline-flex;align-items:center;gap:7px;border:1px solid #DBE4EF;background:#fff;color:#1F2937;border-radius:9px;padding:9px 14px;font:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:.12s}
 .rent-mod .botao-sec:hover:not(:disabled){background:#F3F6FA}
-.rent-mod .botao-pri{display:inline-flex;align-items:center;gap:7px;border:0;background:var(--brand,#FB5403);color:#fff;border-radius:9px;padding:9px 15px;font:inherit;font-size:13px;font-weight:800;cursor:pointer;transition:.12s;box-shadow:0 2px 8px rgba(251,84,3,.28)}
-.rent-mod .botao-pri:hover:not(:disabled){filter:brightness(1.08)}
+.rent-mod .botao-pri{display:inline-flex;align-items:center;gap:7px;border:0;background:#122238;color:#fff;border-radius:9px;padding:9px 15px;font:inherit;font-size:13px;font-weight:800;cursor:pointer;transition:.12s;box-shadow:0 2px 8px rgba(18,34,56,.28)}
+.rent-mod .botao-pri:hover:not(:disabled){background:#1c3350}
 .rent-mod .botao-sec:disabled,.rent-mod .botao-pri:disabled{opacity:.5;cursor:default}
 .rent-mod .rent-scroller{overflow:auto;border:1px solid #E7E2DA;border-radius:14px;background:#fff;max-height:calc(100vh - var(--topo-h,150px) - 40px)}
 .rent-mod table.rent{border-collapse:separate;border-spacing:0;width:100%;min-width:1240px;font-size:12.5px}
