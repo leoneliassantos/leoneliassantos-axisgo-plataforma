@@ -208,15 +208,19 @@ export function AppLayout() {
           aberta ? 'translate-x-0' : '-translate-x-full'
         } ${recolhida ? 'md:w-16' : 'md:w-60'}`}
       >
-        <div className={`flex h-14 items-center border-b border-line px-5 ${recolhida ? 'md:justify-center md:px-0' : ''}`}>
+        <div className={`flex h-14 items-center border-b border-line px-5 ${recolhida ? 'md:justify-center md:px-0' : 'md:justify-between'}`}>
           <div className={rot(true)}>{logoCompleto}</div>
-          <Link
-            to="/"
-            onClick={fechaMobile}
-            className={`hidden size-8 items-center justify-center rounded-md bg-paper font-serif text-sm font-bold text-ink ${recolhida ? 'md:flex' : ''}`}
+          <button
+            type="button"
+            onClick={toggleRecolher}
+            aria-label={recolhida ? 'Expandir menu' : 'Recolher menu'}
+            title={recolhida ? 'Expandir menu' : 'Recolher menu'}
+            className="hidden size-8 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-paper hover:text-ink md:flex"
           >
-            {(CLIENT.nome || '?').trim().charAt(0).toUpperCase()}
-          </Link>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" className={`transition-transform ${recolhida ? '' : 'rotate-180'}`}>
+              <path d="M9 6l6 6-6 6" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
         </div>
 
         <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-3">
@@ -292,18 +296,6 @@ export function AppLayout() {
           >
             <Icon>{icons.sair}</Icon>
             <span className={rot(true)}>Sair</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={toggleRecolher}
-            aria-label={recolhida ? 'Expandir menu' : 'Recolher menu'}
-            className="hidden items-center gap-2.5 rounded-md px-3 py-1.5 text-[13px] text-muted transition hover:bg-paper hover:text-ink md:flex"
-          >
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" className={`shrink-0 transition-transform ${recolhida ? '' : 'rotate-180'}`}>
-              <path d="M9 6l6 6-6 6" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            <span className={rot(true)}>Recolher</span>
           </button>
         </div>
       </aside>
