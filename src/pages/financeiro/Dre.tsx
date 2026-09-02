@@ -432,10 +432,10 @@ export function Dre() {
 
       <ModuloTopo>
       {/* Cabeçalho do módulo */}
-      <div className="flex min-h-[64px] flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="font-serif text-lg font-semibold text-ink">DRE — Demonstração do Resultado</h2>
-          <p className="text-[13px] text-muted">
+          <h2 className="font-serif text-base font-semibold text-ink">DRE — Demonstração do Resultado</h2>
+          <p className="text-[12px] text-muted">
             Regime de competência · a partir do Razão Contábil{anos.length ? ` · ${anos.join('/')}` : ''} · negativos entre parênteses
           </p>
         </div>
@@ -507,11 +507,11 @@ export function Dre() {
       </div>
 
         {modo === 'dre' && (
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Kpi lbl="Receita Líquida" val={recLiq} accent="band" foot="após deduções" />
-            <Kpi lbl="EBITDA" val={ebitda} accent={ebitda >= 0 ? 'pos' : 'neg'} foot="antes de deprec. e financeiro" signed />
-            <Kpi lbl="Resultado Líquido" val={liquido} accent={liquido >= 0 ? 'pos' : 'neg'} foot="após IR/CSLL" signed />
-            <Kpi lbl="Margem Líquida" val={margem} isPct foot="resultado ÷ receita bruta" signed accent={margem !== null && margem < 0 ? 'neg' : 'pos'} />
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            <Kpi lbl="Receita Líquida" val={recLiq} accent="band" />
+            <Kpi lbl="EBITDA" val={ebitda} accent={ebitda >= 0 ? 'pos' : 'neg'} signed />
+            <Kpi lbl="Resultado Líquido" val={liquido} accent={liquido >= 0 ? 'pos' : 'neg'} signed />
+            <Kpi lbl="Margem Líquida" val={margem} isPct signed accent={margem !== null && margem < 0 ? 'neg' : 'pos'} />
           </div>
         )}
 
@@ -721,23 +721,21 @@ function LinhaSubtotal({ l, view, mesesVis }: { l: Exclude<LinhaDRE, LinhaGrupo>
   )
 }
 function Kpi({
-  lbl, val, accent, foot, signed, isPct,
+  lbl, val, accent, signed, isPct,
 }: {
   lbl: string
   val: number | null
   accent: 'pos' | 'neg' | 'band'
-  foot: string
   signed?: boolean
   isPct?: boolean
 }) {
   const cor = val === null ? 'text-ink' : signed ? (val < 0 ? 'text-neg' : accent === 'band' ? 'text-ink' : 'text-pos') : accent === 'pos' ? 'text-pos' : accent === 'neg' ? 'text-neg' : 'text-ink'
   const texto = val === null ? '—' : isPct ? `${val.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%` : `R$ ${fmt(val)}`
   return (
-    <div className="relative flex min-h-[74px] flex-col justify-center overflow-hidden rounded-xl border border-line bg-surface px-4 py-2.5">
+    <div className="relative flex min-h-[50px] flex-col justify-center overflow-hidden rounded-xl border border-line bg-surface py-1.5 pl-4 pr-3">
       <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: GRAD_KPI }} />
       <div className="text-[10px] font-bold uppercase tracking-wider text-muted">{lbl}</div>
-      <div className={`mt-1 text-[20px] font-extrabold tnum ${cor}`}>{texto}</div>
-      <div className="mt-0.5 text-[11px] text-muted">{foot}</div>
+      <div className={`text-[17px] font-extrabold leading-tight tnum ${cor}`}>{texto}</div>
     </div>
   )
 }

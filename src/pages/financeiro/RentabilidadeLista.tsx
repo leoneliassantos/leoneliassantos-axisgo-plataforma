@@ -206,10 +206,10 @@ export function RentabilidadeLista() {
       <ScopedStyle />
 
       <ModuloTopo>
-        <div className="flex min-h-[64px] flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="font-serif text-lg font-semibold text-ink">Rentabilidade de Projetos</h2>
-            <p className="text-[13px] text-muted">
+            <h2 className="font-serif text-base font-semibold text-ink">Rentabilidade de Projetos</h2>
+            <p className="text-[12px] text-muted">
               Margem por job · receita e margens calculadas automaticamente
               {demo ? ' · modo demonstração (sem banco)' : ''}
             </p>
@@ -240,13 +240,13 @@ export function RentabilidadeLista() {
         </div>
 
         {!vazio && (
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
-            <Kpi lbl="Faturado" val={`R$ ${fmt0(resumo.faturado)}`} foot={`${resumo.qtd} job(s)`} />
-            <Kpi lbl="Custo /impostos" val={`R$ ${fmt0(resumo.custo)}`} foot="total de custos" />
-            <Kpi lbl="Receita" val={`R$ ${fmt0(resumo.receita)}`} foot="faturado − custo" />
-            <Kpi lbl="Margem 1" val={fmtPct(resumo.margem1)} foot="receita ÷ faturado" />
-            <Kpi lbl="Ganho tributário" val={`R$ ${fmt0(resumo.ganho)}`} foot={`${fmtPct(taxa)} dos encargos`} />
-            <Kpi lbl="Margem 2" val={fmtPct(resumo.margem2)} foot="c/ ganho tributário" />
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            <Kpi lbl="Faturado" val={`R$ ${fmt0(resumo.faturado)}`} />
+            <Kpi lbl="Custo /impostos" val={`R$ ${fmt0(resumo.custo)}`} />
+            <Kpi lbl="Receita" val={`R$ ${fmt0(resumo.receita)}`} />
+            <Kpi lbl="Margem 1" val={fmtPct(resumo.margem1)} />
+            <Kpi lbl="Ganho tributário" val={`R$ ${fmt0(resumo.ganho)}`} />
+            <Kpi lbl="Margem 2" val={fmtPct(resumo.margem2)} />
           </div>
         )}
 
@@ -372,13 +372,12 @@ export function RentabilidadeLista() {
 }
 
 /* ------------------------------- KPI ------------------------------- */
-function Kpi({ lbl, val, foot }: { lbl: string; val: string; foot: string }) {
+function Kpi({ lbl, val }: { lbl: string; val: string }) {
   return (
-    <div className="relative overflow-hidden rounded-xl border border-line bg-surface px-3 py-2">
+    <div className="relative flex min-h-[50px] flex-col justify-center overflow-hidden rounded-xl border border-line bg-surface py-1.5 pl-4 pr-3">
       <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: GRAD_KPI }} />
       <div className="text-[10px] font-bold uppercase tracking-wider text-muted">{lbl}</div>
-      <div className="mt-0.5 text-[17px] font-extrabold leading-tight tnum text-ink">{val}</div>
-      <div className="text-[10px] text-muted">{foot}</div>
+      <div className="text-[17px] font-extrabold leading-tight tnum text-ink">{val}</div>
     </div>
   )
 }

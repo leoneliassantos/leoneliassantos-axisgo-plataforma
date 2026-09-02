@@ -278,10 +278,10 @@ export function FaturamentoLista() {
       <ScopedStyle />
 
       <ModuloTopo>
-        <div className="flex min-h-[64px] flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="font-serif text-lg font-semibold text-ink">Faturamento</h2>
-            <p className="text-[13px] text-muted">
+            <h2 className="font-serif text-base font-semibold text-ink">Faturamento</h2>
+            <p className="text-[12px] text-muted">
               Base do Publi (Mapa de Faturamento) · uma linha por nota · métrica: Valor Faturado
               {demo ? ' · modo demonstração (sem banco)' : ''}
             </p>
@@ -368,11 +368,11 @@ export function FaturamentoLista() {
         </div>
 
         {!vazio && (
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Kpi lbl="Faturado" val={resumo.total} foot={`${resumo.qtd} nota(s)`} />
-            <Kpi lbl="Recebido" val={resumo.recebido} foot={resumo.total ? `${Math.round((resumo.recebido / resumo.total) * 100)}% do faturado` : '—'} />
-            <Kpi lbl="A receber" val={resumo.aReceber} foot="notas em aberto" />
-            <Kpi lbl="Ticket médio" val={resumo.qtd ? resumo.total / resumo.qtd : 0} foot="por nota" />
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            <Kpi lbl="Faturado" val={resumo.total} />
+            <Kpi lbl="Recebido" val={resumo.recebido} />
+            <Kpi lbl="A receber" val={resumo.aReceber} />
+            <Kpi lbl="Ticket médio" val={resumo.qtd ? resumo.total / resumo.qtd : 0} />
           </div>
         )}
 
@@ -482,13 +482,12 @@ export function FaturamentoLista() {
 }
 
 /* ------------------------------- KPI ------------------------------- */
-function Kpi({ lbl, val, foot }: { lbl: string; val: number; foot: string }) {
+function Kpi({ lbl, val }: { lbl: string; val: number }) {
   return (
-    <div className="relative overflow-hidden rounded-xl border border-line bg-surface px-3 py-2">
+    <div className="relative flex min-h-[50px] flex-col justify-center overflow-hidden rounded-xl border border-line bg-surface py-1.5 pl-4 pr-3">
       <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: GRAD_KPI }} />
       <div className="text-[10px] font-bold uppercase tracking-wider text-muted">{lbl}</div>
-      <div className="mt-0.5 text-[18px] font-extrabold leading-tight tnum text-ink">R$ {fmt0(val)}</div>
-      <div className="text-[10px] text-muted">{foot}</div>
+      <div className="text-[17px] font-extrabold leading-tight tnum text-ink">R$ {fmt0(val)}</div>
     </div>
   )
 }

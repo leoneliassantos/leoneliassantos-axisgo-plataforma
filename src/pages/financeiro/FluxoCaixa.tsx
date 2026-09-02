@@ -397,11 +397,12 @@ export function FluxoCaixa() {
 
       <ModuloTopo>
       {/* Cabeçalho do módulo */}
-      <div className="flex min-h-[64px] flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="font-serif text-lg font-semibold text-ink">Fluxo de Caixa</h2>
-          <p className="text-[13px] text-muted">
-            Regime de caixa{anos ? ` · exercício ${anos}` : ''} · recebimentos e pagamentos efetivados
+          <h2 className="font-serif text-base font-semibold text-ink">Fluxo de Caixa</h2>
+          <p className="text-[12px] text-muted">
+            Regime de caixa{anos ? ` · ${anos}` : ''}
+            {!vazio && !loading ? ` · ${rows.length} lançamentos · ${nCats} categorias` : ''}
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
@@ -455,21 +456,12 @@ export function FluxoCaixa() {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi lbl="Recebimentos no ano" val={totR} accent="pos" foot="Total de entradas de caixa" />
-        <Kpi lbl="Pagamentos no ano" val={totP} accent="neg" foot="Total de saídas de caixa" />
-        <Kpi lbl="Resultado de Caixa" val={res} accent={res >= 0 ? 'pos' : 'neg'} foot="Recebimentos − Pagamentos" signed />
-        <Kpi lbl="Saldo Final de Caixa" val={fim} accent="band" foot="Saldo projetado ao fim do período" signed />
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        <Kpi lbl="Recebimentos" val={totR} accent="pos" />
+        <Kpi lbl="Pagamentos" val={totP} accent="neg" />
+        <Kpi lbl="Resultado de Caixa" val={res} accent={res >= 0 ? 'pos' : 'neg'} signed />
+        <Kpi lbl="Saldo Final de Caixa" val={fim} accent="band" signed />
       </div>
-
-      {!vazio && (
-        <div className="flex items-center gap-2 rounded-xl border border-line bg-surface px-4 py-2.5">
-          <h3 className="text-[14px] font-bold text-ink">Demonstrativo do Fluxo de Caixa</h3>
-          <span className="text-[11px] text-muted">
-            {loading ? 'carregando…' : `${rows.length} lançamentos · ${nCats} categorias`}
-          </span>
-        </div>
-      )}
       </ModuloTopo>
 
       {erro && <Alerta tipo="erro" texto={erro} onClose={() => setErro(null)} />}
@@ -606,14 +598,13 @@ function Categoria({
     </>
   )
 }
-function Kpi({ lbl, val, accent, foot, signed }: { lbl: string; val: number; accent: 'pos' | 'neg' | 'band'; foot: string; signed?: boolean }) {
+function Kpi({ lbl, val, accent, signed }: { lbl: string; val: number; accent: 'pos' | 'neg' | 'band'; signed?: boolean }) {
   const cor = signed ? (val < 0 ? 'text-neg' : accent === 'band' ? 'text-ink' : 'text-pos') : accent === 'pos' ? 'text-pos' : accent === 'neg' ? 'text-neg' : 'text-ink'
   return (
-    <div className="relative flex min-h-[74px] flex-col justify-center overflow-hidden rounded-xl border border-line bg-surface px-4 py-2.5">
+    <div className="relative flex min-h-[50px] flex-col justify-center overflow-hidden rounded-xl border border-line bg-surface py-1.5 pl-4 pr-3">
       <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: 'linear-gradient(180deg, #FE9F2E 0%, #FB5403 55%, #F5390A 100%)' }} />
       <div className="text-[10px] font-bold uppercase tracking-wider text-muted">{lbl}</div>
-      <div className={`mt-1 text-[20px] font-extrabold tnum ${cor}`}>R$ {fmt(val)}</div>
-      <div className="mt-0.5 text-[11px] text-muted">{foot}</div>
+      <div className={`text-[17px] font-extrabold leading-tight tnum ${cor}`}>R$ {fmt(val)}</div>
     </div>
   )
 }
