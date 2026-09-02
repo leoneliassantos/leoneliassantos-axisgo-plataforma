@@ -183,7 +183,7 @@ export function AppLayout() {
         } ${recolhida ? 'md:justify-center md:px-0' : ''}`
       }
     >
-      <Icon size={16}>{icons.modulo}</Icon>
+      <Icon size={16}>{m.icon ?? icons.modulo}</Icon>
       <span className={rot(true)}>{m.label}</span>
     </NavLink>
   )
