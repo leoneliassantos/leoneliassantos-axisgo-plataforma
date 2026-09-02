@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { ModuloTopo } from '../../components/ModuloTopo'
+import { InfoHint } from '../../components/InfoHint'
 import { readFirstSheetAOA } from '../../lib/xls'
 import { parsePubliAOA, MESES_PT, type FaturamentoRow } from './publiFaturamento'
 
@@ -342,6 +343,15 @@ export function FaturamentoLista() {
                   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21V9" /><path d="m7 14 5-5 5 5" /><path d="M5 3h14" /></svg>
                   {busy ? 'Processando…' : 'Subir base do mês'}
                 </button>
+                <InfoHint
+                  title="Como atualizar o Faturamento (Publi)"
+                  steps={[
+                    'Escolha acima a Empresa, o Ano e o Mês que você vai atualizar.',
+                    'No Publi, exporte o Mapa de Faturamento (.xlsx).',
+                    'Clique em "Subir base do mês" e selecione o arquivo.',
+                  ]}
+                  warn="É por mês: cada envio atualiza só o mês/empresa selecionados; os demais meses ficam intactos."
+                />
                 <button
                   className="inline-flex items-center gap-2 rounded-lg border border-red-300 bg-white px-4 py-2.5 text-[13px] font-bold text-red-700 transition hover:bg-red-50 disabled:opacity-50"
                   onClick={excluirCompetencia}

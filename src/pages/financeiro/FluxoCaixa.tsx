@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { ModuloTopo } from '../../components/ModuloTopo'
+import { InfoHint } from '../../components/InfoHint'
 
 /* ================================================================== *
  *  Fluxo de Caixa — módulo do Financeiro
@@ -436,6 +437,18 @@ export function FluxoCaixa() {
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21V9" /><path d="m7 14 5-5 5 5" /><path d="M5 3h14" /></svg>
               {busy ? 'Processando…' : 'Atualizar base'}
             </button>
+          )}
+          {isAdmin && (
+            <InfoHint
+              title="Como atualizar o Fluxo de Caixa"
+              steps={[
+                'Clique em "Baixar base" para partir da planilha atual (opcional).',
+                'No Excel, mantenha as colunas: TIPO, DESCRIÇÃO, CATEGORIA, VALOR e DATA.',
+                'Coloque todos os meses na mesma planilha (uma linha por lançamento).',
+                'Clique em "Atualizar base" e selecione o arquivo (.xlsx ou .xls).',
+              ]}
+              warn="É arquivo único: o envio substitui TODA a base (todos os meses de uma vez)."
+            />
           )}
           <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
         </div>

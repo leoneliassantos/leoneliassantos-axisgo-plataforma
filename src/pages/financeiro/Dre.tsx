@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { ModuloTopo } from '../../components/ModuloTopo'
+import { InfoHint } from '../../components/InfoHint'
 import { readFirstSheetAOA } from '../../lib/xls'
 import {
   apelidoEmpresa,
@@ -488,6 +489,17 @@ export function Dre() {
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21V9" /><path d="m7 14 5-5 5 5" /><path d="M5 3h14" /></svg>
                 {busy ? 'Processando…' : 'Subir Razão'}
               </button>
+            )}
+            {isAdmin && (
+              <InfoHint
+                title="Como atualizar o DRE"
+                steps={[
+                  'Na contabilidade, exporte o Razão Contábil da empresa (.xls ou .xlsx).',
+                  'Clique em "Subir Razão" e selecione o arquivo.',
+                  'A empresa é identificada pelo próprio arquivo — repita para cada empresa.',
+                ]}
+                warn="Cada envio atualiza o Razão da empresa do arquivo. Seus ajustes e classificações (de-para) são preservados."
+              />
             )}
             <input ref={fileRef} type="file" accept=".xls,.xlsx" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
           </div>

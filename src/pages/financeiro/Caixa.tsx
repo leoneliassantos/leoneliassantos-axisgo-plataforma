@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
+import { InfoHint } from '../../components/InfoHint'
 import { CLIENT } from '../../config/client'
 
 /* ================================================================== *
@@ -504,6 +505,18 @@ export function Caixa() {
             <button onClick={() => fileRef.current?.click()} disabled={busy} className="rounded-lg bg-ink px-3 py-2 text-[12px] font-bold text-white shadow-brand transition hover:brightness-125 disabled:opacity-50" title="Enviar o Excel de Lançamentos Financeiros do Foodpro (Vendas ou Distribuidora). Substitui todo o canal do arquivo.">
               {busy ? 'Processando…' : 'Atualizar base'}
             </button>
+          )}
+          {isAdmin && (
+            <InfoHint
+              title="Como atualizar os Títulos (Caixa)"
+              steps={[
+                'No Foodpro, exporte o Excel de "Lançamentos Financeiros".',
+                'Você tem dois canais: Vendas e Distribuidora — envie um de cada vez.',
+                'Clique em "Atualizar base" e selecione o arquivo (.xlsx ou .xls).',
+                'Repita para o outro canal.',
+              ]}
+              warn="Cada envio substitui todo o canal daquele arquivo. Só entram no fluxo os títulos com pagamento efetivado."
+            />
           )}
           <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
         </div>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { createPortal } from 'react-dom'
 import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
+import { InfoHint } from '../../components/InfoHint'
 import { CLIENT } from '../../config/client'
 
 /* ================================================================== *
@@ -594,6 +595,17 @@ export function Vendas() {
               <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21V9" /><path d="m7 14 5-5 5 5" /><path d="M5 3h14" /></svg>
               {busy ? 'Processando…' : 'Atualizar base'}
             </button>
+          )}
+          {isAdmin && (
+            <InfoHint
+              title="Como atualizar Vendas"
+              steps={[
+                'Baixe o Excel do Olist OU o PDF do Foodpro (Relatório de NFe Detalhado).',
+                'Em "Ao enviar", escolha o modo: "Só este arquivo" atualiza apenas o canal e o período do arquivo (o resto fica); "Base inteira" apaga tudo e regrava.',
+                'Clique em "Atualizar base" e selecione o arquivo.',
+              ]}
+              warn="Olist e Foodpro se somam nos mesmos indicadores. No modo padrão, cada envio mexe só no seu canal e período."
+            />
           )}
           <input ref={fileRef} type="file" accept=".xlsx,.xls,.pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
         </div>
