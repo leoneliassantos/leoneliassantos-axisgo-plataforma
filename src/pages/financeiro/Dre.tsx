@@ -461,7 +461,7 @@ export function Dre() {
                 title="Definir grupos e subgrupos do DRE por conta"
               >
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M3 12h18M3 18h18" /><circle cx="8" cy="6" r="1.6" fill="currentColor" stroke="none" /><circle cx="16" cy="12" r="1.6" fill="currentColor" stroke="none" /><circle cx="10" cy="18" r="1.6" fill="currentColor" stroke="none" /></svg>
-                Reclassificar contas
+                Classificação de contas
               </button>
             )}
             <button
@@ -664,7 +664,7 @@ export function Dre() {
         {semEquiv && <span className="rounded-full border border-line bg-paper px-2.5 py-1 font-bold text-ink">Equivalência patrimonial excluída do resultado</span>}
         {resultado === 'contabil' && <span className="rounded-full border border-line bg-paper px-2.5 py-1 font-bold text-ink">Resultado contábil · DDL removido (reclassificações mantidas)</span>}
         <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">Contas de Balanço (1 e 2) e Apuração (5.8) não entram no DRE</span>
-        {isAdmin && <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">Admin: use “Reclassificar contas” para ajustar grupos e subgrupos</span>}
+        {isAdmin && <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">Admin: use “Classificação de contas” para ajustar grupos e subgrupos</span>}
         {!isAdmin && <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">Somente administradores atualizam a base</span>}
         {mode !== 'supabase' && <span className="rounded-full border border-amber-300 bg-amber-50 px-2.5 py-1 font-medium text-amber-700">Modo demonstração (dados não persistem)</span>}
       </div>

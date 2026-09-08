@@ -169,7 +169,7 @@ export function AjustesReclass({
   // TODOS os subgrupos existentes no sistema (de qualquer grupo, vindos da base
   // do Razão + criados na plataforma). Ambiente de ajustes gerenciais = liberdade
   // total: qualquer subgrupo pode ser destino de qualquer grupo. Criar é em
-  // "Reclassificar contas"; aqui só se SELECIONA.
+  // "Classificação de contas"; aqui só se SELECIONA.
   const todosSubgrupos = useMemo(() => {
     const s = new Set<string>()
     for (const arr of subgruposPorGrupo.values()) for (const sg of arr) if (sg) s.add(sg)
