@@ -75,6 +75,9 @@ export function Dre() {
   const [mesAte, setMesAte] = useState(11)
   const [semEquiv, setSemEquiv] = useState(true)
   const [view, setView] = useState<'anual' | 'mensal'>('mensal')
+  // Resultado: 'gerencial' inclui o DDL dos sócios · 'contabil' remove só o DDL
+  // (mantém as reclassificações), reproduzindo o resultado da contabilidade.
+  const [resultado, setResultado] = useState<'gerencial' | 'contabil'>('gerencial')
   const [modo, setModo] = useState<'dre' | 'classificar' | 'ddl' | 'reclass'>('dre')
   const [salvandoCls, setSalvandoCls] = useState(false)
   const [salvandoDdl, setSalvandoDdl] = useState(false)
@@ -190,7 +193,11 @@ export function Dre() {
   /* ---------- recorte por empresa + período (mês De/Até) ---------- */
   // rows reais + DDL + ajustes gerenciais (sintéticos entram no cálculo do DRE,
   // mas ficam fora do universo de reclassificação e do download da base).
-  const baseRows = useMemo(() => [...rows, ...ddlLancs, ...reclassLancs], [rows, ddlLancs, reclassLancs])
+  // No "Resultado Contábil" o DDL é omitido (só ele) — reclassificações permanecem.
+  const baseRows = useMemo(
+    () => (resultado === 'contabil' ? [...rows, ...reclassLancs] : [...rows, ...ddlLancs, ...reclassLancs]),
+    [rows, ddlLancs, reclassLancs, resultado],
+  )
   const rowsEmpresa = useMemo(() => (empresaSel === CONSOLIDADO ? baseRows : baseRows.filter((r) => r.empresa === empresaSel)), [baseRows, empresaSel])
   const mesesDisponiveis = useMemo(() => {
     const set = new Set<number>()
@@ -207,6 +214,11 @@ export function Dre() {
   }, [mesesDisponiveis])
 
   const temEquiv = useMemo(() => rowsEmpresa.some((r) => ehEquiv(r.nome)), [rowsEmpresa])
+  // há DDL lançado no recorte atual? (define se o seletor Gerencial/Contábil aparece)
+  const temDdl = useMemo(
+    () => ddlLancs.some((r) => (empresaSel === CONSOLIDADO || r.empresa === empresaSel) && r.mes - 1 >= mesDe && r.mes - 1 <= mesAte),
+    [ddlLancs, empresaSel, mesDe, mesAte],
+  )
   const filtro = useMemo(
     () => rowsEmpresa.filter((r) => r.mes - 1 >= mesDe && r.mes - 1 <= mesAte && !(semEquiv && ehEquiv(r.nome))),
     [rowsEmpresa, mesDe, mesAte, semEquiv],
@@ -548,6 +560,15 @@ export function Dre() {
                   Sem equivalência patrimonial
                 </label>
               )}
+              {temDdl && (
+                <div
+                  className="seg"
+                  title="Gerencial: inclui o DDL dos sócios (antecipação de lucros). Contábil: reproduz o resultado da contabilidade — mantém as reclassificações, mas remove o DDL."
+                >
+                  <button className={resultado === 'gerencial' ? 'on' : ''} onClick={() => setResultado('gerencial')}>Gerencial</button>
+                  <button className={resultado === 'contabil' ? 'on' : ''} onClick={() => setResultado('contabil')}>Contábil</button>
+                </div>
+              )}
               <div className="seg">
                 <button className={view === 'anual' ? 'on' : ''} onClick={() => setView('anual')}>Acumulado</button>
                 <button className={view === 'mensal' ? 'on' : ''} onClick={() => setView('mensal')}>Mensal</button>
@@ -641,6 +662,7 @@ export function Dre() {
           </span>
         )}
         {semEquiv && <span className="rounded-full border border-line bg-paper px-2.5 py-1 font-bold text-ink">Equivalência patrimonial excluída do resultado</span>}
+        {resultado === 'contabil' && <span className="rounded-full border border-line bg-paper px-2.5 py-1 font-bold text-ink">Resultado contábil · DDL removido (reclassificações mantidas)</span>}
         <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">Contas de Balanço (1 e 2) e Apuração (5.8) não entram no DRE</span>
         {isAdmin && <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">Admin: use “Reclassificar contas” para ajustar grupos e subgrupos</span>}
         {!isAdmin && <span className="rounded-full border border-line bg-surface px-2.5 py-1 font-medium">Somente administradores atualizam a base</span>}
