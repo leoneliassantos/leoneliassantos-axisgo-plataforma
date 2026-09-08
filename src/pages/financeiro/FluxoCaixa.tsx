@@ -23,7 +23,8 @@ const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'O
 
 /* ------------------------------- utils ------------------------------- */
 const z12 = () => new Array(12).fill(0) as number[]
-const sum12 = (a: number[]) => a.reduce((s, v) => s + v, 0)
+// soma apenas os meses visíveis (recorte do filtro de período)
+const sumVis = (a: number[], vis: number[]) => vis.reduce((s, i) => s + (a[i] ?? 0), 0)
 
 function fmt(v: number): string {
   // Sem centavos, para os valores caberem 100% na tela (arredonda ao inteiro).
@@ -110,8 +111,8 @@ function build(rows: Lancamento[]): Pivot {
   }
   return { ent, sai, entD, saiD, years: Object.keys(years).sort() }
 }
-function sortedCats(bag: Record<string, number[]>): string[] {
-  return Object.keys(bag).sort((a, b) => sum12(bag[b]) - sum12(bag[a]))
+function sortedCats(bag: Record<string, number[]>, vis: number[]): string[] {
+  return Object.keys(bag).sort((a, b) => sumVis(bag[b], vis) - sumVis(bag[a], vis))
 }
 
 /**
@@ -156,6 +157,9 @@ export function FluxoCaixa() {
   const isAdmin = user?.role === 'admin'
 
   const [rows, setRows] = useState<Lancamento[]>([])
+  const [ano, setAno] = useState<string>('')
+  const [mesDe, setMesDe] = useState(0)
+  const [mesAte, setMesAte] = useState(11)
   const [saldoInicial, setSaldoInicial] = useState<number>(0)
   const [saldoTexto, setSaldoTexto] = useState<string>('0,00')
   const [openCats, setOpenCats] = useState<Record<string, boolean>>({})
@@ -205,9 +209,48 @@ export function FluxoCaixa() {
     carregar()
   }, [carregar])
 
-  /* ---------- modelo do fluxo ---------- */
+  /* ---------- filtro de data (ano + faixa de meses) ---------- */
+  // anos presentes na base; o seletor só aparece se houver mais de um.
+  const anos = useMemo(
+    () => [...new Set(rows.map((r) => (r.data || '').slice(0, 4)).filter(Boolean))].sort(),
+    [rows],
+  )
+  // mantém um ano válido selecionado (padrão = mais recente)
+  useEffect(() => {
+    if (!anos.length) return
+    setAno((a) => (a && anos.includes(a) ? a : anos[anos.length - 1]))
+  }, [anos])
+  // lançamentos do ano selecionado (base do fluxo mensal)
+  const rowsAno = useMemo(
+    () => (ano ? rows.filter((r) => (r.data || '').slice(0, 4) === ano) : rows),
+    [rows, ano],
+  )
+  // meses com dados no ano — alimentam os selects e o clamp do período
+  const mesesDisponiveis = useMemo(() => {
+    const set = new Set<number>()
+    for (const r of rowsAno) { const m = monthOf(r.data); if (m !== null) set.add(m) }
+    return [...set].sort((a, b) => a - b)
+  }, [rowsAno])
+  // ao trocar de ano/base, ajusta o período para a faixa disponível
+  useEffect(() => {
+    if (!mesesDisponiveis.length) return
+    const min = mesesDisponiveis[0]
+    const max = mesesDisponiveis[mesesDisponiveis.length - 1]
+    setMesDe((d) => (d < min || d > max ? min : d))
+    setMesAte((a) => (a < min || a > max ? max : a))
+  }, [mesesDisponiveis])
+  const mesesVis = useMemo(() => {
+    const a: number[] = []
+    for (let m = mesDe; m <= mesAte; m++) a.push(m)
+    return a
+  }, [mesDe, mesAte])
+
+  /* ---------- modelo do fluxo (12 meses do ano; exibe o recorte) ---------- */
+  // O saldo corrente é calculado sobre os 12 meses do ano a partir do saldo
+  // inicial; a tabela apenas exibe as colunas do período selecionado, então o
+  // "Saldo Atual" da 1ª coluna já traz o acumulado dos meses anteriores.
   const modelo = useMemo(() => {
-    const d = build(rows)
+    const d = build(rowsAno)
     const receb = colSum(d.ent)
     const pag = colSum(d.sai)
     const saldoAnt = z12()
@@ -219,7 +262,7 @@ export function FluxoCaixa() {
       prev = saldo[m]
     }
     return { d, receb, pag, saldoAnt, saldo }
-  }, [rows, saldoInicial])
+  }, [rowsAno, saldoInicial])
 
   /* ---------- ações ---------- */
   function toggleCat(key: string) {
@@ -248,6 +291,7 @@ export function FluxoCaixa() {
         open={!!openCats[`${pfx}|${cat}`]}
         onToggle={toggleCat}
         nested={nested}
+        mesesVis={mesesVis}
       />
     )
     for (const b of blocos) {
@@ -261,13 +305,13 @@ export function FluxoCaixa() {
         membros.forEach((m) => usadas.add(m))
         const aberto = openGroups[b.nome] ?? false
         out.push(
-          <GrupoLinha key={`G-${b.nome}`} nome={b.nome} sub={groupSum(bag, b.membros)} open={aberto} onToggle={() => toggleGroup(b.nome)} />,
+          <GrupoLinha key={`G-${b.nome}`} nome={b.nome} sub={groupSum(bag, b.membros)} open={aberto} onToggle={() => toggleGroup(b.nome)} mesesVis={mesesVis} />,
         )
         if (aberto) for (const m of membros) out.push(catRow(m, true))
       }
     }
     // Categorias presentes na base fora de qualquer bloco → ao final, por valor.
-    for (const c of sortedCats(bag).filter((c) => !usadas.has(c))) out.push(catRow(c))
+    for (const c of sortedCats(bag, mesesVis).filter((c) => !usadas.has(c))) out.push(catRow(c))
     return out
   }
 
@@ -380,13 +424,14 @@ export function FluxoCaixa() {
 
   /* ---------- render ---------- */
   const { d, receb, pag, saldoAnt, saldo } = modelo
-  const totR = sum12(receb)
-  const totP = sum12(pag)
+  const totR = sumVis(receb, mesesVis)
+  const totP = sumVis(pag, mesesVis)
   const res = totR - totP
-  const fim = saldo[11]
-  const anos = d.years.length ? d.years.join(' / ') : ''
+  const saldoAbertura = saldoAnt[mesDe] ?? saldoInicial // saldo no início do período
+  const fim = saldo[mesAte] ?? saldo[11] // saldo no fim do período
   const nCats = Object.keys(d.ent).length + Object.keys(d.sai).length
   const vazio = rows.length === 0
+  const umMes = mesDe === mesAte
 
   return (
     <div
@@ -401,8 +446,8 @@ export function FluxoCaixa() {
         <div>
           <h2 className="font-serif text-base font-semibold text-ink">Fluxo de Caixa</h2>
           <p className="text-[12px] text-muted">
-            Regime de caixa{anos ? ` · ${anos}` : ''}
-            {!vazio && !loading ? ` · ${rows.length} lançamentos · ${nCats} categorias` : ''}
+            Regime de caixa{ano ? ` · ${ano}` : ''}
+            {!vazio && !loading ? ` · ${rowsAno.length} lançamentos · ${nCats} categorias` : ''}
           </p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
@@ -462,6 +507,30 @@ export function FluxoCaixa() {
         <Kpi lbl="Resultado de Caixa" val={res} accent={res >= 0 ? 'pos' : 'neg'} signed />
         <Kpi lbl="Saldo Final de Caixa" val={fim} accent="band" signed />
       </div>
+
+      {/* Filtro de data (ano + faixa de meses) */}
+      {!vazio && !loading && (
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-line bg-surface px-4 py-2.5">
+          {anos.length > 1 && (
+            <div className="flex items-center gap-1.5 text-[12px] text-muted">
+              <span className="text-[10px] font-bold uppercase tracking-wider">Ano</span>
+              <select className="periodo-sel" value={ano} onChange={(e) => setAno(e.target.value)} title="Ano">
+                {anos.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </div>
+          )}
+          <div className="flex items-center gap-1.5 text-[12px] text-muted">
+            <span className="text-[10px] font-bold uppercase tracking-wider">Período</span>
+            <select className="periodo-sel" value={mesDe} onChange={(e) => { const v = +e.target.value; setMesDe(v); if (v > mesAte) setMesAte(v) }} title="Mês inicial">
+              {mesesDisponiveis.map((m) => <option key={m} value={m}>{MESES[m]}</option>)}
+            </select>
+            <span>a</span>
+            <select className="periodo-sel" value={mesAte} onChange={(e) => { const v = +e.target.value; setMesAte(v); if (v < mesDe) setMesDe(v) }} title="Mês final">
+              {mesesDisponiveis.map((m) => <option key={m} value={m}>{MESES[m]}</option>)}
+            </select>
+          </div>
+        </div>
+      )}
       </ModuloTopo>
 
       {erro && <Alerta tipo="erro" texto={erro} onClose={() => setErro(null)} />}
@@ -486,19 +555,19 @@ export function FluxoCaixa() {
               <thead>
                 <tr>
                   <th className="rowlabel">Conta</th>
-                  {MESES.map((m) => (
-                    <th key={m}>{m}</th>
+                  {mesesVis.map((i) => (
+                    <th key={i}>{MESES[i]}</th>
                   ))}
-                  <th className="col-total">Ano</th>
+                  <th className="col-total">{umMes ? MESES[mesDe] : 'Período'}</th>
                 </tr>
               </thead>
               <tbody>
-                <Linha cls="saldo-ant" label="(=) Saldo Atual" arr={saldoAnt} total={saldoInicial} />
-                <SecaoTotal cls="total-receb" label="(+) Recebimentos" arr={receb} total={totR} open={secReceb} onToggle={() => setSecReceb((v) => !v)} />
+                <Linha cls="saldo-ant" label="(=) Saldo Atual" arr={saldoAnt} total={saldoAbertura} mesesVis={mesesVis} />
+                <SecaoTotal cls="total-receb" label="(+) Recebimentos" arr={receb} total={totR} open={secReceb} onToggle={() => setSecReceb((v) => !v)} mesesVis={mesesVis} />
                 {secReceb && renderSecao(ENTRADAS_BLOCOS, 'E', d.ent, d.entD)}
-                <SecaoTotal cls="total-pag" label="(−) Pagamentos" arr={pag} total={totP} open={secPag} onToggle={() => setSecPag((v) => !v)} />
+                <SecaoTotal cls="total-pag" label="(−) Pagamentos" arr={pag} total={totP} open={secPag} onToggle={() => setSecPag((v) => !v)} mesesVis={mesesVis} />
                 {secPag && renderSecao(SAIDAS_BLOCOS, 'S', d.sai, d.saiD)}
-                <Linha cls="saldo-caixa" label="(=) Saldo Final" arr={saldo} total={fim} />
+                <Linha cls="saldo-caixa" label="(=) Saldo Final" arr={saldo} total={fim} mesesVis={mesesVis} />
               </tbody>
             </table>
           </div>
@@ -517,26 +586,26 @@ export function FluxoCaixa() {
 }
 
 /* --------------------------- subcomponentes --------------------------- */
-function Cells({ arr, total }: { arr: number[]; total: number }) {
+function Cells({ arr, total, mesesVis }: { arr: number[]; total: number; mesesVis: number[] }) {
   return (
     <>
-      {arr.map((v, i) => (
-        <td key={i} className={`num ${numClass(v)}`}>{fmt(v)}</td>
+      {mesesVis.map((i) => (
+        <td key={i} className={`num ${numClass(arr[i])}`}>{fmt(arr[i])}</td>
       ))}
       <td className={`num col-total ${numClass(total)}`}>{fmt(total)}</td>
     </>
   )
 }
-function Linha({ cls, label, arr, total }: { cls: string; label: string; arr: number[]; total: number }) {
+function Linha({ cls, label, arr, total, mesesVis }: { cls: string; label: string; arr: number[]; total: number; mesesVis: number[] }) {
   return (
     <tr className={cls}>
       <td className="rowlabel">{label}</td>
-      <Cells arr={arr} total={total} />
+      <Cells arr={arr} total={total} mesesVis={mesesVis} />
     </tr>
   )
 }
 function SecaoTotal({
-  cls, label, arr, total, open, onToggle,
+  cls, label, arr, total, open, onToggle, mesesVis,
 }: {
   cls: string
   label: string
@@ -544,28 +613,29 @@ function SecaoTotal({
   total: number
   open: boolean
   onToggle: () => void
+  mesesVis: number[]
 }) {
   return (
     <tr className={`${cls} sechead${open ? ' open' : ''}`} onClick={onToggle}>
       <td className="rowlabel">
         <span className="caret">▶</span> {label}
       </td>
-      <Cells arr={arr} total={total} />
+      <Cells arr={arr} total={total} mesesVis={mesesVis} />
     </tr>
   )
 }
-function GrupoLinha({ nome, sub, open, onToggle }: { nome: string; sub: number[]; open: boolean; onToggle: () => void }) {
+function GrupoLinha({ nome, sub, open, onToggle, mesesVis }: { nome: string; sub: number[]; open: boolean; onToggle: () => void; mesesVis: number[] }) {
   return (
     <tr className={`grupo${open ? ' open' : ''}`} onClick={onToggle}>
       <td className="rowlabel">
         <span className="caret">▶</span> {nome}
       </td>
-      <Cells arr={sub} total={sum12(sub)} />
+      <Cells arr={sub} total={sumVis(sub, mesesVis)} mesesVis={mesesVis} />
     </tr>
   )
 }
 function Categoria({
-  pfx, cat, arr, detalhe, open, onToggle, nested,
+  pfx, cat, arr, detalhe, open, onToggle, nested, mesesVis,
 }: {
   pfx: string
   cat: string
@@ -574,9 +644,10 @@ function Categoria({
   open: boolean
   onToggle: (k: string) => void
   nested?: boolean
+  mesesVis: number[]
 }) {
   const key = `${pfx}|${cat}`
-  const descs = detalhe ? Object.keys(detalhe).sort((a, b) => sum12(detalhe[b]) - sum12(detalhe[a])) : []
+  const descs = detalhe ? Object.keys(detalhe).sort((a, b) => sumVis(detalhe[b], mesesVis) - sumVis(detalhe[a], mesesVis)) : []
   const nc = nested ? ' nested' : ''
   return (
     <>
@@ -584,7 +655,7 @@ function Categoria({
         <td className="rowlabel">
           <span className="caret">▶</span> {cat}
         </td>
-        <Cells arr={arr} total={sum12(arr)} />
+        <Cells arr={arr} total={sumVis(arr, mesesVis)} mesesVis={mesesVis} />
       </tr>
       {open &&
         descs.map((dd) => (
@@ -592,7 +663,7 @@ function Categoria({
             <td className="rowlabel">
               <span className="dot">•</span> {dd}
             </td>
-            <Cells arr={detalhe![dd]} total={sum12(detalhe![dd])} />
+            <Cells arr={detalhe![dd]} total={sumVis(detalhe![dd], mesesVis)} mesesVis={mesesVis} />
           </tr>
         ))}
     </>
@@ -664,6 +735,8 @@ function ScopedStyle() {
 .fcx tr.total-pag td.rowlabel{background:#FBECE9}
 .fcx tr.grupo td.rowlabel{background:#FFF1E8}
 .fcx tr.saldo-caixa td.rowlabel{background:#0B2545;color:#fff}
+.fcx .periodo-sel{font:inherit;font-size:12px;font-weight:700;color:#1F2937;background:#fff;border:1px solid #DBE4EF;border-radius:7px;padding:4px 6px;cursor:pointer}
+.fcx .periodo-sel:focus{outline:2px solid #122238;border-color:#122238}
 `}</style>
   )
 }
