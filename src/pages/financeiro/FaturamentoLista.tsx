@@ -40,7 +40,8 @@ export function FaturamentoLista() {
   const [erro, setErro] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [empresaSel, setEmpresaSel] = useState<string>(CONSOLIDADO)
-  const [mesSel, setMesSel] = useState('todos')
+  const [deSel, setDeSel] = useState('')
+  const [ateSel, setAteSel] = useState('')
   const [unidadeSel, setUnidadeSel] = useState('todos')
   const [statusSel, setStatusSel] = useState<'todos' | 'pago' | 'areceber'>('todos')
   const [busca, setBusca] = useState('')
@@ -144,7 +145,8 @@ export function FaturamentoLista() {
         ])
       }
       setEmpresaSel(uploadEmpresa)
-      setMesSel(ymAlvo)
+      setDeSel(ymAlvo)
+      setAteSel(ymAlvo)
       const ignorados = parsed.rows.length - rowsMes.length
       const obsIgnorados = ignorados > 0 ? ` (${ignorados} nota(s) de outros meses no arquivo foram ignoradas)` : ''
       setAviso(`${uploadEmpresa}: ${rotuloMes} atualizado — ${rowsMes.length} nota(s). Meses fechados não foram alterados${obsIgnorados}.`)
@@ -188,7 +190,8 @@ export function FaturamentoLista() {
         setRows((prev) => prev.filter((r) => !(r.empresa === uploadEmpresa && (r.emissao ?? '').slice(0, 7) === ymAlvo)))
         setAviso(`${uploadEmpresa}: ${rotuloMes} excluído — ${alvo.length} nota(s) removida(s).`)
       }
-      setMesSel('todos')
+      setDeSel('')
+      setAteSel('')
     } catch (e) {
       setErro(`Não consegui excluir: ${(e as Error).message}`)
     } finally {
@@ -231,17 +234,25 @@ export function FaturamentoLista() {
     () => (empresaSel === CONSOLIDADO ? rows : rows.filter((r) => r.empresa === empresaSel)),
     [rows, empresaSel],
   )
-  const meses = useMemo(
-    () => [...new Set(rowsEmpresa.map((r) => (r.emissao ?? '').slice(0, 7)))].filter(Boolean).sort().reverse(),
+  // meses disponíveis (ascendente) para o filtro de período De/Até
+  const mesesAll = useMemo(
+    () => [...new Set(rowsEmpresa.map((r) => (r.emissao ?? '').slice(0, 7)))].filter(Boolean).sort(),
     [rowsEmpresa],
   )
+  // período efetivo: clampa a seleção às datas disponíveis e auto-corrige invertido
+  const deEff = mesesAll.includes(deSel) ? deSel : mesesAll[0] ?? ''
+  const ateEff0 = mesesAll.includes(ateSel) ? ateSel : mesesAll[mesesAll.length - 1] ?? ''
+  const de = deEff && ateEff0 && deEff <= ateEff0 ? deEff : (ateEff0 || deEff)
+  const ate = deEff && ateEff0 && deEff <= ateEff0 ? ateEff0 : (deEff || ateEff0)
   const unidades = useMemo(() => [...new Set(rowsEmpresa.map((r) => r.origem))].filter(Boolean).sort(), [rowsEmpresa])
 
   const filtradas = useMemo(() => {
     const q = busca.trim().toLowerCase()
     return rowsEmpresa
       .filter((r) => {
-        if (mesSel !== 'todos' && (r.emissao ?? '').slice(0, 7) !== mesSel) return false
+        const ym = (r.emissao ?? '').slice(0, 7)
+        if (de && ym < de) return false
+        if (ate && ym > ate) return false
         if (unidadeSel !== 'todos' && r.origem !== unidadeSel) return false
         if (statusSel === 'pago' && !r.pagamento) return false
         if (statusSel === 'areceber' && r.pagamento) return false
@@ -249,7 +260,7 @@ export function FaturamentoLista() {
         return true
       })
       .sort((a, b) => (b.emissao ?? '').localeCompare(a.emissao ?? '') || b.valor - a.valor)
-  }, [rowsEmpresa, mesSel, unidadeSel, statusSel, busca])
+  }, [rowsEmpresa, de, ate, unidadeSel, statusSel, busca])
 
   const resumo = useMemo(() => {
     const total = filtradas.reduce((s, r) => s + r.valor, 0)
@@ -385,10 +396,16 @@ export function FaturamentoLista() {
               ))}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <select className="periodo-sel" value={mesSel} onChange={(e) => setMesSel(e.target.value)} title="Mês de emissão">
-                <option value="todos">Todos os meses</option>
-                {meses.map((m) => <option key={m} value={m}>{mesLabel(m)}</option>)}
-              </select>
+              <div className="flex items-center gap-1.5 text-[12px]">
+                <span className="text-muted">De</span>
+                <select className="periodo-sel" value={de} onChange={(e) => setDeSel(e.target.value)} title="Mês inicial (emissão)">
+                  {mesesAll.map((m) => <option key={m} value={m}>{mesLabel(m)}</option>)}
+                </select>
+                <span className="text-muted">até</span>
+                <select className="periodo-sel" value={ate} onChange={(e) => setAteSel(e.target.value)} title="Mês final (emissão)">
+                  {mesesAll.map((m) => <option key={m} value={m}>{mesLabel(m)}</option>)}
+                </select>
+              </div>
               <select className="periodo-sel" value={unidadeSel} onChange={(e) => setUnidadeSel(e.target.value)} title="Unidade de negócio">
                 <option value="todos">Todas as unidades</option>
                 {unidades.map((u) => <option key={u} value={u}>{u}</option>)}
