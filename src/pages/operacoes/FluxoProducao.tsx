@@ -306,7 +306,7 @@ function LinhaPedido({ ped, onAbrir }: { ped: Pedido; onAbrir: (id: string) => v
         <div className="mt-0.5 text-[13px] text-muted">
           {ped.numeroProposta && <>PC Cliente <b className="text-ink/80">{ped.numeroProposta}</b> · </>}
           {ped.numeroPedido && <>Pedido <b className="text-ink/80">{ped.numeroPedido}</b> · </>}
-          {fmtBR(ped.dataPedido)} · <b className="text-ink/80">{r.total}</b> itens · {r.entregues}/{r.total} entregues
+          {fmtBR(ped.dataPedido)} · <b className="text-ink/80">{r.total}</b> itens · <b className="text-ink/80">{r.totalPecas}</b> pçs · {r.entregues}/{r.total} entregues
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[13px] text-muted">
           <span>Entrega: <b className="tnum text-ink/80">{ped.dataEntrega ? fmtBRfull(ped.dataEntrega) : '—'}</b></span>
@@ -506,7 +506,7 @@ function Quadro({
             <div className="text-[13px] text-muted">
               {order.numeroProposta && <>PC Cliente <b className="text-ink/80">{order.numeroProposta}</b> · </>}
               {order.numeroPedido && <>Pedido <b className="text-ink/80">{order.numeroPedido}</b> · </>}
-              {r.total} itens · {r.entregues} entregues · {r.progresso}%{verValorVenda && <> · Valor total <b className="tnum text-ink/80">{fmtBRL(valorPedido(order))}</b></>}
+              {r.total} itens · {r.totalPecas} pçs · {r.entregues} entregues · {r.progresso}%{verValorVenda && <> · Valor total <b className="tnum text-ink/80">{fmtBRL(valorPedido(order))}</b></>}
             </div>
             <EntregaEditavel order={order} onSalvar={onSaveEntrega} saving={saving} />
           </div>

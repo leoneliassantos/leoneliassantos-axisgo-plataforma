@@ -62,6 +62,7 @@ const PRIO_RANK: Record<Prioridade, number> = { alta: 3, media: 2, baixa: 1 }
 
 export interface ResumoPedido {
   total: number
+  totalPecas: number
   entregues: number
   atrasados: number
   alertas: number
@@ -75,6 +76,7 @@ export interface ResumoPedido {
 export function resumoPedido(ped: Pedido): ResumoPedido {
   const its = ped.produtos
   const total = its.length
+  const totalPecas = its.reduce((s, i) => s + (i.qtd || 0), 0)
   const atrasados = its.filter((i) => i.status === 'atrasado').length
   const alertas = its.filter((i) => i.status === 'alerta').length
   const aguardando = its.filter((i) => i.status === 'aguardando').length
@@ -86,7 +88,7 @@ export function resumoPedido(ped: Pedido): ResumoPedido {
   else if (alertas) situacao = 'alerta'
   const rank = its.reduce((m, i) => Math.max(m, PRIO_RANK[i.prioridade] || 2), 0)
   const prioridade = (Object.keys(PRIO_RANK) as Prioridade[]).find((k) => PRIO_RANK[k] === rank) ?? 'media'
-  return { total, entregues, atrasados, alertas, aguardando, progresso, situacao, prioridade }
+  return { total, totalPecas, entregues, atrasados, alertas, aguardando, progresso, situacao, prioridade }
 }
 
 /** Valor total do pedido = soma de (quantidade × valor unitário) de cada item. */
