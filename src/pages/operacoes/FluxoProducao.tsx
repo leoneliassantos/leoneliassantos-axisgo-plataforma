@@ -42,6 +42,11 @@ export function FluxoProducao() {
   const [orderId, setOrderId] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
   const [filtroSit, setFiltroSit] = useState<StatusProd | ''>('')
+  const [filtroCliente, setFiltroCliente] = useState('')
+  const [pedidoDe, setPedidoDe] = useState('')
+  const [pedidoAte, setPedidoAte] = useState('')
+  const [entregaDe, setEntregaDe] = useState('')
+  const [entregaAte, setEntregaAte] = useState('')
   const [searchParams, setSearchParams] = useSearchParams()
 
   const [showNova, setShowNova] = useState(false)
@@ -212,8 +217,11 @@ export function FluxoProducao() {
     finally { setSaving(false) }
   }
 
-  function abrirBoard(id: string) { setSearchParams({ op: id }); setOrderId(id); setView('board'); setBusca(''); setFiltroSit('') }
-  function voltarLista() { setSearchParams({}); setView('list'); setOrderId(null); setBusca('') }
+  function limparFiltrosLista() {
+    setBusca(''); setFiltroSit(''); setFiltroCliente(''); setPedidoDe(''); setPedidoAte(''); setEntregaDe(''); setEntregaAte('')
+  }
+  function abrirBoard(id: string) { setSearchParams({ op: id }); setOrderId(id); setView('board'); limparFiltrosLista() }
+  function voltarLista() { setSearchParams({}); setView('list'); setOrderId(null); limparFiltrosLista() }
   function pedirMove(produtoId: string, de: string, para: string) {
     if (de === para) return
     setMoveAlvo({ produtoId, de, para })
@@ -249,7 +257,13 @@ export function FluxoProducao() {
       )}
 
       {view === 'list'
-        ? <ListaPedidos pedidos={pedidos} busca={busca} setBusca={setBusca} filtroSit={filtroSit} setFiltroSit={setFiltroSit} onAbrir={abrirBoard} onNova={() => setShowNova(true)} />
+        ? <ListaPedidos
+            pedidos={pedidos} busca={busca} setBusca={setBusca} filtroSit={filtroSit} setFiltroSit={setFiltroSit}
+            filtroCliente={filtroCliente} setFiltroCliente={setFiltroCliente}
+            pedidoDe={pedidoDe} setPedidoDe={setPedidoDe} pedidoAte={pedidoAte} setPedidoAte={setPedidoAte}
+            entregaDe={entregaDe} setEntregaDe={setEntregaDe} entregaAte={entregaAte} setEntregaAte={setEntregaAte}
+            onAbrir={abrirBoard} onNova={() => setShowNova(true)}
+          />
         : currentOrder && <Quadro order={currentOrder} busca={busca} setBusca={setBusca} onVoltar={voltarLista} onAbrirItem={setItemId} onAddItem={() => setAddItemOpId(currentOrder.id)} onAbrirNf={() => setShowNf(true)} dragId={dragId} onSoltar={pedirMove} onSaveEntrega={handleSaveEntrega} saving={saving} />}
 
       {showNova && (
@@ -273,19 +287,45 @@ export function FluxoProducao() {
 
 /* =========================== Lista de Pedidos =========================== */
 function ListaPedidos({
-  pedidos, busca, setBusca, filtroSit, setFiltroSit, onAbrir, onNova,
+  pedidos, busca, setBusca, filtroSit, setFiltroSit,
+  filtroCliente, setFiltroCliente, pedidoDe, setPedidoDe, pedidoAte, setPedidoAte, entregaDe, setEntregaDe, entregaAte, setEntregaAte,
+  onAbrir, onNova,
 }: {
   pedidos: Pedido[]; busca: string; setBusca: (s: string) => void
   filtroSit: StatusProd | ''; setFiltroSit: (s: StatusProd | '') => void
+  filtroCliente: string; setFiltroCliente: (s: string) => void
+  pedidoDe: string; setPedidoDe: (s: string) => void; pedidoAte: string; setPedidoAte: (s: string) => void
+  entregaDe: string; setEntregaDe: (s: string) => void; entregaAte: string; setEntregaAte: (s: string) => void
   onAbrir: (id: string) => void; onNova: () => void
 }) {
+  // Só pedidos que ainda estão em produção (100% entregue não entra no painel).
+  const emProducao = useMemo(
+    () => pedidos.filter((p) => { const r = resumoPedido(p); return !(r.total > 0 && r.entregues === r.total) }),
+    [pedidos],
+  )
+
+  const clientes = useMemo(() => {
+    const m = new Map<string, string>()
+    for (const p of emProducao) if (p.clienteId) m.set(p.clienteId, p.clienteNome)
+    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1]))
+  }, [emProducao])
+
+  const temFiltro = !!(busca || filtroSit || filtroCliente || pedidoDe || pedidoAte || entregaDe || entregaAte)
+  function limparFiltros() {
+    setBusca(''); setFiltroSit(''); setFiltroCliente(''); setPedidoDe(''); setPedidoAte(''); setEntregaDe(''); setEntregaAte('')
+  }
+
   const visiveis = useMemo(() => {
     const t = busca.trim().toLowerCase()
-    return pedidos
+    return emProducao
       .filter((p) => {
         const r = resumoPedido(p)
-        if (r.total > 0 && r.entregues === r.total) return false // pedido 100% entregue: some do painel (fica só em produção)
         if (filtroSit && r.situacao !== filtroSit) return false
+        if (filtroCliente && p.clienteId !== filtroCliente) return false
+        if (pedidoDe && p.dataPedido < pedidoDe) return false
+        if (pedidoAte && p.dataPedido > pedidoAte) return false
+        if (entregaDe && (!p.dataEntrega || p.dataEntrega < entregaDe)) return false
+        if (entregaAte && (!p.dataEntrega || p.dataEntrega > entregaAte)) return false
         if (t) {
           const hay = [p.clienteNome, p.numeroProposta, ...p.produtos.map((i) => i.uniformeNome)].join(' ').toLowerCase()
           if (!hay.includes(t)) return false
@@ -293,16 +333,23 @@ function ListaPedidos({
         return true
       })
       .sort((a, b) => b.dataPedido.localeCompare(a.dataPedido))
-  }, [pedidos, busca, filtroSit])
+  }, [emProducao, busca, filtroSit, filtroCliente, pedidoDe, pedidoAte, entregaDe, entregaAte])
+
+  const selCls = 'rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-ink/40 focus:outline-none'
+  const dateCls = 'rounded-lg border border-line bg-surface px-2.5 py-2 text-sm text-ink focus:border-ink/40 focus:outline-none'
 
   return (
     <div>
-      <div className="mb-3 flex flex-wrap items-center gap-2">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[220px]">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"><circle cx="11" cy="11" r="7" strokeWidth="1.8" /><path d="M21 21l-4-4" strokeWidth="1.8" strokeLinecap="round" /></svg>
           <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por cliente, pedido ou uniforme…" className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm text-ink focus:border-ink/40 focus:outline-none" />
         </div>
-        <select value={filtroSit} onChange={(e) => setFiltroSit(e.target.value as StatusProd | '')} className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-ink/40 focus:outline-none">
+        <select value={filtroCliente} onChange={(e) => setFiltroCliente(e.target.value)} className={selCls}>
+          <option value="">Todos os clientes</option>
+          {clientes.map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
+        </select>
+        <select value={filtroSit} onChange={(e) => setFiltroSit(e.target.value as StatusProd | '')} className={selCls}>
           <option value="">Todas as situações</option>
           <option value="ok">No prazo</option><option value="atrasado">Atrasado</option>
           <option value="alerta">Alerta</option><option value="aguardando">Aguardando</option>
@@ -310,10 +357,26 @@ function ListaPedidos({
         <span className="text-sm text-muted">{visiveis.length} pedido{visiveis.length === 1 ? '' : 's'}</span>
       </div>
 
+      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted">
+        <div className="flex items-center gap-1.5">
+          <span>Pedido:</span>
+          <input type="date" value={pedidoDe} onChange={(e) => setPedidoDe(e.target.value)} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`} className={dateCls} />
+          <span>até</span>
+          <input type="date" value={pedidoAte} onChange={(e) => setPedidoAte(e.target.value)} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`} className={dateCls} />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span>Entrega:</span>
+          <input type="date" value={entregaDe} onChange={(e) => setEntregaDe(e.target.value)} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`} className={dateCls} />
+          <span>até</span>
+          <input type="date" value={entregaAte} onChange={(e) => setEntregaAte(e.target.value)} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`} className={dateCls} />
+        </div>
+        {temFiltro && <button type="button" onClick={limparFiltros} className="font-medium text-ink hover:underline">Limpar filtros</button>}
+      </div>
+
       {visiveis.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-line bg-surface p-12 text-center">
-          <p className="text-muted">Nenhum pedido {busca || filtroSit ? 'encontrado com esse filtro' : 'ainda'}.</p>
-          {!busca && !filtroSit && <div className="mt-3"><BtnPrimary onClick={onNova}>Lançar o primeiro pedido</BtnPrimary></div>}
+          <p className="text-muted">Nenhum pedido {temFiltro ? 'encontrado com esse filtro' : 'ainda'}.</p>
+          {!temFiltro && <div className="mt-3"><BtnPrimary onClick={onNova}>Lançar o primeiro pedido</BtnPrimary></div>}
         </div>
       ) : (
         <div className="flex flex-col gap-2.5">
