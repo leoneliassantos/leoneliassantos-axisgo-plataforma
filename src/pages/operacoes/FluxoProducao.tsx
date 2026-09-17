@@ -252,15 +252,18 @@ function ListaPedidos({
 }) {
   const visiveis = useMemo(() => {
     const t = busca.trim().toLowerCase()
-    return pedidos.filter((p) => {
-      const r = resumoPedido(p)
-      if (filtroSit && r.situacao !== filtroSit) return false
-      if (t) {
-        const hay = [p.clienteNome, p.numeroProposta, ...p.produtos.map((i) => i.uniformeNome)].join(' ').toLowerCase()
-        if (!hay.includes(t)) return false
-      }
-      return true
-    })
+    return pedidos
+      .filter((p) => {
+        const r = resumoPedido(p)
+        if (r.total > 0 && r.entregues === r.total) return false // pedido 100% entregue: some do painel (fica só em produção)
+        if (filtroSit && r.situacao !== filtroSit) return false
+        if (t) {
+          const hay = [p.clienteNome, p.numeroProposta, ...p.produtos.map((i) => i.uniformeNome)].join(' ').toLowerCase()
+          if (!hay.includes(t)) return false
+        }
+        return true
+      })
+      .sort((a, b) => b.dataPedido.localeCompare(a.dataPedido))
   }, [pedidos, busca, filtroSit])
 
   return (
