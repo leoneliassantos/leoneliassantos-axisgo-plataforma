@@ -8,7 +8,7 @@ import { fmtBRfull, fmtBRL, fmtMesAno, hojeISO, daysBetween, statusClasse, tempo
 import { ProdutoFields, produtoToDraft, oficinaDraftToInput, logosDraftToInput, gradeErro, TIPOS_LOGO, type ProdutoDraft, type TabCad } from './ProdutoFields'
 import {
   type Produto, type ProdutoPatch, type StatusProd, type LogoInput, type Cadastro, type Cadastros, type Grade, type Nf,
-  ETAPAS, etapaLabel, PRIO_LABEL, STATUS_LABEL, TAMANHOS, situacaoAutomatica, SITUACAO_REGRA, NF_VAZIA,
+  ETAPAS, etapaLabel, PRIO_LABEL, STATUS_LABEL, TAMANHOS, situacaoAutomatica, SITUACAO_REGRA,
 } from './data'
 
 const nomeDe = (list: Cadastro[], id: string | null) => (id ? list.find((c) => c.id === id)?.nome ?? '' : '')
@@ -20,7 +20,7 @@ const gradeResumo = (g: Grade): string => {
 
 export function ItemModal({
   produto,
-  pedidoNf,
+  pedidoNfs,
   pedidoData,
   cadastros,
   saving,
@@ -28,10 +28,11 @@ export function ItemModal({
   onMover,
   onAddObs,
   onAddCadastro,
+  onDelete,
   onClose,
 }: {
   produto: Produto
-  pedidoNf?: Nf
+  pedidoNfs?: Nf[]
   pedidoData?: string
   cadastros: Cadastros
   saving: boolean
@@ -39,9 +40,11 @@ export function ItemModal({
   onMover: (para: string) => void
   onAddObs: (texto: string, data: string, mencionados: string[]) => void
   onAddCadastro: (tabela: TabCad, nome: string) => Promise<Cadastro>
+  onDelete: () => void
   onClose: () => void
 }) {
   const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
   const verFinanceiro = user ? podeVerFinanceiro(user.role) : false
   const abas: Array<'detalhes' | 'mov' | 'financeiro'> = verFinanceiro ? ['detalhes', 'mov', 'financeiro'] : ['detalhes', 'mov']
   const [aba, setAba] = useState<'detalhes' | 'mov' | 'financeiro'>('detalhes')
@@ -152,11 +155,15 @@ export function ItemModal({
       footer={
         aba === 'detalhes' ? (
           <>
+            {isAdmin && <button type="button" onClick={onDelete} disabled={saving} className="mr-auto text-sm font-medium text-neg hover:brightness-125 disabled:opacity-50">Excluir item</button>}
             <BtnGhost onClick={onClose} disabled={saving}>Fechar</BtnGhost>
             <BtnPrimary onClick={salvar} disabled={saving}>{saving ? 'Salvando…' : 'Salvar alterações'}</BtnPrimary>
           </>
         ) : (
-          <BtnGhost onClick={onClose}>Fechar</BtnGhost>
+          <>
+            {isAdmin && <button type="button" onClick={onDelete} disabled={saving} className="mr-auto text-sm font-medium text-neg hover:brightness-125 disabled:opacity-50">Excluir item</button>}
+            <BtnGhost onClick={onClose}>Fechar</BtnGhost>
+          </>
         )
       }
     >
@@ -177,7 +184,7 @@ export function ItemModal({
       {aba === 'financeiro' ? (
         <div>
           <div className="mb-3 text-[12px] font-semibold uppercase tracking-wide text-muted">Nota Fiscal do pedido</div>
-          <NfResumo nf={pedidoNf ?? NF_VAZIA} />
+          <NfResumo nfs={pedidoNfs ?? []} />
         </div>
       ) : aba === 'detalhes' ? (
         <div>

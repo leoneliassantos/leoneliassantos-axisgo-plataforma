@@ -111,8 +111,9 @@ export interface OficinaInput {
 
 export const OFICINA_VAZIA: Oficina = { fornecedorId: null, fornecedorNome: '', mesFechamento: '', dataEnvio: '', valorUnitario: 0 }
 
-/** Dados da Nota Fiscal do pedido (aba Financeiro — só Admin/Diretoria). */
+/** Dados de uma Nota Fiscal do pedido (aba Financeiro — só Admin/Diretoria). Um pedido pode ter várias (entrega parcial). */
 export interface Nf {
+  id: string
   numero: string
   dataEmissao: string   // 'YYYY-MM-DD' | ''
   valor: number
@@ -121,7 +122,7 @@ export interface Nf {
   freteValor: number
 }
 
-export const NF_VAZIA: Nf = { numero: '', dataEmissao: '', valor: 0, fretePorMM: false, freteEmpresa: '', freteValor: 0 }
+export const NF_VAZIA: Nf = { id: '', numero: '', dataEmissao: '', valor: 0, fretePorMM: false, freteEmpresa: '', freteValor: 0 }
 
 /** True se a NF tem algum dado preenchido. */
 export function temNf(nf: Nf): boolean {
@@ -183,7 +184,7 @@ export interface Pedido {
   amostra: boolean
   dataEntrega: string // YYYY-MM-DD | '' — alimenta a previsão dos itens
   observacao: string
-  nf: Nf
+  nfs: Nf[]
   produtos: Produto[]
 }
 
@@ -411,26 +412,40 @@ export async function setBloqueado(tabela: TabelaCadastro, id: string, bloqueado
 
 export async function loadPedidos(): Promise<Pedido[]> {
   if (isDemo) {
-    return demoLoad().pedidos.map((ped) => ({
-      ...ped,
-      vendedor: ped.vendedor ?? '',
-      nf: ped.nf ?? { ...NF_VAZIA },
-      produtos: ped.produtos.map((p) => {
-        const situacaoAuto = p.situacaoAuto ?? true
-        const situacaoManual = p.situacaoManual ?? p.status ?? 'ok'
-        return { ...p, vendedor: p.vendedor ?? '', valorUnitario: p.valorUnitario ?? 0, oficina: p.oficina ?? { ...OFICINA_VAZIA }, evento: !!p.evento, amostra: !!p.amostra, situacaoAuto, situacaoManual, status: situacaoEfetiva({ situacaoAuto, situacaoManual, previsaoEntrega: p.previsaoEntrega, etapaId: p.etapaId }) }
-      }),
-    }))
+    return demoLoad().pedidos.map((ped) => {
+      const legacyNf = (ped as unknown as { nf?: Nf }).nf
+      return {
+        ...ped,
+        vendedor: ped.vendedor ?? '',
+        nfs: ped.nfs ?? (legacyNf && temNf(legacyNf) ? [{ ...NF_VAZIA, ...legacyNf, id: legacyNf.id || uid() }] : []),
+        produtos: ped.produtos.map((p) => {
+          const situacaoAuto = p.situacaoAuto ?? true
+          const situacaoManual = p.situacaoManual ?? p.status ?? 'ok'
+          return { ...p, vendedor: p.vendedor ?? '', valorUnitario: p.valorUnitario ?? 0, oficina: p.oficina ?? { ...OFICINA_VAZIA }, evento: !!p.evento, amostra: !!p.amostra, situacaoAuto, situacaoManual, status: situacaoEfetiva({ situacaoAuto, situacaoManual, previsaoEntrega: p.previsaoEntrega, etapaId: p.etapaId }) }
+        }),
+      }
+    })
   }
-  const [ops, prods, logos, datas, hist] = await Promise.all([
-    supabase!.from('op').select('id, cliente_id, numero_proposta, numero_pedido, vendedor, data_pedido, prioridade, evento, amostra, data_entrega, observacao, nf_numero, nf_data_emissao, nf_valor, nf_frete_mm, nf_frete_empresa, nf_frete_valor, clientes(nome)').order('data_pedido', { ascending: false }),
+  const [ops, prods, logos, datas, hist, nfs] = await Promise.all([
+    supabase!.from('op').select('id, cliente_id, numero_proposta, numero_pedido, vendedor, data_pedido, prioridade, evento, amostra, data_entrega, observacao, clientes(nome)').order('data_pedido', { ascending: false }),
     supabase!.from('op_produtos').select('id, op_id, uniforme_id, cor_id, tecido_id, numero_proposta, numero_pedido, vendedor, qtd, valor_unitario, prioridade, status, situacao_auto, etapa_id, progresso, responsavel, previsao_entrega, observacao, evento, amostra, grade, oficina_fornecedor_id, oficina_mes_fechamento, oficina_data_envio, oficina_valor_unitario, uniformes(nome), cores(nome), tecidos(nome)'),
     supabase!.from('op_produto_logo').select('produto_id, tipo, fornecedor_id, mes_fechamento, data_envio, valor_unitario, fornecedores(nome)'),
     supabase!.from('op_produto_etapa').select('produto_id, etapa_id, data_conclusao'),
     supabase!.from('op_etapa_historico').select('id, produto_id, kind, etapa_de, etapa_para, data, texto, usuario').order('created_at'),
+    supabase!.from('op_nf').select('id, op_id, numero, data_emissao, valor, frete_mm, frete_empresa, frete_valor').order('created_at'),
   ])
-  const err = ops.error || prods.error || logos.error || datas.error || hist.error
+  const err = ops.error || prods.error || logos.error || datas.error || hist.error || nfs.error
   if (err) throw new Error(err.message)
+
+  const nfsByOp = new Map<string, Nf[]>()
+  for (const n of (nfs.data ?? []) as Array<Record<string, unknown>>) {
+    const arr = nfsByOp.get(n.op_id as string) ?? []
+    arr.push({
+      id: n.id as string, numero: (n.numero as string) ?? '', dataEmissao: dateOnly(n.data_emissao),
+      valor: Number(n.valor) || 0, fretePorMM: !!n.frete_mm, freteEmpresa: (n.frete_empresa as string) ?? '', freteValor: Number(n.frete_valor) || 0,
+    })
+    nfsByOp.set(n.op_id as string, arr)
+  }
 
   const logosByProd = new Map<string, LogoItem[]>()
   for (const l of (logos.data ?? []) as Array<Record<string, unknown>>) {
@@ -503,14 +518,7 @@ export async function loadPedidos(): Promise<Pedido[]> {
     evento: !!o.evento, amostra: !!o.amostra,
     dataEntrega: dateOnly(o.data_entrega),
     observacao: (o.observacao as string) ?? '',
-    nf: {
-      numero: (o.nf_numero as string) ?? '',
-      dataEmissao: dateOnly(o.nf_data_emissao),
-      valor: Number(o.nf_valor) || 0,
-      fretePorMM: !!o.nf_frete_mm,
-      freteEmpresa: (o.nf_frete_empresa as string) ?? '',
-      freteValor: Number(o.nf_frete_valor) || 0,
-    },
+    nfs: nfsByOp.get(o.id as string) ?? [],
     produtos: prodsByOp.get(o.id as string) ?? [],
   }))
 }
@@ -590,7 +598,7 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
       }
     })
     db.pedidos = [
-      { id: opId, clienteId: input.clienteId, clienteNome: cliente?.nome ?? '', numeroProposta: input.numeroProposta, numeroPedido: input.numeroPedido, vendedor: input.vendedor, dataPedido: input.dataPedido, prioridade: input.prioridade, evento: input.evento, amostra: input.amostra, dataEntrega: input.dataEntrega, observacao: input.observacao, nf: { ...NF_VAZIA }, produtos },
+      { id: opId, clienteId: input.clienteId, clienteNome: cliente?.nome ?? '', numeroProposta: input.numeroProposta, numeroPedido: input.numeroPedido, vendedor: input.vendedor, dataPedido: input.dataPedido, prioridade: input.prioridade, evento: input.evento, amostra: input.amostra, dataEntrega: input.dataEntrega, observacao: input.observacao, nfs: [], produtos },
       ...db.pedidos,
     ]
     demoSave(db)
@@ -634,7 +642,6 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
 /** Campos do pedido (cabeçalho da OP) que podem ser corrigidos depois de criado. */
 export interface PedidoPatch {
   dataEntrega?: string
-  nf?: Nf
 }
 
 /** Atualiza dados do cabeçalho do pedido (ex.: corrigir a data de entrega). */
@@ -644,24 +651,61 @@ export async function updatePedido(opId: string, patch: PedidoPatch): Promise<vo
     const ped = db.pedidos.find((o) => o.id === opId)
     if (ped) {
       if (patch.dataEntrega !== undefined) ped.dataEntrega = patch.dataEntrega
-      if (patch.nf !== undefined) ped.nf = patch.nf
     }
     demoSave(db)
     return
   }
   const row: Record<string, unknown> = {}
   if (patch.dataEntrega !== undefined) row.data_entrega = patch.dataEntrega || null
-  if (patch.nf !== undefined) {
-    const nf = patch.nf
-    row.nf_numero = nf.numero || null
-    row.nf_data_emissao = nf.dataEmissao || null
-    row.nf_valor = nf.valor || null
-    row.nf_frete_mm = nf.fretePorMM
-    row.nf_frete_empresa = nf.fretePorMM ? (nf.freteEmpresa || null) : null
-    row.nf_frete_valor = nf.fretePorMM ? (nf.freteValor || null) : null
-  }
   if (Object.keys(row).length === 0) return
   const { error } = await supabase!.from('op').update(row).eq('id', opId)
+  if (error) throw new Error(error.message)
+}
+
+const nfToRow = (nf: Omit<Nf, 'id'>) => ({
+  numero: nf.numero || null,
+  data_emissao: nf.dataEmissao || null,
+  valor: nf.valor || null,
+  frete_mm: nf.fretePorMM,
+  frete_empresa: nf.fretePorMM ? (nf.freteEmpresa || null) : null,
+  frete_valor: nf.fretePorMM ? (nf.freteValor || null) : null,
+})
+
+/** Lança uma nova Nota Fiscal do pedido (um pedido pode ter várias, p/ entrega parcial). */
+export async function addNf(opId: string, nf: Omit<Nf, 'id'>): Promise<Nf> {
+  if (isDemo) {
+    const db = demoLoad()
+    const ped = db.pedidos.find((o) => o.id === opId)
+    const nova: Nf = { ...nf, id: uid() }
+    if (ped) { ped.nfs = [...(ped.nfs ?? []), nova]; demoSave(db) }
+    return nova
+  }
+  const { data, error } = await supabase!.from('op_nf').insert({ op_id: opId, ...nfToRow(nf) }).select('id').single()
+  if (error) throw new Error(error.message)
+  return { ...nf, id: data!.id as string }
+}
+
+/** Corrige os dados de uma Nota Fiscal já lançada. */
+export async function updateNf(opId: string, nfId: string, nf: Omit<Nf, 'id'>): Promise<void> {
+  if (isDemo) {
+    const db = demoLoad()
+    const ped = db.pedidos.find((o) => o.id === opId)
+    if (ped) { ped.nfs = (ped.nfs ?? []).map((n) => (n.id === nfId ? { ...nf, id: nfId } : n)); demoSave(db) }
+    return
+  }
+  const { error } = await supabase!.from('op_nf').update(nfToRow(nf)).eq('id', nfId)
+  if (error) throw new Error(error.message)
+}
+
+/** Exclui uma Nota Fiscal lançada por engano. */
+export async function deleteNf(opId: string, nfId: string): Promise<void> {
+  if (isDemo) {
+    const db = demoLoad()
+    const ped = db.pedidos.find((o) => o.id === opId)
+    if (ped) { ped.nfs = (ped.nfs ?? []).filter((n) => n.id !== nfId); demoSave(db) }
+    return
+  }
+  const { error } = await supabase!.from('op_nf').delete().eq('id', nfId)
   if (error) throw new Error(error.message)
 }
 
@@ -907,4 +951,20 @@ export async function deletePedido(opId: string): Promise<void> {
   }
   const delOp = await supabase!.from('op').delete().eq('id', opId)
   if (delOp.error) throw new Error(delOp.error.message)
+}
+
+/** Exclui um item/card criado por engano (não mexe nos outros itens do pedido). Irreversível. */
+export async function deleteProduto(opId: string, produtoId: string): Promise<void> {
+  if (isDemo) {
+    const db = demoLoad()
+    const ped = db.pedidos.find((p) => p.id === opId)
+    if (ped) { ped.produtos = ped.produtos.filter((p) => p.id !== produtoId); demoSave(db) }
+    return
+  }
+  for (const tabela of ['op_produto_logo', 'op_produto_etapa', 'op_etapa_historico'] as const) {
+    const del = await supabase!.from(tabela).delete().eq('produto_id', produtoId)
+    if (del.error) throw new Error(del.error.message)
+  }
+  const delProd = await supabase!.from('op_produtos').delete().eq('id', produtoId)
+  if (delProd.error) throw new Error(delProd.error.message)
 }

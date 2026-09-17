@@ -14,7 +14,8 @@ import {
   dataValida, ANO_MIN, ANO_MAX, valorPedido, fmtBRL,
 } from './helpers'
 import {
-  loadCadastros, loadPedidos, addCadastro, createPedido, addProduto, updateProduto, updatePedido, setProdutoLogos, moveProduto, addObservacao, temNf,
+  loadCadastros, loadPedidos, addCadastro, createPedido, addProduto, updateProduto, updatePedido, setProdutoLogos, moveProduto, addObservacao,
+  addNf, updateNf, deleteNf, deleteProduto,
   isDemo, ETAPAS, ETAPA_COR, STATUS_LABEL, PRIO_LABEL, SITUACAO_REGRA, etapaLabel,
   type Cadastros, type Pedido, type Produto, type ProdutoPatch, type NovoPedidoInput, type NovoProdutoInput, type StatusProd, type LogoInput, type Nf,
 } from './data'
@@ -155,11 +156,39 @@ export function FluxoProducao() {
     finally { setSaving(false) }
   }
 
-  async function handleSaveNf(nf: Nf) {
+  async function handleAddNf(nf: Omit<Nf, 'id'>) {
     if (!currentOrder) return
     setSaving(true)
-    try { await updatePedido(currentOrder.id, { nf }); await refreshPedidos(); setShowNf(false) }
-    catch (e) { alert('Não foi possível salvar a Nota Fiscal: ' + (e instanceof Error ? e.message : '')) }
+    try { await addNf(currentOrder.id, nf); await refreshPedidos() }
+    catch (e) { alert('Não foi possível salvar a Nota Fiscal: ' + (e instanceof Error ? e.message : '')); throw e }
+    finally { setSaving(false) }
+  }
+
+  async function handleUpdateNf(nfId: string, nf: Omit<Nf, 'id'>) {
+    if (!currentOrder) return
+    setSaving(true)
+    try { await updateNf(currentOrder.id, nfId, nf); await refreshPedidos() }
+    catch (e) { alert('Não foi possível salvar a Nota Fiscal: ' + (e instanceof Error ? e.message : '')); throw e }
+    finally { setSaving(false) }
+  }
+
+  async function handleDeleteNf(nfId: string) {
+    if (!currentOrder) return
+    if (!window.confirm('Excluir esta Nota Fiscal? Esta ação não pode ser desfeita.')) throw new Error('cancelado')
+    setSaving(true)
+    try { await deleteNf(currentOrder.id, nfId); await refreshPedidos() }
+    catch (e) { alert('Não foi possível excluir a Nota Fiscal: ' + (e instanceof Error ? e.message : '')); throw e }
+    finally { setSaving(false) }
+  }
+
+  async function handleDeleteItem() {
+    if (!currentOrder || !itemId) return
+    const it = currentOrder.produtos.find((p) => p.id === itemId)
+    const ok = window.confirm(`Excluir o item "${it?.uniformeNome || 'sem nome'}"?\n\nIsso remove o card e todo o histórico dele. Esta ação não pode ser desfeita.`)
+    if (!ok) return
+    setSaving(true)
+    try { await deleteProduto(currentOrder.id, itemId); await refreshPedidos(); setItemId(null) }
+    catch (e) { alert('Não foi possível excluir o item: ' + (e instanceof Error ? e.message : '')) }
     finally { setSaving(false) }
   }
 
@@ -230,10 +259,10 @@ export function FluxoProducao() {
         <NovoItem cadastros={cadastros} opProposta={currentOrder.numeroProposta} opPedido={currentOrder.numeroPedido} opPrevisao={currentOrder.dataEntrega} opPrioridade={currentOrder.prioridade} opEvento={currentOrder.evento} opAmostra={currentOrder.amostra} opVendedor={currentOrder.vendedor} saving={saving} onAddCadastro={handleAddCadastro} onCreate={handleAddItem} onClose={() => setAddItemOpId(null)} />
       )}
       {itemAberto && (
-        <ItemModal key={itemAberto.id} produto={itemAberto} pedidoNf={currentOrder?.nf} pedidoData={currentOrder?.dataPedido} cadastros={cadastros} saving={saving} onSaveItem={handleSaveItem} onMover={(para) => pedirMove(itemAberto.id, itemAberto.etapaId, para)} onAddObs={handleAddObs} onAddCadastro={handleAddCadastro} onClose={() => setItemId(null)} />
+        <ItemModal key={itemAberto.id} produto={itemAberto} pedidoNfs={currentOrder?.nfs ?? []} pedidoData={currentOrder?.dataPedido} cadastros={cadastros} saving={saving} onSaveItem={handleSaveItem} onMover={(para) => pedirMove(itemAberto.id, itemAberto.etapaId, para)} onAddObs={handleAddObs} onAddCadastro={handleAddCadastro} onDelete={handleDeleteItem} onClose={() => setItemId(null)} />
       )}
       {showNf && currentOrder && (
-        <NfModal nf={currentOrder.nf} saving={saving} onSave={handleSaveNf} onClose={() => setShowNf(false)} />
+        <NfModal nfs={currentOrder.nfs} saving={saving} onAdd={handleAddNf} onUpdate={handleUpdateNf} onDelete={handleDeleteNf} onClose={() => setShowNf(false)} />
       )}
       {moveAlvo && (
         <MoveModal alvo={moveAlvo} saving={saving} onConfirm={handleConfirmMove} onClose={() => setMoveAlvo(null)} />
@@ -532,7 +561,7 @@ function Quadro({
             >
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M7 3h7l4 4v14H7z" /><path d="M14 3v4h4" /><path d="M9.5 12h5M9.5 16h5" /></svg>
               Dados da Nota Fiscal
-              {temNf(order.nf) && <span className="size-1.5 rounded-full bg-pos" title="NF preenchida" />}
+              {order.nfs.length > 0 && <span className="size-1.5 rounded-full bg-pos" title="NF preenchida" />}
             </button>
           )}
         </div>
