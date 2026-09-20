@@ -3,6 +3,7 @@ import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { InfoHint } from '../../components/InfoHint'
 import { CLIENT } from '../../config/client'
+import { resolveColor } from '../../lib/chartPalette'
 
 /* ================================================================== *
  *  Fluxo de Caixa — módulo do Financeiro (títulos a pagar/receber)
@@ -35,6 +36,7 @@ const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'O
 const SEM_CAT = 'Sem categoria'
 const COR_IN = '#15803d'   // entradas (verde)
 const COR_OUT = '#b91c1c'  // saídas (vermelho)
+const COR_PROJECAO = resolveColor('VITE_CHART_POSITIVO', 'rgb(var(--brand))')
 
 /* ------------------------------- utils ------------------------------- */
 const pad2 = (n: number) => `${n < 10 ? '0' : ''}${n}`
@@ -805,11 +807,11 @@ function ProjChart({ proj }: { proj: { label: string; receber: number; pagar: nu
           )
         })}
         {min < 0 && <line x1={PADL} x2={W - PADR} y1={y0} y2={y0} stroke="#bbb" strokeWidth={1} strokeDasharray="3 3" />}
-        <polygon points={areaPts} fill="rgb(var(--brand))" opacity={0.1} />
-        <polyline points={linePts} fill="none" stroke="rgb(var(--brand))" strokeWidth={2.2} strokeLinejoin="round" />
+        <polygon points={areaPts} fill={COR_PROJECAO} opacity={0.1} />
+        <polyline points={linePts} fill="none" stroke={COR_PROJECAO} strokeWidth={2.2} strokeLinejoin="round" />
         {proj.map((p, i) => (
           <g key={i}>
-            <circle cx={x(i)} cy={y(p.saldo)} r={i === 0 ? 4 : 3} fill="rgb(var(--brand))">
+            <circle cx={x(i)} cy={y(p.saldo)} r={i === 0 ? 4 : 3} fill={COR_PROJECAO}>
               <title>{`${p.label}\nSaldo: ${reais(p.saldo)}${p.receber ? `\nA receber: ${reais(p.receber)}` : ''}${p.pagar ? `\nA pagar: ${reais(p.pagar)}` : ''}`}</title>
             </circle>
             {(i === 0 || i === proj.length - 1 || i % Math.ceil(proj.length / 8) === 0) && (

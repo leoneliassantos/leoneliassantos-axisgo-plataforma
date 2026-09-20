@@ -3,6 +3,9 @@ import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { ModuloTopo } from '../../components/ModuloTopo'
 import { InfoHint } from '../../components/InfoHint'
+import { resolveKpiGradient } from '../../lib/chartPalette'
+
+const GRAD_KPI = resolveKpiGradient('linear-gradient(180deg, #FE9F2E 0%, #FB5403 55%, #F5390A 100%)')
 
 /* ================================================================== *
  *  Fluxo de Caixa — módulo do Financeiro
@@ -673,7 +676,7 @@ function Kpi({ lbl, val, accent, signed }: { lbl: string; val: number; accent: '
   const cor = signed ? (val < 0 ? 'text-neg' : accent === 'band' ? 'text-ink' : 'text-pos') : accent === 'pos' ? 'text-pos' : accent === 'neg' ? 'text-neg' : 'text-ink'
   return (
     <div className="relative flex min-h-[50px] flex-col justify-center overflow-hidden rounded-xl border border-line bg-surface py-1.5 pl-4 pr-3">
-      <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: 'linear-gradient(180deg, #FE9F2E 0%, #FB5403 55%, #F5390A 100%)' }} />
+      <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: GRAD_KPI }} />
       <div className="text-[10px] font-bold uppercase tracking-wider text-muted">{lbl}</div>
       <div className={`text-[17px] font-extrabold leading-tight tnum ${cor}`}>R$ {fmt(val)}</div>
     </div>

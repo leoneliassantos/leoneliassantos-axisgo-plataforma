@@ -5,6 +5,7 @@ import { ModuloTopo } from '../../components/ModuloTopo'
 import { InfoHint } from '../../components/InfoHint'
 import { readFirstSheetAOA } from '../../lib/xls'
 import { parsePubliAOA, MESES_PT, type FaturamentoRow } from './publiFaturamento'
+import { resolveKpiGradient } from '../../lib/chartPalette'
 
 /* ================================================================== *
  *  Faturamento — Lista analítica (base do Publi)
@@ -15,7 +16,7 @@ import { parsePubliAOA, MESES_PT, type FaturamentoRow } from './publiFaturamento
  * ================================================================== */
 
 const CONSOLIDADO = '__consolidado__'
-const GRAD_KPI = 'linear-gradient(180deg, #FE9F2E 0%, #FB5403 55%, #F5390A 100%)'
+const GRAD_KPI = resolveKpiGradient('linear-gradient(180deg, #FE9F2E 0%, #FB5403 55%, #F5390A 100%)')
 const EMPRESAS_UPLOAD = ['Batuque', 'Batux']
 const MESES_FULL = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 

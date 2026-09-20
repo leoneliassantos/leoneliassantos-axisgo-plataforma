@@ -4,6 +4,7 @@ import { useAuth } from '../../auth/AuthContext'
 import { ModuloTopo } from '../../components/ModuloTopo'
 import { InfoHint } from '../../components/InfoHint'
 import { readFirstSheetAOA } from '../../lib/xls'
+import { resolveKpiGradient } from '../../lib/chartPalette'
 import {
   apelidoEmpresa,
   buildDRE,
@@ -57,7 +58,7 @@ function fmt(v: number): string {
 }
 const clsNum = (v: number) => (Math.abs(v) < 0.5 ? 'zero' : v < 0 ? 'neg' : '')
 // Degradê quente (âmbar → laranja → vermelho-laranja) — barrinha dos KPIs, estilo MC
-const GRAD_KPI = 'linear-gradient(180deg, #FE9F2E 0%, #FB5403 55%, #F5390A 100%)'
+const GRAD_KPI = resolveKpiGradient('linear-gradient(180deg, #FE9F2E 0%, #FB5403 55%, #F5390A 100%)')
 
 /* ============================ Componente ============================ */
 export function Dre() {

@@ -4,6 +4,7 @@ import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { InfoHint } from '../../components/InfoHint'
 import { CLIENT } from '../../config/client'
+import { resolvePalette, resolveColor } from '../../lib/chartPalette'
 
 /* ================================================================== *
  *  Vendas — módulo do Financeiro (notas de venda item a item)
@@ -29,8 +30,9 @@ const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'O
 
 /* Degradê quente da marca MC (vermelho-laranja → âmbar), ordenado do mais forte
  * ao mais claro. Dá variação de cor aos gráficos sem fugir da identidade. */
-const GRAD = ['#E8420A', '#FB6407', '#FB7D12', '#FB960E', '#FDAD1E', '#FDBE45', '#FCD07A']
+const GRAD = resolvePalette(['#E8420A', '#FB6407', '#FB7D12', '#FB960E', '#FDAD1E', '#FDBE45', '#FCD07A'])
 const gradAt = (i: number) => GRAD[Math.min(i, GRAD.length - 1)]
+const COR_PARETO_LINHA = resolveColor('VITE_CHART_NEGATIVO', '#8A3F1C')
 
 /* ------------------------------- utils ------------------------------- */
 const pad2 = (n: number) => `${n < 10 ? '0' : ''}${n}`
@@ -895,13 +897,13 @@ function AreaFat({ serie }: { serie: { label: string; fat: number }[] }) {
       <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }} role="img" aria-label="Faturamento no tempo">
         <defs>
           <linearGradient id="fatFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#FB6407" stopOpacity="0.32" />
-            <stop offset="1" stopColor="#FDBE45" stopOpacity="0.03" />
+            <stop offset="0" stopColor={GRAD[1]} stopOpacity="0.32" />
+            <stop offset="1" stopColor={GRAD[5]} stopOpacity="0.03" />
           </linearGradient>
           <linearGradient id="fatLine" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stopColor="#FDAD1E" />
-            <stop offset="0.55" stopColor="#FB6407" />
-            <stop offset="1" stopColor="#E8360A" />
+            <stop offset="0" stopColor={GRAD[4]} />
+            <stop offset="0.55" stopColor={GRAD[1]} />
+            <stop offset="1" stopColor={GRAD[0]} />
           </linearGradient>
         </defs>
         <line x1={padL} y1={base} x2={W - padR} y2={base} stroke="#E2E1DE" strokeWidth={1} />
@@ -1022,8 +1024,8 @@ function Pareto({ itens, total }: { itens: { nome: string; valor: number }[]; to
             </rect>
           )
         })}
-        <polyline points={cum.map((p, i) => `${cx(i)},${cyLine(p)}`).join(' ')} fill="none" stroke="#8A3F1C" strokeWidth={2} />
-        {cum.map((p, i) => <circle key={i} cx={cx(i)} cy={cyLine(p)} r={2.2} fill="#8A3F1C" />)}
+        <polyline points={cum.map((p, i) => `${cx(i)},${cyLine(p)}`).join(' ')} fill="none" stroke={COR_PARETO_LINHA} strokeWidth={2} />
+        {cum.map((p, i) => <circle key={i} cx={cx(i)} cy={cyLine(p)} r={2.2} fill={COR_PARETO_LINHA} />)}
       </svg>
     </div>
   )
@@ -1218,7 +1220,7 @@ function BarrasMes({ itens, mesA, mesB }: { itens: { ym: string; label: string; 
     <div className="flex h-40 items-end gap-2">
       {itens.map((it) => {
         const dest = it.ym === mesA || it.ym === mesB
-        const cor = it.ym === mesB ? '#E8420A' : it.ym === mesA ? '#FDAD1E' : 'rgba(251,84,3,0.28)'
+        const cor = it.ym === mesB ? GRAD[0] : it.ym === mesA ? GRAD[4] : 'rgb(var(--brand) / 0.28)'
         return (
           <div key={it.ym} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
             <span className="text-[10px] font-semibold tnum text-ink">{fmtCompacto(it.fat)}</span>
@@ -1241,8 +1243,8 @@ function ListaCmp({ itens, rotA, rotB }: { itens: { nome: string; a: number; b: 
             <span className="min-w-0 flex-1 truncate font-semibold text-ink" title={x.nome}>{x.nome}</span>
             <span className="tnum font-bold" style={{ color: deltaCor(x.a, x.b) }}>{pctTxt(x.a, x.b)}</span>
           </div>
-          <BarraAB nome={x.nome} rot={rotA} v={x.a} max={max} cor="#FDBE45" />
-          <BarraAB nome={x.nome} rot={rotB} v={x.b} max={max} cor="#E8420A" />
+          <BarraAB nome={x.nome} rot={rotA} v={x.a} max={max} cor={GRAD[5]} />
+          <BarraAB nome={x.nome} rot={rotB} v={x.b} max={max} cor={GRAD[0]} />
         </div>
       ))}
     </div>
@@ -1294,7 +1296,7 @@ function TabelaCmp({ itens, rotA, rotB, rot }: { itens: { nome: string; a: numbe
 }
 
 /* ============================== CURVA ABC ============================== */
-const ABC_COR: Record<'A' | 'B' | 'C', string> = { A: '#E8420A', B: '#FB960E', C: '#FDC24C' }
+const ABC_COR: Record<'A' | 'B' | 'C', string> = { A: GRAD[0], B: GRAD[3], C: GRAD[5] }
 
 function AbcCurva({ rows }: { rows: Venda[] }) {
   const [dim, setDim] = useState<'categoria' | 'produto' | 'sku' | 'cliente'>('categoria')
@@ -1429,8 +1431,8 @@ function AbcChart({ itens }: { itens: { nome: string; fat: number; pct: number; 
             </rect>
           )
         })}
-        <polyline points={itens.map((it, i) => `${cx(i)},${yCum(it.cumPct)}`).join(' ')} fill="none" stroke="#8A3F1C" strokeWidth={2} />
-        {n <= 40 && itens.map((it, i) => <circle key={i} cx={cx(i)} cy={yCum(it.cumPct)} r={2} fill="#8A3F1C" />)}
+        <polyline points={itens.map((it, i) => `${cx(i)},${yCum(it.cumPct)}`).join(' ')} fill="none" stroke={COR_PARETO_LINHA} strokeWidth={2} />
+        {n <= 40 && itens.map((it, i) => <circle key={i} cx={cx(i)} cy={yCum(it.cumPct)} r={2} fill={COR_PARETO_LINHA} />)}
       </svg>
     </div>
   )

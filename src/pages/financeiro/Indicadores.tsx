@@ -4,17 +4,18 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { MESES, z12, fmt0, fmtCompacto, build, loadFluxo, type Lancamento, type Pivot } from './fluxoData'
 import { CLIENT } from '../../config/client'
+import { resolvePalette, resolveColor, resolveKpiGradient } from '../../lib/chartPalette'
 
 // Paleta quente — segue a cor de marca do cliente (white-label); fallback laranja.
 const MARCA = CLIENT.brand || '#FB5403'
-const COR_REC = MARCA // Receitas / entradas — cor da marca
-const COR_DESP = '#FBBE6B' // Despesas / pagamentos — âmbar suave (complementar quente)
+const COR_REC = resolveColor('VITE_CHART_POSITIVO', MARCA) // Receitas / entradas
+const COR_DESP = resolveColor('VITE_CHART_NEGATIVO', '#FBBE6B') // Despesas / pagamentos
 // Pontos do gráfico "Evolução do Saldo"
-const SALDO_POS = MARCA
-const SALDO_NEG = '#A8401B' // tom queimado (saldo negativo)
+const SALDO_POS = resolveColor('VITE_CHART_POSITIVO', MARCA)
+const SALDO_NEG = resolveColor('VITE_CHART_NEGATIVO', '#A8401B') // tom queimado (saldo negativo)
 // Degradê QUENTE (laranja → amarelo) estilo MC — donut, barras e KPIs
-const PAL_QUENTE = ['#F5390A', '#FB5403', '#FD7E14', '#FE9F2E', '#FFBF4D', '#FFD466', '#FFE38C']
-const GRAD_KPI = 'linear-gradient(180deg, #FE9F2E 0%, #FB5403 55%, #F5390A 100%)'
+const PAL_QUENTE = resolvePalette(['#F5390A', '#FB5403', '#FD7E14', '#FE9F2E', '#FFBF4D', '#FFD466', '#FFE38C'])
+const GRAD_KPI = resolveKpiGradient('linear-gradient(180deg, #FE9F2E 0%, #FB5403 55%, #F5390A 100%)')
 const sumArr = (a: number[]) => a.reduce((s, v) => s + v, 0)
 
 export function Indicadores() {

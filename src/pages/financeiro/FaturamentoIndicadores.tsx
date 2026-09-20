@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { buildFaturamentoIndicadores, MESES_PT, type FaturamentoRow, type Fatia } from './publiFaturamento'
+import { resolvePalette, resolveColor, resolveKpiGradient } from '../../lib/chartPalette'
 
 /* ================================================================== *
  *  Faturamento — Indicadores (base do Publi) · painel estilo Power BI
@@ -14,11 +15,11 @@ import { buildFaturamentoIndicadores, MESES_PT, type FaturamentoRow, type Fatia 
  * ================================================================== */
 
 const CONSOLIDADO = '__consolidado__'
-const GRAD_KPI = 'linear-gradient(180deg, #FE9F2E 0%, #FB5403 55%, #F5390A 100%)'
+const GRAD_KPI = resolveKpiGradient('linear-gradient(180deg, #FE9F2E 0%, #FB5403 55%, #F5390A 100%)')
 // Paleta QUENTE (laranja → amarelo) — estilo MC/Indicadores.
-const PAL = ['#F5390A', '#FB5403', '#FD7E14', '#FE9F2E', '#FFBF4D', '#FFD466', '#FFE38C']
-const COR_FAT = '#FB5403'
-const COR_TOTAL = '#B0451F'
+const PAL = resolvePalette(['#F5390A', '#FB5403', '#FD7E14', '#FE9F2E', '#FFBF4D', '#FFD466', '#FFE38C'])
+const COR_FAT = resolveColor('VITE_CHART_POSITIVO', '#FB5403')
+const COR_TOTAL = resolveColor('VITE_CHART_NEGATIVO', '#B0451F')
 
 const fmt0 = (v: number) => Math.round(v).toLocaleString('pt-BR')
 const fmtBRL = (v: number) => `R$ ${fmt0(v)}`

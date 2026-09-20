@@ -8,6 +8,7 @@ import {
   TAXA_GANHO_TRIB_PADRAO, UNIDADES_NEGOCIO, EMPRESAS, MESES_FULL,
   type MargemJob,
 } from './margemJob'
+import { resolveKpiGradient } from '../../lib/chartPalette'
 
 /* ================================================================== *
  *  Rentabilidade de Projetos — Lista analítica (Margem Job)
@@ -18,7 +19,7 @@ import {
  * ================================================================== */
 
 const CONSOLIDADO = '__consolidado__'
-const GRAD_KPI = 'linear-gradient(180deg, #FE9F2E 0%, #FB5403 55%, #F5390A 100%)'
+const GRAD_KPI = resolveKpiGradient('linear-gradient(180deg, #FE9F2E 0%, #FB5403 55%, #F5390A 100%)')
 
 const fmt0 = (v: number) => Math.round(v).toLocaleString('pt-BR')
 const fmtPct = (f: number) => `${(f * 100).toFixed(1).replace('.', ',')}%`

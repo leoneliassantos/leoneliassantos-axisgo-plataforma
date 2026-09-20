@@ -6,6 +6,7 @@ import {
   buildIndicadoresMargem, TAXA_GANHO_TRIB_PADRAO,
   type MargemJob, type FatiaMargem,
 } from './margemJob'
+import { resolvePalette, resolveColor, resolveKpiGradient } from '../../lib/chartPalette'
 
 /* ================================================================== *
  *  Rentabilidade de Projetos — Indicadores · painel estilo Power BI
@@ -18,11 +19,11 @@ import {
  * ================================================================== */
 
 const CONSOLIDADO = '__consolidado__'
-const GRAD_KPI = 'linear-gradient(180deg, #FE9F2E 0%, #FB5403 55%, #F5390A 100%)'
-const PAL = ['#F5390A', '#FB5403', '#FD7E14', '#FE9F2E', '#FFBF4D', '#FFD466', '#FFE38C']
-const COR_REC = '#FB5403'    // receita (base da barra empilhada)
-const COR_CUSTO = '#F0D3B8'  // custo/impostos (topo da barra)
-const COR_TOTAL = '#B0451F'
+const GRAD_KPI = resolveKpiGradient('linear-gradient(180deg, #FE9F2E 0%, #FB5403 55%, #F5390A 100%)')
+const PAL = resolvePalette(['#F5390A', '#FB5403', '#FD7E14', '#FE9F2E', '#FFBF4D', '#FFD466', '#FFE38C'])
+const COR_REC = resolveColor('VITE_CHART_POSITIVO', '#FB5403')    // receita (base da barra empilhada)
+const COR_CUSTO = resolveColor('VITE_CHART_NEGATIVO', '#F0D3B8')  // custo/impostos (topo da barra)
+const COR_TOTAL = resolveColor('VITE_CHART_NEGATIVO', '#B0451F')
 const MESES_ABREV = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 
 const fmt0 = (v: number) => Math.round(v).toLocaleString('pt-BR')
