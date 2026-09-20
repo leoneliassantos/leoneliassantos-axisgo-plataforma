@@ -3,9 +3,10 @@ import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { ModuloTopo } from '../../components/ModuloTopo'
 import { InfoHint } from '../../components/InfoHint'
-import { resolveKpiGradient } from '../../lib/chartPalette'
+import { resolveColor } from '../../lib/chartPalette'
 
-const GRAD_KPI = resolveKpiGradient('linear-gradient(180deg, #FE9F2E 0%, #FB5403 55%, #F5390A 100%)')
+const COR_POS = resolveColor('VITE_CHART_POSITIVO', '#15805A')
+const COR_NEG = resolveColor('VITE_CHART_NEGATIVO', '#C0392B')
 
 /* ================================================================== *
  *  Fluxo de Caixa — módulo do Financeiro
@@ -674,11 +675,16 @@ function Categoria({
 }
 function Kpi({ lbl, val, accent, signed }: { lbl: string; val: number; accent: 'pos' | 'neg' | 'band'; signed?: boolean }) {
   const cor = signed ? (val < 0 ? 'text-neg' : accent === 'band' ? 'text-ink' : 'text-pos') : accent === 'pos' ? 'text-pos' : accent === 'neg' ? 'text-neg' : 'text-ink'
+  const chip = signed ? (val < 0 ? COR_NEG : accent === 'band' ? '#64748B' : COR_POS) : accent === 'pos' ? COR_POS : accent === 'neg' ? COR_NEG : '#64748B'
   return (
-    <div className="relative flex min-h-[50px] flex-col justify-center overflow-hidden rounded-xl border border-line bg-surface py-1.5 pl-4 pr-3">
-      <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: GRAD_KPI }} />
-      <div className="text-[10px] font-bold uppercase tracking-wider text-muted">{lbl}</div>
-      <div className={`text-[17px] font-extrabold leading-tight tnum ${cor}`}>R$ {fmt(val)}</div>
+    <div className="flex min-h-[50px] items-center gap-2.5 rounded-xl border border-line bg-surface py-1.5 pl-3 pr-3">
+      <span className="grid h-7 w-7 flex-none place-items-center rounded-lg" style={{ background: `color-mix(in srgb, ${chip} 16%, white)` }}>
+        <span className="h-2 w-2 rounded-full" style={{ background: chip }} />
+      </span>
+      <div className="min-w-0">
+        <div className="text-[10px] font-bold uppercase tracking-wider text-muted">{lbl}</div>
+        <div className={`text-[17px] font-extrabold leading-tight tnum ${cor}`}>R$ {fmt(val)}</div>
+      </div>
     </div>
   )
 }

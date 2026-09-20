@@ -845,12 +845,17 @@ function ModalDetalhe({ dados, onClose }: { dados: Detalhe; onClose: () => void 
   )
 }
 function Kpi({ lbl, valor, foot, tip, cor }: { lbl: string; valor: string; foot: string; tip: string; cor?: string }) {
+  const c = cor ?? 'rgb(var(--brand))'
   return (
-    <div className="relative overflow-hidden rounded-xl border border-line bg-surface px-3 py-2">
-      <span className="absolute inset-y-0 left-0 w-1" style={{ background: cor ?? 'rgb(var(--brand))' }} />
-      <div className="flex items-center"><span className="text-[10px] font-bold uppercase tracking-wider text-muted">{lbl}</span><Info tip={tip} /></div>
-      <div className="mt-0.5 text-[19px] font-medium leading-tight tnum text-ink">{valor}</div>
-      <div className="text-[10px] text-muted">{foot}</div>
+    <div className="flex items-start gap-2.5 rounded-xl border border-line bg-surface px-3 py-2.5">
+      <span className="mt-0.5 grid h-8 w-8 flex-none place-items-center rounded-lg" style={{ background: `color-mix(in srgb, ${c} 16%, white)` }}>
+        <span className="h-2.5 w-2.5 rounded-full" style={{ background: c }} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center"><span className="text-[10px] font-bold uppercase tracking-wider text-muted">{lbl}</span><Info tip={tip} /></div>
+        <div className="mt-0.5 text-[19px] font-medium leading-tight tnum text-ink">{valor}</div>
+        <div className="text-[10px] text-muted">{foot}</div>
+      </div>
     </div>
   )
 }

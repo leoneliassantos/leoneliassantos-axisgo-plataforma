@@ -4,7 +4,7 @@ import { supabase } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { MESES, z12, fmt0, fmtCompacto, build, loadFluxo, type Lancamento, type Pivot } from './fluxoData'
 import { CLIENT } from '../../config/client'
-import { resolvePalette, resolveColor, resolveKpiGradient } from '../../lib/chartPalette'
+import { resolvePalette, resolveColor } from '../../lib/chartPalette'
 
 // Paleta quente — segue a cor de marca do cliente (white-label); fallback laranja.
 const MARCA = CLIENT.brand || '#FB5403'
@@ -15,7 +15,6 @@ const SALDO_POS = resolveColor('VITE_CHART_POSITIVO', MARCA)
 const SALDO_NEG = resolveColor('VITE_CHART_NEGATIVO', '#A8401B') // tom queimado (saldo negativo)
 // Degradê QUENTE (laranja → amarelo) estilo MC — donut, barras e KPIs
 const PAL_QUENTE = resolvePalette(['#F5390A', '#FB5403', '#FD7E14', '#FE9F2E', '#FFBF4D', '#FFD466', '#FFE38C'])
-const GRAD_KPI = resolveKpiGradient('linear-gradient(180deg, #FE9F2E 0%, #FB5403 55%, #F5390A 100%)')
 const sumArr = (a: number[]) => a.reduce((s, v) => s + v, 0)
 
 export function Indicadores() {
@@ -432,30 +431,38 @@ function ModalDetalhe({ dados, onClose }: { dados: Detalhe; onClose: () => void 
     document.body,
   )
 }
+function KpiChip({ c, children }: { c: string; children: ReactNode }) {
+  return (
+    <div className="flex items-start gap-2.5 rounded-xl border border-line bg-surface px-3 py-2.5">
+      <span className="mt-0.5 grid h-8 w-8 flex-none place-items-center rounded-lg" style={{ background: `color-mix(in srgb, ${c} 16%, white)` }}>
+        <span className="h-2.5 w-2.5 rounded-full" style={{ background: c }} />
+      </span>
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  )
+}
 function Kpi({ lbl, val, foot, tip }: { lbl: string; val: number; foot: string; tip: string }) {
   return (
-    <div className="relative overflow-hidden rounded-xl border border-line bg-surface px-3 py-2">
-      <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: GRAD_KPI }} />
+    <KpiChip c={val < 0 ? SALDO_NEG : SALDO_POS}>
       <div className="flex items-center">
         <span className="text-[10px] font-bold uppercase tracking-wider text-muted">{lbl}</span>
         <Info tip={tip} />
       </div>
       <div className="mt-0.5 text-[18px] font-extrabold leading-tight tnum text-ink">R$ {fmt0(val)}</div>
       <div className="text-[10px] text-muted">{foot}</div>
-    </div>
+    </KpiChip>
   )
 }
 function KpiTexto({ lbl, valor, foot, tip }: { lbl: string; valor: string; foot: string; tip: string }) {
   return (
-    <div className="relative overflow-hidden rounded-xl border border-line bg-surface px-3 py-2">
-      <span className="absolute inset-y-0 left-0 w-1.5" style={{ background: GRAD_KPI }} />
+    <KpiChip c={SALDO_POS}>
       <div className="flex items-center">
         <span className="text-[10px] font-bold uppercase tracking-wider text-muted">{lbl}</span>
         <Info tip={tip} />
       </div>
       <div className="mt-0.5 text-[18px] font-extrabold leading-tight tnum text-ink">{valor}</div>
       <div className="text-[10px] text-muted">{foot}</div>
-    </div>
+    </KpiChip>
   )
 }
 
