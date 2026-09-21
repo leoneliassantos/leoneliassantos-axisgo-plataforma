@@ -31,6 +31,20 @@ function Icon({ children, size = 18 }: { children: ReactNode; size?: number }) {
   )
 }
 
+/* Chrome monocromático opcional (VITE_CHROME_STYLE=mono, inspirado no Fukuda): menu ativo em
+ * preto sólido, cinzas neutros (sem o viés azul da paleta AxisGo) e bolinha da marca ao lado do
+ * rótulo da seção. Sem a env, tudo abaixo cai no visual padrão de sempre — zero mudança. */
+const MONO = CLIENT.chromeMono
+const NAV_RADIUS = MONO ? 'rounded-xl' : 'rounded-md'
+const NAV_BORDER = MONO ? 'border-[#E6E8EC]' : 'border-line'
+const NAV_ACTIVE = MONO ? 'bg-[#0C0D0F] text-white shadow-sm' : 'bg-paper font-semibold text-ink'
+const NAV_INACTIVE = MONO ? 'text-[#5B6169] hover:bg-[#F4F5F7] hover:text-[#0C0D0F]' : 'text-muted hover:bg-paper hover:text-ink'
+const NAV_FAINT = MONO ? 'text-[#8A9099]' : 'text-muted'
+const NAV_INK = MONO ? 'text-[#0C0D0F]' : 'text-ink'
+const NAV_HOVER_BG = MONO ? 'hover:bg-[#F4F5F7]' : 'hover:bg-paper'
+const NAV_HOVER_TEXT = MONO ? 'hover:text-[#0C0D0F]' : 'hover:text-ink'
+const NAV_AVATAR = MONO ? 'rounded-lg bg-[#0C0D0F] text-white' : 'rounded-full bg-paper text-ink'
+
 export function AppLayout() {
   const { user, mode, signOut } = useAuth()
   const navigate = useNavigate()
@@ -93,13 +107,13 @@ export function AppLayout() {
   )
 
   const chipUsuario = (
-    <Link to="/perfil" title="Meu perfil" className="flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-paper">
-      <span className="grid size-8 shrink-0 place-items-center rounded-full bg-paper text-sm font-semibold text-ink">
+    <Link to="/perfil" title="Meu perfil" className={`flex items-center gap-2 ${NAV_RADIUS} px-2 py-1.5 ${NAV_HOVER_BG}`}>
+      <span className={`grid size-8 shrink-0 place-items-center text-sm font-semibold ${NAV_AVATAR}`}>
         {(user?.nome || user?.email || '?').trim().charAt(0).toUpperCase()}
       </span>
       <div className="hidden min-w-0 leading-tight sm:block">
-        <div className="truncate text-sm font-medium text-ink">{user?.nome}</div>
-        <div className="truncate text-[11px] text-muted">{user?.email}</div>
+        <div className={`truncate text-sm font-medium ${NAV_INK}`}>{user?.nome}</div>
+        <div className={`truncate text-[11px] ${NAV_FAINT}`}>{user?.email}</div>
       </div>
     </Link>
   )
@@ -109,7 +123,7 @@ export function AppLayout() {
       type="button"
       onClick={handleSair}
       title="Sair"
-      className="flex items-center gap-2 rounded-md border border-line px-3 py-1.5 text-sm text-ink transition hover:bg-paper"
+      className={`flex items-center gap-2 ${NAV_RADIUS} border ${NAV_BORDER} px-3 py-1.5 text-sm ${NAV_INK} transition ${NAV_HOVER_BG}`}
     >
       <Icon>{icons.sair}</Icon>
       <span className="hidden sm:inline">Sair</span>
@@ -124,7 +138,12 @@ export function AppLayout() {
     </div>
   )
 
-  const rodape = (
+  const rodape = MONO ? (
+    <footer className="border-t border-[#E6E8EC] bg-white px-5 py-3 text-[11px] leading-relaxed text-[#8A9099]">
+      {CLIENT.nome} - Ambiente desenvolvido por <span className="font-semibold text-[#5B6169]">AxisGo</span>
+      <br />Business Transformation Outsourcing
+    </footer>
+  ) : (
     <footer className="bg-band text-paper shadow-[0_-2px_10px_rgba(0,0,0,0.08)]">
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-5 py-2.5 text-xs">
         <span className="flex flex-wrap items-center gap-2 text-paper/85">
@@ -140,12 +159,12 @@ export function AppLayout() {
   if (naHub) {
     return (
       <div className="flex h-screen flex-col overflow-hidden">
-        <header className="flex h-14 shrink-0 items-center justify-between border-b border-line bg-surface px-5">
+        <header className={`flex h-14 shrink-0 items-center justify-between border-b ${NAV_BORDER} bg-surface px-5`}>
           {logoCompleto}
           <div className="flex items-center gap-2">
             {chipUsuario}
             {user?.role === 'admin' && (
-              <Link to="/admin/usuarios" title="Usuários" className="hidden items-center gap-2 rounded-md border border-line px-3 py-1.5 text-sm text-ink transition hover:bg-paper sm:flex">
+              <Link to="/admin/usuarios" title="Usuários" className={`hidden items-center gap-2 ${NAV_RADIUS} border ${NAV_BORDER} px-3 py-1.5 text-sm ${NAV_INK} transition ${NAV_HOVER_BG} sm:flex`}>
                 <Icon>{icons.usuarios}</Icon>
                 Usuários
               </Link>
@@ -167,8 +186,8 @@ export function AppLayout() {
 
   /* ==================== Dentro de um ambiente — sidebar do ambiente ==================== */
   const itemClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium transition ${
-      isActive ? 'bg-paper font-semibold text-ink' : 'text-muted hover:bg-paper hover:text-ink'
+    `flex items-center gap-2.5 ${NAV_RADIUS} px-3 py-2 text-sm font-medium transition ${
+      isActive ? NAV_ACTIVE : NAV_INACTIVE
     } ${recolhida ? 'md:justify-center md:px-0' : ''}`
 
   const renderModulo = (m: Modulo, indent: boolean) => (
@@ -178,8 +197,8 @@ export function AppLayout() {
       onClick={fechaMobile}
       title={m.label}
       className={({ isActive }) =>
-        `flex items-center gap-2.5 rounded-md py-2 text-sm transition ${indent ? 'pl-9 pr-3' : 'px-3'} ${
-          isActive ? 'bg-paper font-semibold text-ink' : 'text-muted hover:bg-paper hover:text-ink'
+        `flex items-center gap-2.5 ${NAV_RADIUS} py-2 text-sm transition ${indent ? 'pl-9 pr-3' : 'px-3'} ${
+          isActive ? NAV_ACTIVE : NAV_INACTIVE
         } ${recolhida ? 'md:justify-center md:px-0' : ''}`
       }
     >
@@ -204,18 +223,18 @@ export function AppLayout() {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-line bg-surface transition-all duration-200 md:static md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r ${NAV_BORDER} bg-surface transition-all duration-200 md:static md:translate-x-0 ${
           aberta ? 'translate-x-0' : '-translate-x-full'
         } ${recolhida ? 'md:w-16' : 'md:w-60'}`}
       >
-        <div className={`flex h-14 items-center border-b border-line px-5 ${recolhida ? 'md:justify-center md:px-0' : 'md:justify-between'}`}>
+        <div className={`flex h-14 items-center border-b ${NAV_BORDER} px-5 ${recolhida ? 'md:justify-center md:px-0' : 'md:justify-between'}`}>
           <div className={rot(true)}>{logoCompleto}</div>
           <button
             type="button"
             onClick={toggleRecolher}
             aria-label={recolhida ? 'Expandir menu' : 'Recolher menu'}
             title={recolhida ? 'Expandir menu' : 'Recolher menu'}
-            className="hidden size-8 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-paper hover:text-ink md:flex"
+            className={`hidden size-8 shrink-0 items-center justify-center ${NAV_RADIUS} ${NAV_FAINT} transition ${NAV_HOVER_BG} ${NAV_HOVER_TEXT} md:flex`}
           >
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" className={`transition-transform ${recolhida ? '' : 'rotate-180'}`}>
               <path d="M9 6l6 6-6 6" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
@@ -231,8 +250,9 @@ export function AppLayout() {
 
           {frenteAtiva && (
             <div className="mt-3">
-              <div className={`px-3 pb-1 text-[11px] font-semibold uppercase tracking-wide text-muted ${rot(true)}`}>
-                {frenteAtiva.nome}
+              <div className={`flex items-center gap-2 px-3 pb-1.5 ${rot(true)}`}>
+                {MONO && <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: 'rgb(var(--brand))' }} />}
+                <span className={`text-[11px] font-semibold uppercase tracking-wide ${NAV_FAINT}`}>{frenteAtiva.nome}</span>
               </div>
               {soltos.map((m) => renderModulo(m, false))}
 
@@ -245,7 +265,7 @@ export function AppLayout() {
                       type="button"
                       onClick={() => setGruposAbertos((g) => ({ ...g, [nome]: !(g[nome] ?? temAtivo) }))}
                       title={nome}
-                      className={`flex w-full items-center justify-between rounded-md px-3 py-2 text-sm font-medium text-muted transition hover:bg-paper hover:text-ink ${recolhida ? 'md:justify-center md:px-0' : ''}`}
+                      className={`flex w-full items-center justify-between ${NAV_RADIUS} px-3 py-2 text-sm font-medium ${NAV_INACTIVE} transition ${recolhida ? 'md:justify-center md:px-0' : ''}`}
                     >
                       <span className="flex items-center gap-2.5">
                         <Icon size={16}>{icons.cadastros}</Icon>
@@ -272,19 +292,19 @@ export function AppLayout() {
           )}
         </nav>
 
-        <div className="flex flex-col gap-2 border-t border-line p-3">
+        <div className={`flex flex-col gap-2 border-t ${NAV_BORDER} p-3`}>
           <Link
             to="/perfil"
             onClick={fechaMobile}
             title="Meu perfil"
-            className={`flex items-center gap-2 rounded-md px-2 py-1.5 hover:bg-paper ${recolhida ? 'md:justify-center md:px-0' : ''}`}
+            className={`flex items-center gap-2 ${NAV_RADIUS} px-2 py-1.5 ${NAV_HOVER_BG} ${recolhida ? 'md:justify-center md:px-0' : ''}`}
           >
-            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-paper text-sm font-semibold text-ink">
+            <span className={`grid size-8 shrink-0 place-items-center text-sm font-semibold ${NAV_AVATAR}`}>
               {(user?.nome || user?.email || '?').trim().charAt(0).toUpperCase()}
             </span>
             <div className={`min-w-0 flex-1 leading-tight ${rot(true)}`}>
-              <div className="truncate text-sm font-medium text-ink">{user?.nome}</div>
-              <div className="truncate text-[11px] text-muted">{user?.email}</div>
+              <div className={`truncate text-sm font-medium ${NAV_INK}`}>{user?.nome}</div>
+              <div className={`truncate text-[11px] ${NAV_FAINT}`}>{user?.email}</div>
             </div>
           </Link>
 
@@ -292,7 +312,7 @@ export function AppLayout() {
             type="button"
             onClick={handleSair}
             title="Sair"
-            className={`flex items-center gap-2.5 rounded-md border border-line px-3 py-1.5 text-sm text-ink transition hover:bg-paper ${recolhida ? 'md:justify-center md:px-0' : ''}`}
+            className={`flex items-center gap-2.5 ${NAV_RADIUS} border ${NAV_BORDER} px-3 py-1.5 text-sm ${NAV_INK} transition ${NAV_HOVER_BG} ${recolhida ? 'md:justify-center md:px-0' : ''}`}
           >
             <Icon>{icons.sair}</Icon>
             <span className={rot(true)}>Sair</span>
@@ -301,8 +321,8 @@ export function AppLayout() {
       </aside>
 
       <div className="flex h-screen min-w-0 flex-1 flex-col">
-        <header className="flex h-14 items-center gap-3 border-b border-line bg-surface px-4 md:hidden">
-          <button type="button" aria-label="Abrir menu" onClick={() => setAberta(true)} className="rounded-md p-1.5 text-ink transition hover:bg-paper">
+        <header className={`flex h-14 items-center gap-3 border-b ${NAV_BORDER} bg-surface px-4 md:hidden`}>
+          <button type="button" aria-label="Abrir menu" onClick={() => setAberta(true)} className={`${NAV_RADIUS} p-1.5 ${NAV_INK} transition ${NAV_HOVER_BG}`}>
             <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor">
               <path d="M4 7h16M4 12h16M4 17h16" strokeWidth="1.8" strokeLinecap="round" />
             </svg>
