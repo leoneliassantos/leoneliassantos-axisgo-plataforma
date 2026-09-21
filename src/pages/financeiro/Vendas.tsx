@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { InfoHint } from '../../components/InfoHint'
+import { FiltrosToggle } from '../../components/FiltrosToggle'
 import { CLIENT } from '../../config/client'
 import { resolvePalette, resolveColor } from '../../lib/chartPalette'
 
@@ -195,6 +196,7 @@ export function Vendas() {
   const [rankPor, setRankPor] = useState<'categoria' | 'produto' | 'sku'>('categoria')
   const [detalhe, setDetalhe] = useState<Detalhe | null>(null)
   const [view, setView] = useState<'painel' | 'comparativo' | 'abc'>('painel')
+  const [filtrosAbertos, setFiltrosAbertos] = useState(true)
   // Base sem coluna categoria (ex.: cliente ainda não migrado): cai para Produto.
   useEffect(() => { if (rows.length && !temCategoria(rows)) setRankPor('produto') }, [rows])
 
@@ -610,6 +612,7 @@ export function Vendas() {
             />
           )}
           <input ref={fileRef} type="file" accept=".xlsx,.xls,.pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
+          {view === 'painel' && !vazio && <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />}
         </div>
       </div>
 
@@ -632,6 +635,7 @@ export function Vendas() {
       ) : (
         <>
           {/* Filtros */}
+          {filtrosAbertos && (
           <div className="flex flex-none flex-wrap items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2">
             <span className="text-[11px] font-bold uppercase tracking-wider text-muted">Filtros</span>
             <div className="flex items-center gap-1.5 text-[12px]">
@@ -652,6 +656,7 @@ export function Vendas() {
               Limpar filtros
             </button>
           </div>
+          )}
 
           {/* KPIs */}
           <div className="grid flex-none grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
@@ -1079,6 +1084,7 @@ const UP = '#0F9D58', DOWN = '#C0392B', FLAT = '#94A3B8'
 const deltaCor = (a: number, b: number) => (b > a + 0.005 ? UP : b < a - 0.005 ? DOWN : FLAT)
 
 function Comparativo({ rows }: { rows: Venda[] }) {
+  const [filtrosAbertos, setFiltrosAbertos] = useState(true)
   const [modo, setModo] = useState<'mes' | 'intervalo'>('mes')
   const [selCanais, setSelCanais] = useState<Set<string> | null>(null)
   const [rankPor, setRankPor] = useState<'categoria' | 'produto' | 'sku'>('categoria')
@@ -1128,21 +1134,26 @@ function Comparativo({ rows }: { rows: Venda[] }) {
     <div className="flex flex-col gap-3 pb-4">
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2">
         <span className="text-[11px] font-bold uppercase tracking-wider text-muted">Comparar</span>
-        <Toggle valor={modo} set={setModo} ops={[['mes', 'Por mês'], ['intervalo', 'Por intervalo']]} />
-        {modo === 'mes' ? (
-          <div className="flex items-center gap-1.5 text-[12px]">
-            <SelMes meses={meses} value={mesA} onChange={setMesA} /><span className="text-muted">×</span><SelMes meses={meses} value={mesB} onChange={setMesB} />
-          </div>
-        ) : (
-          <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
-            <span className="rounded bg-paper px-1.5 py-0.5 text-[11px] font-semibold text-muted">A</span>
-            <DateIn value={aDe} onChange={setADe} /><span className="text-muted">–</span><DateIn value={aAte} onChange={setAAte} />
-            <span className="mx-1 text-muted">×</span>
-            <span className="rounded bg-paper px-1.5 py-0.5 text-[11px] font-semibold text-muted">B</span>
-            <DateIn value={bDe} onChange={setBDe} /><span className="text-muted">–</span><DateIn value={bAte} onChange={setBAte} />
-          </div>
+        <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />
+        {filtrosAbertos && (
+          <>
+            <Toggle valor={modo} set={setModo} ops={[['mes', 'Por mês'], ['intervalo', 'Por intervalo']]} />
+            {modo === 'mes' ? (
+              <div className="flex items-center gap-1.5 text-[12px]">
+                <SelMes meses={meses} value={mesA} onChange={setMesA} /><span className="text-muted">×</span><SelMes meses={meses} value={mesB} onChange={setMesB} />
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
+                <span className="rounded bg-paper px-1.5 py-0.5 text-[11px] font-semibold text-muted">A</span>
+                <DateIn value={aDe} onChange={setADe} /><span className="text-muted">–</span><DateIn value={aAte} onChange={setAAte} />
+                <span className="mx-1 text-muted">×</span>
+                <span className="rounded bg-paper px-1.5 py-0.5 text-[11px] font-semibold text-muted">B</span>
+                <DateIn value={bDe} onChange={setBDe} /><span className="text-muted">–</span><DateIn value={bAte} onChange={setBAte} />
+              </div>
+            )}
+            <MultiSelect label="Canal" opcoes={canais} value={selCanais} onChange={setSelCanais} />
+          </>
         )}
-        <MultiSelect label="Canal" opcoes={canais} value={selCanais} onChange={setSelCanais} />
         <span className="ml-auto text-[11px] text-muted">A = <b className="text-ink">{rotA}</b> · B = <b className="text-ink">{rotB}</b></span>
       </div>
 
@@ -1304,6 +1315,7 @@ function TabelaCmp({ itens, rotA, rotB, rot }: { itens: { nome: string; a: numbe
 const ABC_COR: Record<'A' | 'B' | 'C', string> = { A: GRAD[0], B: GRAD[3], C: GRAD[5] }
 
 function AbcCurva({ rows }: { rows: Venda[] }) {
+  const [filtrosAbertos, setFiltrosAbertos] = useState(true)
   const [dim, setDim] = useState<'categoria' | 'produto' | 'sku' | 'cliente'>('categoria')
   useEffect(() => { if (rows.length && !temCategoria(rows)) setDim('produto') }, [rows])
   const [dataDe, setDataDe] = useState(''); const [dataAte, setDataAte] = useState('')
@@ -1350,12 +1362,17 @@ function AbcCurva({ rows }: { rows: Venda[] }) {
     <div className="flex flex-col gap-3 pb-4">
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2">
         <span className="text-[11px] font-bold uppercase tracking-wider text-muted">Classificar por</span>
-        <Toggle valor={dim} set={setDim} ops={[['categoria', 'Categoria'], ['produto', 'Produto'], ['sku', 'SKU'], ['cliente', 'Cliente']]} />
-        <div className="flex items-center gap-1.5 text-[12px]">
-          <span className="text-muted">Período</span>
-          <DateIn value={dataDe} onChange={setDataDe} /><span className="text-muted">até</span><DateIn value={dataAte} onChange={setDataAte} />
-        </div>
-        <MultiSelect label="Canal" opcoes={canais} value={selCanais} onChange={setSelCanais} />
+        <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />
+        {filtrosAbertos && (
+          <>
+            <Toggle valor={dim} set={setDim} ops={[['categoria', 'Categoria'], ['produto', 'Produto'], ['sku', 'SKU'], ['cliente', 'Cliente']]} />
+            <div className="flex items-center gap-1.5 text-[12px]">
+              <span className="text-muted">Período</span>
+              <DateIn value={dataDe} onChange={setDataDe} /><span className="text-muted">até</span><DateIn value={dataAte} onChange={setDataAte} />
+            </div>
+            <MultiSelect label="Canal" opcoes={canais} value={selCanais} onChange={setSelCanais} />
+          </>
+        )}
         <span className="ml-auto text-[11px] text-muted">{abc.n} {rot.toLowerCase()}s · R$ {fmt0(abc.total)}</span>
       </div>
 

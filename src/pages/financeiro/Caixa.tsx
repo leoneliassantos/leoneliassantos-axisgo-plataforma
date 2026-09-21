@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type React
 import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { InfoHint } from '../../components/InfoHint'
+import { FiltrosToggle } from '../../components/FiltrosToggle'
 import { CLIENT } from '../../config/client'
 import { resolveColor } from '../../lib/chartPalette'
 
@@ -331,6 +332,7 @@ function RealizadoView() {
   const [selOrigem, setSelOrigem] = useState<Set<string> | null>(null)
   const [selSit, setSelSit] = useState<Set<Situacao>>(new Set(['pago', 'agendado', 'aberto']))
   const [selCat, setSelCat] = useState<Set<string> | null>(null)
+  const [filtrosAbertos, setFiltrosAbertos] = useState(true)
   const [editCat, setEditCat] = useState(false)
   const [editAbertura, setEditAbertura] = useState(false)
 
@@ -654,11 +656,12 @@ function RealizadoView() {
             />
           )}
           <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
+          {!vazio && <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />}
         </div>
       </div>
 
       {/* filtros comuns */}
-      {!vazio && (
+      {!vazio && filtrosAbertos && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">Período</span>
           <DateIn value={de} onChange={setDe} />
@@ -1159,6 +1162,7 @@ function ProjetadoView() {
   const [editCat, setEditCat] = useState(false)
   const [editAbertura, setEditAbertura] = useState(false)
   const [editFixos, setEditFixos] = useState(false)
+  const [filtrosAbertos, setFiltrosAbertos] = useState(true)
 
   useEffect(() => { setDe((prev) => prev || hoje) }, [hoje])
   useEffect(() => { setAte((prev) => prev || horizontePadrao) }, [horizontePadrao])
@@ -1456,10 +1460,11 @@ function ProjetadoView() {
             />
           )}
           <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
+          {!vazio && <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />}
         </div>
       </div>
 
-      {!vazio && (
+      {!vazio && filtrosAbertos && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-muted" title='O que já está "Atrasado" sempre aparece, independente do período escolhido.'>Período</span>
           <DateIn value={de || hoje} onChange={setDe} />
