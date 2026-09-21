@@ -621,39 +621,47 @@ function RealizadoView() {
 
   return (
     <div className="flex flex-col gap-3">
-      {/* cabeçalho */}
+      {/* cabeçalho — recolhe junto com os filtros (só o rótulo e o botão de filtros ficam) */}
       <div className="flex flex-wrap items-center gap-2">
-        <Toggle valor={view} set={setView} ops={[['fluxo', 'Fluxo de Caixa'], ['titulos', 'Títulos'], ['painel', 'Painel & Projeção']]} />
+        {filtrosAbertos ? (
+          <Toggle valor={view} set={setView} ops={[['fluxo', 'Fluxo de Caixa'], ['titulos', 'Títulos'], ['painel', 'Painel & Projeção']]} />
+        ) : (
+          <span className="text-sm font-semibold text-ink">Fluxo de Caixa</span>
+        )}
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          {isAdmin && (
-            <button onClick={() => setEditAbertura(true)} className="rounded-lg border border-line bg-surface px-3 py-2 text-[12px] font-bold text-ink transition hover:bg-paper" title="Definir o saldo de caixa de abertura (ponto de partida do fluxo).">
-              Saldo de abertura
-            </button>
-          )}
-          {isAdmin && (
-            <button onClick={() => setEditCat(true)} className="rounded-lg border border-line bg-surface px-3 py-2 text-[12px] font-bold text-ink transition hover:bg-paper" title="Associar cada fornecedor a uma categoria de despesa.">
-              Categorias
-            </button>
-          )}
-          <button onClick={baixarBase} disabled={busy || vazio} className="rounded-lg border border-line bg-surface px-3 py-2 text-[12px] font-bold text-ink transition hover:bg-paper disabled:opacity-50" title="Baixar em Excel os títulos filtrados">
-            Baixar
-          </button>
-          {isAdmin && (
-            <button onClick={() => fileRef.current?.click()} disabled={busy} className="rounded-lg bg-ink px-3 py-2 text-[12px] font-bold text-white shadow-brand transition hover:brightness-125 disabled:opacity-50" title="Enviar o Excel de Lançamentos Financeiros do Foodpro (Vendas ou Distribuidora). Substitui todo o canal do arquivo.">
-              {busy ? 'Processando…' : 'Atualizar base'}
-            </button>
-          )}
-          {isAdmin && (
-            <InfoHint
-              title="Como atualizar os Títulos (Caixa)"
-              steps={[
-                'No Foodpro, exporte o Excel de "Lançamentos Financeiros".',
-                'Você tem dois canais: Vendas e Distribuidora — envie um de cada vez.',
-                'Clique em "Atualizar base" e selecione o arquivo (.xlsx ou .xls).',
-                'Repita para o outro canal.',
-              ]}
-              warn="Cada envio substitui todo o canal daquele arquivo. Só entram no fluxo os títulos com pagamento efetivado."
-            />
+          {filtrosAbertos && (
+            <>
+              {isAdmin && (
+                <button onClick={() => setEditAbertura(true)} className="rounded-lg border border-line bg-surface px-3 py-2 text-[12px] font-bold text-ink transition hover:bg-paper" title="Definir o saldo de caixa de abertura (ponto de partida do fluxo).">
+                  Saldo de abertura
+                </button>
+              )}
+              {isAdmin && (
+                <button onClick={() => setEditCat(true)} className="rounded-lg border border-line bg-surface px-3 py-2 text-[12px] font-bold text-ink transition hover:bg-paper" title="Associar cada fornecedor a uma categoria de despesa.">
+                  Categorias
+                </button>
+              )}
+              <button onClick={baixarBase} disabled={busy || vazio} className="rounded-lg border border-line bg-surface px-3 py-2 text-[12px] font-bold text-ink transition hover:bg-paper disabled:opacity-50" title="Baixar em Excel os títulos filtrados">
+                Baixar
+              </button>
+              {isAdmin && (
+                <button onClick={() => fileRef.current?.click()} disabled={busy} className="rounded-lg bg-ink px-3 py-2 text-[12px] font-bold text-white shadow-brand transition hover:brightness-125 disabled:opacity-50" title="Enviar o Excel de Lançamentos Financeiros do Foodpro (Vendas ou Distribuidora). Substitui todo o canal do arquivo.">
+                  {busy ? 'Processando…' : 'Atualizar base'}
+                </button>
+              )}
+              {isAdmin && (
+                <InfoHint
+                  title="Como atualizar os Títulos (Caixa)"
+                  steps={[
+                    'No Foodpro, exporte o Excel de "Lançamentos Financeiros".',
+                    'Você tem dois canais: Vendas e Distribuidora — envie um de cada vez.',
+                    'Clique em "Atualizar base" e selecione o arquivo (.xlsx ou .xls).',
+                    'Repita para o outro canal.',
+                  ]}
+                  warn="Cada envio substitui todo o canal daquele arquivo. Só entram no fluxo os títulos com pagamento efetivado."
+                />
+              )}
+            </>
           )}
           <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
           {!vazio && <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />}
@@ -1426,38 +1434,46 @@ function ProjetadoView() {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <Toggle valor={view} set={setView} ops={[['fluxo', 'Fluxo Projetado'], ['titulos', 'Títulos']]} />
+        {filtrosAbertos ? (
+          <Toggle valor={view} set={setView} ops={[['fluxo', 'Fluxo Projetado'], ['titulos', 'Títulos']]} />
+        ) : (
+          <span className="text-sm font-semibold text-ink">Fluxo de Caixa Projetado</span>
+        )}
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          {isAdmin && (
-            <button onClick={() => setEditAbertura(true)} className="rounded-lg border border-line bg-surface px-3 py-2 text-[12px] font-bold text-ink transition hover:bg-paper" title="Definir o saldo de caixa de partida da projeção (independente do Realizado).">
-              Saldo de abertura
-            </button>
-          )}
-          {isAdmin && (
-            <button onClick={() => setEditFixos(true)} className="rounded-lg border border-line bg-surface px-3 py-2 text-[12px] font-bold text-ink transition hover:bg-paper" title="Cadastrar entradas e saídas fixas que se repetem todo mês.">
-              Lançamentos fixos
-            </button>
-          )}
-          {isAdmin && (
-            <button onClick={() => setEditCat(true)} className="rounded-lg border border-line bg-surface px-3 py-2 text-[12px] font-bold text-ink transition hover:bg-paper" title="Associar cada participante a uma categoria de despesa (de-para próprio do Projetado).">
-              Categorias
-            </button>
-          )}
-          {isAdmin && (
-            <button onClick={() => fileRef.current?.click()} disabled={busy} className="rounded-lg bg-ink px-3 py-2 text-[12px] font-bold text-white shadow-brand transition hover:brightness-125 disabled:opacity-50" title="Enviar o Excel 'Fluxo de Caixa Orçado' do Foodpro (títulos em aberto). Substitui toda a base projetada.">
-              {busy ? 'Processando…' : 'Atualizar base'}
-            </button>
-          )}
-          {isAdmin && (
-            <InfoHint
-              title="Como atualizar o Projetado"
-              steps={[
-                'No Foodpro, exporte o "Fluxo de Caixa Orçado" (títulos em aberto).',
-                'Clique em "Atualizar base" e selecione o arquivo (.xlsx ou .xls).',
-                'O arquivo já traz os dois canais (Vendas e Distribuidora) juntos — é um upload só.',
-              ]}
-              warn="Cada envio substitui TODA a base projetada. Não afeta o Realizado nem o saldo de abertura."
-            />
+          {filtrosAbertos && (
+            <>
+              {isAdmin && (
+                <button onClick={() => setEditAbertura(true)} className="rounded-lg border border-line bg-surface px-3 py-2 text-[12px] font-bold text-ink transition hover:bg-paper" title="Definir o saldo de caixa de partida da projeção (independente do Realizado).">
+                  Saldo de abertura
+                </button>
+              )}
+              {isAdmin && (
+                <button onClick={() => setEditFixos(true)} className="rounded-lg border border-line bg-surface px-3 py-2 text-[12px] font-bold text-ink transition hover:bg-paper" title="Cadastrar entradas e saídas fixas que se repetem todo mês.">
+                  Lançamentos fixos
+                </button>
+              )}
+              {isAdmin && (
+                <button onClick={() => setEditCat(true)} className="rounded-lg border border-line bg-surface px-3 py-2 text-[12px] font-bold text-ink transition hover:bg-paper" title="Associar cada participante a uma categoria de despesa (de-para próprio do Projetado).">
+                  Categorias
+                </button>
+              )}
+              {isAdmin && (
+                <button onClick={() => fileRef.current?.click()} disabled={busy} className="rounded-lg bg-ink px-3 py-2 text-[12px] font-bold text-white shadow-brand transition hover:brightness-125 disabled:opacity-50" title="Enviar o Excel 'Fluxo de Caixa Orçado' do Foodpro (títulos em aberto). Substitui toda a base projetada.">
+                  {busy ? 'Processando…' : 'Atualizar base'}
+                </button>
+              )}
+              {isAdmin && (
+                <InfoHint
+                  title="Como atualizar o Projetado"
+                  steps={[
+                    'No Foodpro, exporte o "Fluxo de Caixa Orçado" (títulos em aberto).',
+                    'Clique em "Atualizar base" e selecione o arquivo (.xlsx ou .xls).',
+                    'O arquivo já traz os dois canais (Vendas e Distribuidora) juntos — é um upload só.',
+                  ]}
+                  warn="Cada envio substitui TODA a base projetada. Não afeta o Realizado nem o saldo de abertura."
+                />
+              )}
+            </>
           )}
           <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
           {!vazio && <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />}

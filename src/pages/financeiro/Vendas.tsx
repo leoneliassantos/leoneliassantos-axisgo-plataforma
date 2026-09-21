@@ -550,13 +550,16 @@ export function Vendas() {
       style={{ width: '100%', height: !vazio && view === 'painel' ? altura : undefined, overflow: !vazio && view === 'painel' ? 'hidden' : undefined }}
       className="flex flex-col gap-2"
     >
-      {/* Barra de topo: título + ações */}
+      {/* Barra de topo: título + ações. Recolhe junto com os filtros (só o título fica). */}
       <div className="flex flex-none flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="font-serif text-lg font-semibold text-ink">Vendas</h2>
-          <p className="text-[12px] text-muted">Notas de venda item a item · faturamento por canal, produto e período</p>
+        <div className="flex items-center gap-2">
+          <div>
+            <h2 className="font-serif text-lg font-semibold text-ink">Vendas</h2>
+            {filtrosAbertos && <p className="text-[12px] text-muted">Notas de venda item a item · faturamento por canal, produto e período</p>}
+          </div>
+          {!filtrosAbertos && !vazio && <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />}
         </div>
-        {!vazio && (
+        {filtrosAbertos && !vazio && (
           <div className="flex flex-wrap items-center gap-2">
             {view !== 'comparativo' && (
               <label className="flex items-center gap-1.5 text-[12px]" title="Filtra os indicadores por ano. O Comparativo cruza anos livremente, por isso não usa este seletor.">
@@ -574,46 +577,48 @@ export function Vendas() {
             <Toggle valor={view} set={setView} ops={[['painel', 'Painel'], ['comparativo', 'Comparativo'], ['abc', 'Curva ABC']]} />
           </div>
         )}
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-[12px] font-bold text-ink transition hover:bg-paper disabled:opacity-50"
-            onClick={baixarBase} disabled={busy || vazio} title="Baixar a base atual em Excel"
-          >
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></svg>
-            Baixar base
-          </button>
-          {isAdmin && (
-            <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-muted" title="Como o próximo arquivo será aplicado. “Só este arquivo” substitui apenas os canais e o período do arquivo (o resto fica). “Base inteira” apaga tudo e regrava só o arquivo — use quando o arquivo for a base completa.">
-              <span className="uppercase tracking-wide">Ao enviar:</span>
-              <Toggle valor={upMode} set={setUpMode} ops={[['incremental', 'Só este arquivo'], ['full', 'Base inteira']]} />
-            </label>
-          )}
-          {isAdmin && (
+        {filtrosAbertos && (
+          <div className="flex flex-wrap items-center gap-2">
             <button
-              className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3 py-2 text-[12px] font-bold text-white shadow-brand transition hover:brightness-125 disabled:opacity-50"
-              onClick={() => fileRef.current?.click()} disabled={busy}
-              title={upMode === 'full'
-                ? 'Substitui a BASE INTEIRA pelo arquivo enviado (apaga tudo e regrava). Pede confirmação antes.'
-                : 'Substitui só o canal e o período do arquivo; as demais datas e canais são mantidos.'}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 text-[12px] font-bold text-ink transition hover:bg-paper disabled:opacity-50"
+              onClick={baixarBase} disabled={busy || vazio} title="Baixar a base atual em Excel"
             >
-              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21V9" /><path d="m7 14 5-5 5 5" /><path d="M5 3h14" /></svg>
-              {busy ? 'Processando…' : 'Atualizar base'}
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></svg>
+              Baixar base
             </button>
-          )}
-          {isAdmin && (
-            <InfoHint
-              title="Como atualizar Vendas"
-              steps={[
-                'Baixe o Excel do Olist OU o PDF do Foodpro (Relatório de NFe Detalhado).',
-                'Em "Ao enviar", escolha o modo: "Só este arquivo" atualiza apenas o canal e o período do arquivo (o resto fica); "Base inteira" apaga tudo e regrava.',
-                'Clique em "Atualizar base" e selecione o arquivo.',
-              ]}
-              warn="Olist e Foodpro se somam nos mesmos indicadores. No modo padrão, cada envio mexe só no seu canal e período."
-            />
-          )}
-          <input ref={fileRef} type="file" accept=".xlsx,.xls,.pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
-          {view === 'painel' && !vazio && <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />}
-        </div>
+            {isAdmin && (
+              <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-muted" title="Como o próximo arquivo será aplicado. “Só este arquivo” substitui apenas os canais e o período do arquivo (o resto fica). “Base inteira” apaga tudo e regrava só o arquivo — use quando o arquivo for a base completa.">
+                <span className="uppercase tracking-wide">Ao enviar:</span>
+                <Toggle valor={upMode} set={setUpMode} ops={[['incremental', 'Só este arquivo'], ['full', 'Base inteira']]} />
+              </label>
+            )}
+            {isAdmin && (
+              <button
+                className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3 py-2 text-[12px] font-bold text-white shadow-brand transition hover:brightness-125 disabled:opacity-50"
+                onClick={() => fileRef.current?.click()} disabled={busy}
+                title={upMode === 'full'
+                  ? 'Substitui a BASE INTEIRA pelo arquivo enviado (apaga tudo e regrava). Pede confirmação antes.'
+                  : 'Substitui só o canal e o período do arquivo; as demais datas e canais são mantidos.'}
+              >
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 21V9" /><path d="m7 14 5-5 5 5" /><path d="M5 3h14" /></svg>
+                {busy ? 'Processando…' : 'Atualizar base'}
+              </button>
+            )}
+            {isAdmin && (
+              <InfoHint
+                title="Como atualizar Vendas"
+                steps={[
+                  'Baixe o Excel do Olist OU o PDF do Foodpro (Relatório de NFe Detalhado).',
+                  'Em "Ao enviar", escolha o modo: "Só este arquivo" atualiza apenas o canal e o período do arquivo (o resto fica); "Base inteira" apaga tudo e regrava.',
+                  'Clique em "Atualizar base" e selecione o arquivo.',
+                ]}
+                warn="Olist e Foodpro se somam nos mesmos indicadores. No modo padrão, cada envio mexe só no seu canal e período."
+              />
+            )}
+            {!vazio && <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />}
+          </div>
+        )}
+        <input ref={fileRef} type="file" accept=".xlsx,.xls,.pdf" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
       </div>
 
       {erro && <Alerta tipo="erro" texto={erro} onClose={() => setErro(null)} />}
