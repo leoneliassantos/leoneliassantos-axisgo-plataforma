@@ -907,29 +907,25 @@ function AreaFat({ serie }: { serie: { label: string; fat: number }[] }) {
   const area = `M ${xs(0)},${base} L ${pts} L ${xs(n - 1)},${base} Z`
   const showVal = n <= 14
   const stepX = Math.ceil(n / 12)
+  const corLinha = resolveColor('VITE_CHART_POSITIVO', GRAD[0])
   return (
     <div ref={ref} className="h-full w-full">
       <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }} role="img" aria-label="Faturamento no tempo">
         <defs>
           <linearGradient id="fatFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor={GRAD[1]} stopOpacity="0.32" />
-            <stop offset="1" stopColor={GRAD[5]} stopOpacity="0.03" />
-          </linearGradient>
-          <linearGradient id="fatLine" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stopColor={GRAD[4]} />
-            <stop offset="0.55" stopColor={GRAD[1]} />
-            <stop offset="1" stopColor={GRAD[0]} />
+            <stop offset="0" stopColor={corLinha} stopOpacity="0.32" />
+            <stop offset="1" stopColor={corLinha} stopOpacity="0.03" />
           </linearGradient>
         </defs>
         <line x1={padL} y1={base} x2={W - padR} y2={base} stroke="#E2E1DE" strokeWidth={1} />
         <path d={area} fill="url(#fatFill)" />
-        <polyline points={pts} fill="none" stroke="url(#fatLine)" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+        <polyline points={pts} fill="none" stroke={corLinha} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
         {serie.map((b, i) => {
           const anchor = i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'
           const lx = i === 0 ? xs(i) + 2 : i === n - 1 ? xs(i) - 2 : xs(i)
           return (
             <g key={i}>
-              <circle cx={xs(i)} cy={ys(b.fat)} r={n <= 30 ? 3 : 0} fill={gradAt(Math.floor((i / Math.max(1, n - 1)) * (GRAD.length - 1)))} />
+              <circle cx={xs(i)} cy={ys(b.fat)} r={n <= 30 ? 3 : 0} fill={corLinha} />
               {showVal && <text x={lx} y={ys(b.fat) - 8} fontSize={11} fontWeight={600} textAnchor={anchor} fill="#6B7280">{fmtCompacto(b.fat)}</text>}
               {i % stepX === 0 && <text x={xs(i)} y={H - 8} fontSize={11} textAnchor={anchor} fill="#64748B">{b.label}</text>}
             </g>
