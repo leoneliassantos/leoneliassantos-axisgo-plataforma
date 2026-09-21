@@ -1152,6 +1152,7 @@ function ProjetadoView() {
 
   const [view, setView] = useState<ViewProj>('fluxo')
   const [gran, setGran] = useState<Gran>('mes')
+  const [de, setDe] = useState('')
   const [ate, setAte] = useState('')
   const [selOrigem, setSelOrigem] = useState<Set<string> | null>(null)
   const [selCat, setSelCat] = useState<Set<string> | null>(null)
@@ -1159,6 +1160,7 @@ function ProjetadoView() {
   const [editAbertura, setEditAbertura] = useState(false)
   const [editFixos, setEditFixos] = useState(false)
 
+  useEffect(() => { setDe((prev) => prev || hoje) }, [hoje])
   useEffect(() => { setAte((prev) => prev || horizontePadrao) }, [horizontePadrao])
 
   const carregar = useCallback(async () => {
@@ -1238,6 +1240,7 @@ function ProjetadoView() {
    * (a partir do mês atual, nunca retroagindo). vencimento/ocorrência < hoje entra no bucket "Atrasado". */
   const fluxo = useMemo(() => {
     const horizonte = ate || horizontePadrao
+    const deFiltro = de || hoje
     type Ev = { date: string; valor: number; tipo: 'entrada' | 'saida'; canal: string; quem: string; categoria: string; atrasado: boolean }
     const eventos: Ev[] = []
     for (const r of rows) {
@@ -1256,7 +1259,8 @@ function ProjetadoView() {
       }
     }
     const catOk = (c: string) => selCat === null || selCat.has(c || SEM_CAT)
-    const dentro = eventos.filter((e) => e.date <= horizonte && (e.tipo === 'entrada' || catOk(e.categoria)))
+    // Atrasado sempre aparece (é um alerta, não faz parte da janela escolhida); os demais respeitam De/Até.
+    const dentro = eventos.filter((e) => (e.atrasado || (e.date >= deFiltro && e.date <= horizonte)) && (e.tipo === 'entrada' || catOk(e.categoria)))
 
     const bset = new Map<string, string>()
     for (const e of dentro) {
@@ -1302,7 +1306,7 @@ function ProjetadoView() {
       saldoInicial[c.key] = prev; saldoFinal[c.key] = prev + te - ts; prev = saldoFinal[c.key]
     }
     return { cols, entradaRows, despesaRows, totalEntradas, totalSaidas, fluxoOp, saldoInicial, saldoFinal }
-  }, [rows, fixos, ate, horizontePadrao, gran, origemOk, selCat, aberturaValor, hoje])
+  }, [rows, fixos, de, ate, horizontePadrao, gran, origemOk, selCat, aberturaValor, hoje])
 
   const kpis = useMemo(() => {
     const atrasadoRec = fluxo.entradaRows.reduce((s, r) => s + (r.vals['__atrasado__'] || 0), 0)
@@ -1315,12 +1319,15 @@ function ProjetadoView() {
 
   /* ================= TÍTULOS (lista) ================= */
   const titulosFiltrados = useMemo(() => {
+    const horizonte = ate || horizontePadrao
+    const deFiltro = de || hoje
     const catOk = (c: string) => selCat === null || selCat.has(c || SEM_CAT)
     return rows
       .filter((r) => origemOk(r.origem))
       .filter((r) => r.tipo === 'entrada' || catOk(r.categoria))
+      .filter((r) => r.vencimento < hoje || (r.vencimento >= deFiltro && r.vencimento <= horizonte))
       .sort((a, b) => a.vencimento.localeCompare(b.vencimento))
-  }, [rows, selCat, origemOk])
+  }, [rows, selCat, origemOk, de, ate, horizontePadrao, hoje])
 
   /* ---------- ações admin ---------- */
   async function handleFile(file: File) {
@@ -1454,7 +1461,9 @@ function ProjetadoView() {
 
       {!vazio && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">Horizonte até</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted" title='O que já está "Atrasado" sempre aparece, independente do período escolhido.'>Período</span>
+          <DateIn value={de || hoje} onChange={setDe} />
+          <span className="text-muted">até</span>
           <DateIn value={ate || horizontePadrao} onChange={setAte} />
           {origens.length > 1 && <MultiSelect label="Canal" opcoes={origens} value={selOrigem} onChange={setSelOrigem} />}
           {view === 'fluxo' && (
