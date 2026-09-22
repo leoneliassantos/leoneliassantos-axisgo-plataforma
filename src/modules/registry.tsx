@@ -12,6 +12,7 @@ import { OrdensProducao } from '../pages/operacoes/OrdensProducao'
 import { Acompanhamento } from '../pages/operacoes/Acompanhamento'
 import { CobrancaOficinas } from '../pages/operacoes/CobrancaOficinas'
 import { Cadastros } from '../pages/operacoes/Cadastros'
+import { CadastroClientes } from '../pages/cadastros/Clientes'
 
 /**
  * ============================================================
@@ -175,6 +176,13 @@ const icFornecedores = (
     <circle cx="17" cy="18" r="1.6" strokeWidth="1.5" />
   </>
 )
+// Cadastros (Financeiro)
+const icCadClientesEmpresas = (
+  <>
+    <rect x="4" y="3" width="16" height="18" rx="1.5" strokeWidth="1.6" />
+    <path d="M8 7h2M8 11h2M8 15h2M14 7h2M14 11h2M14 15h2M10 21v-3a2 2 0 014 0v3" strokeWidth="1.5" strokeLinecap="round" />
+  </>
+)
 // Comercial
 const icVisaoGeral = (
   <path d="M4 20V4M4 20h16M8 16v-4M12 16V8M16 16v-6" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
@@ -231,6 +239,8 @@ const TODAS_FRENTES: Frente[] = [
       { slug: 'vendas', label: 'Vendas', icon: icVendas, element: <Vendas />, optIn: true },
       // Fluxo de Caixa por títulos (Foodpro) — específico da MC (VITE_MODULES incluir "caixa").
       { slug: 'caixa', label: 'Fluxo de Caixa', icon: icCaixaTitulos, element: <Caixa />, optIn: true },
+      // Cadastros (Clientes/CNPJs/Sócios) — sob demanda, admin-only (dados pessoais dos sócios).
+      { slug: 'cad-clientes-emp', label: 'Clientes', grupo: 'Cadastros', icon: icCadClientesEmpresas, element: <CadastroClientes />, optIn: true, podeVer: (role) => role === 'admin' },
       { slug: 'dre', label: 'DRE', icon: icDre, element: <Dre /> },
       { slug: 'faturamento', label: 'Faturamento', icon: icFaturamento, element: <FaturamentoHub /> },
       { slug: 'fluxo-caixa', label: 'Fluxo de Caixa', icon: icFluxoCaixa, element: <FluxoCaixaHub /> },
