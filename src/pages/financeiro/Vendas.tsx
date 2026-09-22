@@ -37,6 +37,19 @@ const COR_PARETO_LINHA = resolveColor('VITE_CHART_NEGATIVO', '#8A3F1C')
 
 /* ------------------------------- utils ------------------------------- */
 const pad2 = (n: number) => `${n < 10 ? '0' : ''}${n}`
+const isLeap = (y: number) => (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0
+// Desloca uma data ISO em anos inteiros (delta negativo = ano anterior), usado
+// para calcular o período comparativo "mesmo intervalo do ano passado". Trata
+// 29/fev caindo num ano não bissexto (vira 28/fev).
+function shiftYear(iso: string, delta: number): string {
+  const m = (iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (!m) return ''
+  const y = +m[1] + delta, mo = +m[2]
+  let d = +m[3]
+  if (mo === 2 && d === 29 && !isLeap(y)) d = 28
+  return `${y}-${pad2(mo)}-${pad2(d)}`
+}
+const brd = (iso: string) => (iso ? iso.split('-').reverse().join('/') : '')
 function fmt0(v: number): string {
   if (Math.abs(v) < 0.5) return '0'
   return v.toLocaleString('pt-BR', { maximumFractionDigits: 0 })
@@ -345,6 +358,26 @@ export function Vendas() {
     return { faturamento, itens, pedidos, skusAtivos, ticket, serie, porCanal, porProduto, porSku, porCategoria }
   }, [rowsView, selCanais, dataDe, dataAte, gran])
 
+  // Série comparativa "mesmo período do ano anterior" pro gráfico Faturamento
+  // no tempo. Desloca De/Até em -1 ano e busca em TODAS as linhas carregadas
+  // (não em rowsView, que já está recortada pelo filtro de Ano) — senão o ano
+  // anterior nunca apareceria quando o usuário tem um ano específico selecionado.
+  const dataDeAnt = useMemo(() => shiftYear(dataDe, -1), [dataDe])
+  const dataAteAnt = useMemo(() => shiftYear(dataAte, -1), [dataAte])
+  const serieAnt = useMemo(() => {
+    if (!dataDeAnt || !dataAteAnt) return []
+    const canalOk = (c: string) => selCanais === null || selCanais.has(c)
+    const f = rows.filter((r) => r.data >= dataDeAnt && r.data <= dataAteAnt && canalOk(r.origem))
+    const bmap = new Map<string, { label: string; fat: number }>()
+    for (const r of f) {
+      const b = bucket(r.data, gran)
+      let e = bmap.get(b.key)
+      if (!e) { e = { label: b.label, fat: 0 }; bmap.set(b.key, e) }
+      e.fat += r.qtd * r.unit
+    }
+    return Array.from(bmap.keys()).sort().map((k) => bmap.get(k)!)
+  }, [rows, selCanais, dataDeAnt, dataAteAnt, gran])
+
   /* ---------- ações ---------- */
   async function baixarBase() {
     try {
@@ -439,7 +472,6 @@ export function Vendas() {
         if (!novo.length) throw new Error('nenhuma venda válida encontrada na planilha.')
       }
 
-      const brd = (iso: string) => iso.split('-').reverse().join('/')
       const fullReplace = upMode === 'full'
 
       // intervalo de datas coberto POR CANAL → substituição incremental (canal + período):
@@ -674,8 +706,14 @@ export function Vendas() {
 
           {/* Gráficos — 2 linhas que preenchem a altura */}
           <div className="grid min-h-0 flex-1 grid-cols-12 grid-rows-2 gap-2">
-            <Tile className="col-span-12 lg:col-span-5 lg:row-span-2" titulo="Faturamento no tempo" tip="Evolução do faturamento por dia, semana ou mês (escolha em “Ver por”)." onDetalhes={() => setDetalhe(detSerie())}>
-              <AreaFat serie={m.serie} />
+            <Tile
+              className="col-span-12 lg:col-span-5 lg:row-span-2"
+              titulo="Faturamento no tempo"
+              tip="Evolução do faturamento por dia, semana ou mês (escolha em “Ver por”). A linha tracejada mostra o mesmo período do ano anterior, para comparar a performance."
+              sub={serieAnt.length ? `Comparando com ${brd(dataDeAnt)} a ${brd(dataAteAnt)} (ano anterior)` : undefined}
+              onDetalhes={() => setDetalhe(detSerie())}
+            >
+              <AreaFat serie={m.serie} serieAnt={serieAnt} />
             </Tile>
 
             <Tile className="col-span-12 lg:col-span-4" titulo={`Top ${rankRot}s`} tip="O que mais fatura no período/canal. Alterne entre Categoria (agrupa itens semelhantes), Produto e SKU no botão." onDetalhes={() => setDetalhe(detRank(rank, `Top ${rankUnid}`, `Vendas - Top ${rankPor}.xlsx`, rankRot))}
@@ -880,7 +918,7 @@ function Alerta({ tipo, texto, onClose }: { tipo: 'erro' | 'ok'; texto: string; 
 }
 
 /* ------------------------------ gráficos ------------------------------ */
-function AreaFat({ serie }: { serie: { label: string; fat: number }[] }) {
+function AreaFat({ serie, serieAnt }: { serie: { label: string; fat: number }[]; serieAnt?: { label: string; fat: number }[] }) {
   const ref = useRef<HTMLDivElement>(null)
   const [dim, setDim] = useState({ w: 520, h: 300 })
   useLayoutEffect(() => {
@@ -893,53 +931,75 @@ function AreaFat({ serie }: { serie: { label: string; fat: number }[] }) {
     return () => ro.disconnect()
   }, [])
   if (!serie.length) return <div className="flex h-full items-center text-[12px] text-muted">Sem vendas no filtro.</div>
+  const temAnt = !!serieAnt && serieAnt.length > 0
   const { w: W, h: H } = dim
   const padL = 10, padR = 14, padT = 24, padB = 26
   const innerW = W - padL - padR
   const innerH = H - padT - padB
   const n = serie.length
-  const denom = Math.max(1, n - 1)
-  const vmax = Math.max(1, ...serie.map((b) => b.fat))
-  const xs = (i: number) => (n === 1 ? padL + innerW / 2 : padL + (innerW * i) / denom)
+  // A comparação alinha os baldes pela POSIÇÃO no período (1º dia/semana/mês do
+  // período atual com o 1º do ano anterior etc.), não pela data absoluta — os
+  // dois períodos raramente têm o mesmo nº de baldes na ponta (ex.: semana muda
+  // o dia da semana em que cai o início do período de um ano pro outro).
+  const nMax = Math.max(n, temAnt ? serieAnt!.length : 0)
+  const denom = Math.max(1, nMax - 1)
+  const vmax = Math.max(1, ...serie.map((b) => b.fat), ...(temAnt ? serieAnt!.map((b) => b.fat) : []))
+  const xs = (i: number) => (nMax === 1 ? padL + innerW / 2 : padL + (innerW * i) / denom)
   const ys = (v: number) => padT + innerH * (1 - v / vmax)
   const base = padT + innerH
   const pts = serie.map((b, i) => `${xs(i)},${ys(b.fat)}`).join(' ')
   const area = `M ${xs(0)},${base} L ${pts} L ${xs(n - 1)},${base} Z`
+  const ptsAnt = temAnt ? serieAnt!.map((b, i) => `${xs(i)},${ys(b.fat)}`).join(' ') : ''
   const showVal = n <= 14
-  const stepX = Math.ceil(n / 12)
+  const stepX = Math.ceil(nMax / 12)
   const corLinha = resolveColor('VITE_CHART_POSITIVO', GRAD[0])
+  const corAnt = '#9CA3AF'
   return (
-    <div ref={ref} className="h-full w-full">
-      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }} role="img" aria-label="Faturamento no tempo">
-        <defs>
-          <linearGradient id="fatFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor={corLinha} stopOpacity="0.32" />
-            <stop offset="1" stopColor={corLinha} stopOpacity="0.03" />
-          </linearGradient>
-        </defs>
-        <line x1={padL} y1={base} x2={W - padR} y2={base} stroke="#E2E1DE" strokeWidth={1} />
-        <path d={area} fill="url(#fatFill)" />
-        <polyline points={pts} fill="none" stroke={corLinha} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
-        {serie.map((b, i) => {
-          const anchor = i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'
-          const lx = i === 0 ? xs(i) + 2 : i === n - 1 ? xs(i) - 2 : xs(i)
-          return (
-            <g key={i}>
-              <circle cx={xs(i)} cy={ys(b.fat)} r={n <= 30 ? 3 : 0} fill={corLinha} />
-              {showVal && <text x={lx} y={ys(b.fat) - 8} fontSize={11} fontWeight={600} textAnchor={anchor} fill="#6B7280">{fmtCompacto(b.fat)}</text>}
-              {i % stepX === 0 && <text x={xs(i)} y={H - 8} fontSize={11} textAnchor={anchor} fill="#64748B">{b.label}</text>}
-            </g>
-          )
-        })}
-        {serie.map((b, i) => {
-          const hw = n > 1 ? innerW / (n - 1) : innerW
-          return (
-            <rect key={`h${i}`} x={Math.max(padL, xs(i) - hw / 2)} y={padT} width={hw} height={innerH} fill="transparent">
-              <title>{`${b.label}\nFaturamento: R$ ${fmt0(b.fat)}`}</title>
-            </rect>
-          )
-        })}
-      </svg>
+    <div className="flex h-full w-full flex-col">
+      {temAnt && (
+        <div className="mb-1 flex flex-none items-center gap-3 text-[10px] text-muted">
+          <span className="inline-flex items-center gap-1"><span className="inline-block h-[2px] w-3 rounded-full" style={{ background: corLinha }} />Período atual</span>
+          <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-3 border-t-2 border-dashed" style={{ borderColor: corAnt }} />Mesmo período, ano anterior</span>
+        </div>
+      )}
+      <div ref={ref} className="min-h-0 flex-1">
+        <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }} role="img" aria-label="Faturamento no tempo">
+          <defs>
+            <linearGradient id="fatFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor={corLinha} stopOpacity="0.32" />
+              <stop offset="1" stopColor={corLinha} stopOpacity="0.03" />
+            </linearGradient>
+          </defs>
+          <line x1={padL} y1={base} x2={W - padR} y2={base} stroke="#E2E1DE" strokeWidth={1} />
+          <path d={area} fill="url(#fatFill)" />
+          {temAnt && <polyline points={ptsAnt} fill="none" stroke={corAnt} strokeWidth={2} strokeDasharray="5 4" strokeLinejoin="round" strokeLinecap="round" />}
+          <polyline points={pts} fill="none" stroke={corLinha} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
+          {serie.map((b, i) => {
+            const anchor = i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'
+            const lx = i === 0 ? xs(i) + 2 : i === n - 1 ? xs(i) - 2 : xs(i)
+            return (
+              <g key={i}>
+                <circle cx={xs(i)} cy={ys(b.fat)} r={n <= 30 ? 3 : 0} fill={corLinha} />
+                {showVal && <text x={lx} y={ys(b.fat) - 8} fontSize={11} fontWeight={600} textAnchor={anchor} fill="#6B7280">{fmtCompacto(b.fat)}</text>}
+                {i % stepX === 0 && <text x={xs(i)} y={H - 8} fontSize={11} textAnchor={anchor} fill="#64748B">{b.label}</text>}
+              </g>
+            )
+          })}
+          {temAnt && serieAnt!.map((b, i) => (
+            <circle key={`a${i}`} cx={xs(i)} cy={ys(b.fat)} r={nMax <= 30 ? 2.5 : 0} fill={corAnt} />
+          ))}
+          {serie.map((b, i) => {
+            const hw = nMax > 1 ? innerW / (nMax - 1) : innerW
+            const ant = temAnt ? serieAnt![i] : undefined
+            const tip = `${b.label}\nFaturamento: R$ ${fmt0(b.fat)}` + (ant ? `\nAno anterior (${ant.label}): R$ ${fmt0(ant.fat)}` : '')
+            return (
+              <rect key={`h${i}`} x={Math.max(padL, xs(i) - hw / 2)} y={padT} width={hw} height={innerH} fill="transparent">
+                <title>{tip}</title>
+              </rect>
+            )
+          })}
+        </svg>
+      </div>
     </div>
   )
 }
