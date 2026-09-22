@@ -991,7 +991,12 @@ function AreaFat({ serie, serieAnt }: { serie: { label: string; fat: number }[];
           {serie.map((b, i) => {
             const hw = nMax > 1 ? innerW / (nMax - 1) : innerW
             const ant = temAnt ? serieAnt![i] : undefined
-            const tip = `${b.label}\nFaturamento: R$ ${fmt0(b.fat)}` + (ant ? `\nAno anterior (${ant.label}): R$ ${fmt0(ant.fat)}` : '')
+            const variacao = ant && ant.fat > 0 ? ((b.fat - ant.fat) / ant.fat) * 100 : null
+            const tip = `${b.label}\nFaturamento: R$ ${fmt0(b.fat)}`
+              + (ant ? `\n${ant.label} (ano anterior): R$ ${fmt0(ant.fat)}` : '')
+              + (variacao !== null
+                  ? `\n${variacao >= 0 ? 'Cresceu' : 'Caiu'} ${Math.abs(variacao).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% em relação a ${ant!.label}`
+                  : ant ? `\nSem vendas em ${ant.label} para comparar` : '')
             return (
               <rect key={`h${i}`} x={Math.max(padL, xs(i) - hw / 2)} y={padT} width={hw} height={innerH} fill="transparent">
                 <title>{tip}</title>
