@@ -9,12 +9,15 @@ import {
   apelidoEmpresa,
   buildDRE,
   ddlParaRows,
+  faturamentoPorMes,
   MESES,
   montarCatalogo,
   montarClassificador,
   parseRazaoAOA,
   reclassParaRows,
+  sum12,
   type ContaLinha,
+  type FaturamentoLanc,
   type GrupoDef,
   type LinhaDRE,
   type LinhaGrupo,
@@ -66,6 +69,7 @@ export function Dre() {
   const isAdmin = user?.role === 'admin'
 
   const [rows, setRows] = useState<Lanc[]>([])
+  const [fat, setFat] = useState<FaturamentoLanc[]>([])
   const [ddl, setDdl] = useState<DdlEntry[]>([])
   const [reclass, setReclass] = useState<ReclassLanc[]>([])
   const [overrides, setOverrides] = useState<Record<string, { grupo: string; subgrupo: string }>>({})
@@ -120,12 +124,13 @@ export function Dre() {
       })),
     )
     // classificação + grupos customizados + DDL (tolera tabelas ausentes = usa padrão)
-    const [cls, grp, sgp, ddlRes, rclRes] = await Promise.all([
+    const [cls, grp, sgp, ddlRes, rclRes, fatRes] = await Promise.all([
       supabase.from('dre_classificacao').select('codigo, grupo, subgrupo'),
       supabase.from('dre_grupos').select('nome, papel, ordem').order('ordem'),
       supabase.from('dre_subgrupos').select('grupo, subgrupo, ordem').order('ordem'),
       supabase.from('dre_ddl').select('empresa, socio, ano, mes, valor'),
       supabase.from('dre_reclass').select('empresa, ano, mes, origem, origem_nome, grupo, subgrupo, valor'),
+      fetchAllRows((from, to) => supabase!.from('faturamento').select('empresa, emissao, valor').range(from, to)),
     ])
     const ov: Record<string, { grupo: string; subgrupo: string }> = {}
     for (const c of cls.data ?? []) ov[(c.codigo ?? '').toString()] = { grupo: (c.grupo ?? '').toString(), subgrupo: (c.subgrupo ?? '').toString() }
@@ -149,6 +154,17 @@ export function Dre() {
       subgrupo: (r.subgrupo ?? '').toString(),
       valor: Number(r.valor) || 0,
     })))
+    setFat(
+      fatRes.error
+        ? []
+        : (fatRes.data ?? []).flatMap((r) => {
+            const iso = (r.emissao ?? '').toString()
+            const ano = Number(iso.slice(0, 4))
+            const mes = Number(iso.slice(5, 7))
+            if (!ano || !mes) return []
+            return [{ empresa: (r.empresa ?? '').toString(), ano, mes, valor: Number(r.valor) || 0 }]
+          }),
+    )
     setLoading(false)
   }, [mode])
 
@@ -231,6 +247,23 @@ export function Dre() {
     return a
   }, [mesDe, mesAte])
   const umMes = mesDe === mesAte
+  const anos = useMemo(() => [...new Set(filtro.map((r) => r.ano))].filter(Boolean).sort(), [filtro])
+
+  /* ---------- Faturamento × Repasse (linhas acima da Receita Operacional Bruta) ---------- */
+  // Faturamento = mesma base do módulo Faturamento (notas emitidas), pelo apelido da
+  // empresa selecionada. Repasse = "conta de chegada": Faturamento − Receita Operacional
+  // Bruta (não é lançado em lugar nenhum — é a diferença entre o que caiu na conta e o
+  // que de fato é receita própria).
+  const empresasFat = useMemo(() => (empresaSel === CONSOLIDADO ? null : [apelidoEmpresa(empresaSel)]), [empresaSel])
+  const fatMes = useMemo(
+    () => faturamentoPorMes(fat, { empresas: empresasFat, anos, mesDe, mesAte }),
+    [fat, empresasFat, anos, mesDe, mesAte],
+  )
+  const fatTotal = sum12(fatMes)
+  const recBrutaLinha = linhas.find((l): l is LinhaGrupo => l.tipo === 'grupo' && l.papel === 'receita_bruta')
+  const repasseMes = useMemo(() => fatMes.map((v, i) => v - (recBrutaLinha?.mes[i] ?? 0)), [fatMes, recBrutaLinha])
+  const repasseTotal = sum12(repasseMes)
+  const mostrarFaturamento = fat.length > 0
 
   /* ---------- universo de contas (para o editor de classificação) ---------- */
   const universo = useMemo<ContaUniverso[]>(() => {
@@ -309,7 +342,6 @@ export function Dre() {
       setSalvandoCls(false)
     }
   }
-  const anos = useMemo(() => [...new Set(filtro.map((r) => r.ano))].filter(Boolean).sort(), [filtro])
   // anos para o editor de DDL: todos os anos com base + os já lançados em DDL
   const anosDisponiveis = useMemo(
     () => [...new Set<number>([...rows.map((r) => r.ano), ...ddl.map((d) => d.ano), ...reclass.map((r) => r.ano)])].filter(Boolean).sort((a, b) => a - b),
@@ -641,6 +673,28 @@ export function Dre() {
                 </tr>
               </thead>
               <tbody>
+                {mostrarFaturamento && (
+                  <>
+                    <LinhaInfo
+                      label="Faturamento"
+                      mes={fatMes}
+                      total={fatTotal}
+                      view={view}
+                      mesesVis={mesesVis}
+                      tooltip="Total das notas fiscais emitidas no período (mesma base do menu Financeiro → Faturamento)."
+                    />
+                    <LinhaInfo
+                      label="Repasse"
+                      sinal="–"
+                      divisor
+                      mes={repasseMes}
+                      total={repasseTotal}
+                      view={view}
+                      mesesVis={mesesVis}
+                      tooltip="Faturamento − Receita Operacional Bruta. Parte do valor da nota que não é receita própria (repassada a terceiros)."
+                    />
+                  </>
+                )}
                 {linhas.map((l) =>
                   l.tipo === 'grupo' ? (
                     <Grupo key={l.key} l={l} view={view} mesesVis={mesesVis} open={open} toggle={toggle} />
@@ -734,6 +788,27 @@ function ContaRow({ c, view, mesesVis, nivel }: { c: ContaLinha; view: 'anual' |
     </tr>
   )
 }
+function LinhaInfo({
+  label, sinal, divisor, mes, total, view, mesesVis, tooltip,
+}: {
+  label: string
+  sinal?: '+' | '–'
+  divisor?: boolean
+  mes: number[]
+  total: number
+  view: 'anual' | 'mensal'
+  mesesVis: number[]
+  tooltip?: string
+}) {
+  return (
+    <tr className={`info${divisor ? ' divisor' : ''}`} title={tooltip}>
+      <td className="rowlabel">
+        {sinal && <span className={`op ${sinal === '+' ? 'pos' : ''}`}>({sinal})</span>} {label}
+      </td>
+      <Cells mes={mes} total={total} view={view} mesesVis={mesesVis} />
+    </tr>
+  )
+}
 function LinhaSubtotal({ l, view, mesesVis }: { l: Exclude<LinhaDRE, LinhaGrupo>; view: 'anual' | 'mensal'; mesesVis: number[] }) {
   const cls = l.tipo === 'final' ? 'result final' : l.tipo === 'result' ? 'result' : 'sub'
   return (
@@ -791,6 +866,10 @@ function ScopedStyle() {
 .dre-mod td.num{color:#1F2937}.dre-mod td.num.neg{color:#C0392B}.dre-mod td.num.zero{color:#C7C2BC}
 .dre-mod .op{display:inline-block;width:28px;color:#9aa0a6;font-weight:700}
 .dre-mod .op.pos{color:#15734F}
+/* Faturamento/Repasse — linhas informativas acima da Receita Operacional Bruta */
+.dre-mod tr.info td{background:#F7F5F2;color:#6b6560;font-weight:600;font-style:italic}
+.dre-mod tr.info td.rowlabel{background:#F7F5F2}
+.dre-mod tr.info.divisor td{border-bottom:2px solid #DBE4EF}
 /* Grupos de conta (clicáveis) */
 .dre-mod tr.grupo{cursor:pointer}
 .dre-mod tr.grupo.semdet{cursor:default}

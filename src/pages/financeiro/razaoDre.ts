@@ -222,6 +222,36 @@ export function ddlParaRows(lancs: DdlLanc[]): (RowLike & { empresa: string; ano
   return [...agg.values()]
 }
 
+/* --------------------- Faturamento × DRE (linha Repasse) --------------------- */
+// O Faturamento (notas fiscais emitidas) nem sempre é igual à Receita Bruta:
+// parte do valor da NF pode ser repasse a terceiros (não é receita da empresa).
+// Repasse não é lançado em lugar nenhum — é sempre a "conta de chegada":
+// Faturamento − Receita Operacional Bruta. As duas linhas ficam acima da
+// Receita Operacional Bruta no DRE, fora da cadeia de subtotais (informativas).
+export interface FaturamentoLanc {
+  empresa: string // apelido curto ('Batuque'/'Batux'), igual ao do módulo Faturamento
+  ano: number
+  mes: number // 1..12
+  valor: number
+}
+
+/** Soma o faturamento por mês (índice 0..11), no recorte de empresa(s)/ano(s)/período dado. */
+export function faturamentoPorMes(
+  lancs: FaturamentoLanc[],
+  opts: { empresas: string[] | null; anos: number[]; mesDe: number; mesAte: number },
+): number[] {
+  const arr = z12()
+  const empresasSet = opts.empresas ? new Set(opts.empresas) : null
+  for (const l of lancs) {
+    if (empresasSet && !empresasSet.has(l.empresa)) continue
+    if (!opts.anos.includes(l.ano)) continue
+    const m = l.mes - 1
+    if (m < opts.mesDe || m > opts.mesAte) continue
+    arr[m] += l.valor
+  }
+  return arr
+}
+
 /* ------------------- Reclassificação gerencial (de-para) ------------------- */
 // Ajuste gerencial de VALORES: move parte do valor de uma CONTA de origem
 // para outro grupo/subgrupo do DRE (destino), por empresa/ano/mês, SEM tocar
