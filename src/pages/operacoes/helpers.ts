@@ -69,6 +69,17 @@ export function daysBetween(a: string, b: string): number {
   return Math.round((db - da) / 86400000)
 }
 
+/** Nº(s) do Pedido pra exibir no resumo do painel: usa o do cabeçalho da OP
+ *  quando preenchido; senão, os números distintos já informados nos itens
+ *  (ex.: quando o Nº do Pedido só é conhecido depois e é lançado direto no
+ *  card, sem editar o cabeçalho). Assim o painel sempre espelha o que foi
+ *  cadastrado, seja na OP ou no item. */
+export function numerosPedidoResumo(ped: Pedido): string {
+  if (ped.numeroPedido) return ped.numeroPedido
+  const distintos = [...new Set(ped.produtos.map((p) => p.numeroPedido).filter(Boolean))]
+  return distintos.join(', ')
+}
+
 const PRIO_RANK: Record<Prioridade, number> = { alta: 3, media: 2, baixa: 1 }
 
 export interface ResumoPedido {

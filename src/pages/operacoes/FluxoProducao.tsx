@@ -11,7 +11,7 @@ import { MentionPicker } from '../../components/MentionPicker'
 import { criarNotificacoes } from '../../lib/notificacoes'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
 import {
-  resumoPedido, contagemPorEtapa, statusClasse, prioCor, fmtBR, fmtBRfull, hojeISO, daysBetween, itemFiltraTexto,
+  resumoPedido, contagemPorEtapa, statusClasse, prioCor, fmtBR, fmtBRfull, hojeISO, daysBetween, itemFiltraTexto, numerosPedidoResumo,
   dataValida, ANO_MIN, ANO_MAX, valorPedido, fmtBRL,
 } from './helpers'
 import {
@@ -28,7 +28,8 @@ interface MoveAlvo { produtoId: string; de: string; para: string }
 /** Texto de contexto da menção: "Uniforme · Cliente · Pedido N". */
 function contextoItem(prod: Produto | null | undefined, ped: Pedido | null | undefined): string {
   if (!prod) return ''
-  return [prod.uniformeNome, ped?.clienteNome, ped?.numeroPedido ? `Pedido ${ped.numeroPedido}` : ''].filter(Boolean).join(' · ')
+  const numPedido = prod.numeroPedido || ped?.numeroPedido
+  return [prod.uniformeNome, ped?.clienteNome, numPedido ? `Pedido ${numPedido}` : ''].filter(Boolean).join(' · ')
 }
 
 export function FluxoProducao() {
@@ -350,7 +351,10 @@ function ListaPedidos({
         if (entregaDe && (!p.dataEntrega || p.dataEntrega < entregaDe)) return false
         if (entregaAte && (!p.dataEntrega || p.dataEntrega > entregaAte)) return false
         if (t) {
-          const hay = [p.clienteNome, p.numeroProposta, ...p.produtos.map((i) => i.uniformeNome)].join(' ').toLowerCase()
+          const hay = [
+            p.clienteNome, p.numeroProposta, p.numeroPedido,
+            ...p.produtos.flatMap((i) => [i.uniformeNome, i.numeroProposta, i.numeroPedido]),
+          ].join(' ').toLowerCase()
           if (!hay.includes(t)) return false
         }
         return true
@@ -465,6 +469,7 @@ function MultiSelect({ label, opcoes, value, onChange, busca }: { label: string;
 function LinhaPedido({ ped, onAbrir, podeExcluir, onExcluir }: { ped: Pedido; onAbrir: (id: string) => void; podeExcluir: boolean; onExcluir: (ped: Pedido) => void }) {
   const r = resumoPedido(ped)
   const cont = contagemPorEtapa(ped)
+  const numPedido = numerosPedidoResumo(ped)
   const sitTxt = r.situacao === 'atrasado' ? `${r.atrasados} atrasado(s)` : r.situacao === 'aguardando' ? `${r.aguardando} aguardando` : r.situacao === 'alerta' ? `${r.alertas} em alerta` : 'No prazo'
   return (
     <div
@@ -480,7 +485,7 @@ function LinhaPedido({ ped, onAbrir, podeExcluir, onExcluir }: { ped: Pedido; on
         </div>
         <div className="mt-0.5 text-[13px] text-muted">
           {ped.numeroProposta && <>PC Cliente <b className="text-ink/80">{ped.numeroProposta}</b> · </>}
-          {ped.numeroPedido && <>Pedido <b className="text-ink/80">{ped.numeroPedido}</b> · </>}
+          {numPedido && <>Pedido <b className="text-ink/80">{numPedido}</b> · </>}
           {fmtBR(ped.dataPedido)} · <b className="text-ink/80">{r.total}</b> itens · <b className="text-ink/80">{r.totalPecas}</b> pçs · {r.entregues}/{r.total} entregues
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[13px] text-muted">
@@ -671,6 +676,7 @@ function Quadro({
   onSaveEntrega: (dataEntrega: string) => void; saving: boolean
 }) {
   const r = resumoPedido(order)
+  const numPedido = numerosPedidoResumo(order)
   const { user } = useAuth()
   const verValorVenda = user ? podeVerValorVenda(user.role) : false
   const verFinanceiro = user ? podeVerFinanceiro(user.role) : false
@@ -691,7 +697,7 @@ function Quadro({
             <div className="font-serif text-lg font-semibold leading-tight text-ink">{order.clienteNome}</div>
             <div className="text-[13px] text-muted">
               {order.numeroProposta && <>PC Cliente <b className="text-ink/80">{order.numeroProposta}</b> · </>}
-              {order.numeroPedido && <>Pedido <b className="text-ink/80">{order.numeroPedido}</b> · </>}
+              {numPedido && <>Pedido <b className="text-ink/80">{numPedido}</b> · </>}
               {r.total} itens · {r.totalPecas} pçs · {r.entregues} entregues · {r.progresso}%{verValorVenda && <> · Valor total <b className="tnum text-ink/80">{fmtBRL(valorPedido(order))}</b></>}
             </div>
             <EntregaEditavel order={order} onSalvar={onSaveEntrega} saving={saving} />

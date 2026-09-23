@@ -102,7 +102,7 @@ export function OrdensProducao() {
     for (const p of pedidos) for (const it of p.produtos) {
       out.push({
         pedidoId: p.id, produtoId: it.id, cliente: p.clienteNome, uniforme: it.uniformeNome, cor: it.corNome, tecido: it.tecidoNome, qtd: it.qtd,
-        numeroPedido: it.numeroPedido || p.numeroProposta, vendedor: it.vendedor || p.vendedor, etapaId: it.etapaId, status: it.status,
+        numeroPedido: it.numeroPedido || p.numeroPedido, vendedor: it.vendedor || p.vendedor, etapaId: it.etapaId, status: it.status,
         prioridade: it.prioridade, previsao: it.previsaoEntrega, responsavel: it.responsavel,
         excluido: p.excluido, excluidoEm: p.excluidoEm, excluidoPor: p.excluidoPor,
       })
