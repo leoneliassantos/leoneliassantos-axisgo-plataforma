@@ -44,7 +44,8 @@ export function FluxoProducao() {
   const [orderId, setOrderId] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
   const [filtroSit, setFiltroSit] = useState<StatusProd | ''>('')
-  const [filtroCliente, setFiltroCliente] = useState('')
+  const [filtroCliente, setFiltroCliente] = useState<Set<string> | null>(null)
+  const [filtroVendedor, setFiltroVendedor] = useState<Set<string> | null>(null)
   const [pedidoDe, setPedidoDe] = useState('')
   const [pedidoAte, setPedidoAte] = useState('')
   const [entregaDe, setEntregaDe] = useState('')
@@ -231,7 +232,7 @@ export function FluxoProducao() {
   }
 
   function limparFiltrosLista() {
-    setBusca(''); setFiltroSit(''); setFiltroCliente(''); setPedidoDe(''); setPedidoAte(''); setEntregaDe(''); setEntregaAte('')
+    setBusca(''); setFiltroSit(''); setFiltroCliente(null); setFiltroVendedor(null); setPedidoDe(''); setPedidoAte(''); setEntregaDe(''); setEntregaAte('')
   }
   function abrirBoard(id: string) { setSearchParams({ op: id }); setOrderId(id); setView('board'); limparFiltrosLista() }
   function voltarLista() { setSearchParams({}); setView('list'); setOrderId(null); limparFiltrosLista() }
@@ -273,6 +274,7 @@ export function FluxoProducao() {
         ? <ListaPedidos
             pedidos={pedidos} busca={busca} setBusca={setBusca} filtroSit={filtroSit} setFiltroSit={setFiltroSit}
             filtroCliente={filtroCliente} setFiltroCliente={setFiltroCliente}
+            filtroVendedor={filtroVendedor} setFiltroVendedor={setFiltroVendedor}
             pedidoDe={pedidoDe} setPedidoDe={setPedidoDe} pedidoAte={pedidoAte} setPedidoAte={setPedidoAte}
             entregaDe={entregaDe} setEntregaDe={setEntregaDe} entregaAte={entregaAte} setEntregaAte={setEntregaAte}
             onAbrir={abrirBoard} onNova={() => setShowNova(true)} isAdmin={isAdmin} onExcluir={handleExcluirPedido}
@@ -301,12 +303,14 @@ export function FluxoProducao() {
 /* =========================== Lista de Pedidos =========================== */
 function ListaPedidos({
   pedidos, busca, setBusca, filtroSit, setFiltroSit,
-  filtroCliente, setFiltroCliente, pedidoDe, setPedidoDe, pedidoAte, setPedidoAte, entregaDe, setEntregaDe, entregaAte, setEntregaAte,
+  filtroCliente, setFiltroCliente, filtroVendedor, setFiltroVendedor,
+  pedidoDe, setPedidoDe, pedidoAte, setPedidoAte, entregaDe, setEntregaDe, entregaAte, setEntregaAte,
   onAbrir, onNova, isAdmin, onExcluir,
 }: {
   pedidos: Pedido[]; busca: string; setBusca: (s: string) => void
   filtroSit: StatusProd | ''; setFiltroSit: (s: StatusProd | '') => void
-  filtroCliente: string; setFiltroCliente: (s: string) => void
+  filtroCliente: Set<string> | null; setFiltroCliente: (s: Set<string> | null) => void
+  filtroVendedor: Set<string> | null; setFiltroVendedor: (s: Set<string> | null) => void
   pedidoDe: string; setPedidoDe: (s: string) => void; pedidoAte: string; setPedidoAte: (s: string) => void
   entregaDe: string; setEntregaDe: (s: string) => void; entregaAte: string; setEntregaAte: (s: string) => void
   onAbrir: (id: string) => void; onNova: () => void; isAdmin: boolean; onExcluir: (ped: Pedido) => void
@@ -319,15 +323,18 @@ function ListaPedidos({
     [pedidos],
   )
 
-  const clientes = useMemo(() => {
-    const m = new Map<string, string>()
-    for (const p of emProducao) if (p.clienteId) m.set(p.clienteId, p.clienteNome)
-    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1]))
-  }, [emProducao])
+  const clientes = useMemo(
+    () => [...new Set(emProducao.map((p) => p.clienteNome))].filter(Boolean).sort((a, b) => a.localeCompare(b)),
+    [emProducao],
+  )
+  const vendedores = useMemo(
+    () => [...new Set(emProducao.map((p) => p.vendedor))].filter(Boolean).sort((a, b) => a.localeCompare(b)),
+    [emProducao],
+  )
 
-  const temFiltro = !!(busca || filtroSit || filtroCliente || pedidoDe || pedidoAte || entregaDe || entregaAte)
+  const temFiltro = !!(busca || filtroSit || filtroCliente || filtroVendedor || pedidoDe || pedidoAte || entregaDe || entregaAte)
   function limparFiltros() {
-    setBusca(''); setFiltroSit(''); setFiltroCliente(''); setPedidoDe(''); setPedidoAte(''); setEntregaDe(''); setEntregaAte('')
+    setBusca(''); setFiltroSit(''); setFiltroCliente(null); setFiltroVendedor(null); setPedidoDe(''); setPedidoAte(''); setEntregaDe(''); setEntregaAte('')
   }
 
   const visiveis = useMemo(() => {
@@ -336,7 +343,8 @@ function ListaPedidos({
       .filter((p) => {
         const r = resumoPedido(p)
         if (filtroSit && r.situacao !== filtroSit) return false
-        if (filtroCliente && p.clienteId !== filtroCliente) return false
+        if (filtroCliente && !filtroCliente.has(p.clienteNome)) return false
+        if (filtroVendedor && !filtroVendedor.has(p.vendedor)) return false
         if (pedidoDe && p.dataPedido < pedidoDe) return false
         if (pedidoAte && p.dataPedido > pedidoAte) return false
         if (entregaDe && (!p.dataEntrega || p.dataEntrega < entregaDe)) return false
@@ -348,7 +356,7 @@ function ListaPedidos({
         return true
       })
       .sort((a, b) => b.dataPedido.localeCompare(a.dataPedido))
-  }, [emProducao, busca, filtroSit, filtroCliente, pedidoDe, pedidoAte, entregaDe, entregaAte])
+  }, [emProducao, busca, filtroSit, filtroCliente, filtroVendedor, pedidoDe, pedidoAte, entregaDe, entregaAte])
 
   const selCls = 'rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-ink/40 focus:outline-none'
   const dateCls = 'rounded-lg border border-line bg-surface px-2.5 py-2 text-sm text-ink focus:border-ink/40 focus:outline-none'
@@ -362,10 +370,8 @@ function ListaPedidos({
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"><circle cx="11" cy="11" r="7" strokeWidth="1.8" /><path d="M21 21l-4-4" strokeWidth="1.8" strokeLinecap="round" /></svg>
               <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por cliente, pedido ou uniforme…" className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm text-ink focus:border-ink/40 focus:outline-none" />
             </div>
-            <select value={filtroCliente} onChange={(e) => setFiltroCliente(e.target.value)} className={selCls}>
-              <option value="">Todos os clientes</option>
-              {clientes.map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
-            </select>
+            {clientes.length > 1 && <MultiSelect label="Cliente" opcoes={clientes} value={filtroCliente} onChange={setFiltroCliente} busca />}
+            {vendedores.length > 1 && <MultiSelect label="Vendedor" opcoes={vendedores} value={filtroVendedor} onChange={setFiltroVendedor} />}
             <select value={filtroSit} onChange={(e) => setFiltroSit(e.target.value as StatusProd | '')} className={selCls}>
               <option value="">Todas as situações</option>
               <option value="ok">No prazo</option><option value="atrasado">Atrasado</option>
@@ -404,6 +410,53 @@ function ListaPedidos({
         <div className="flex flex-col gap-2.5">
           {visiveis.map((p) => <LinhaPedido key={p.id} ped={p} onAbrir={onAbrir} isAdmin={isAdmin} onExcluir={onExcluir} />)}
         </div>
+      )}
+    </div>
+  )
+}
+
+/** Filtro combinado (checkboxes) — `value=null` significa "todas as opções". */
+function MultiSelect({ label, opcoes, value, onChange, busca }: { label: string; opcoes: string[]; value: Set<string> | null; onChange: (s: Set<string> | null) => void; busca?: boolean }) {
+  const [open, setOpen] = useState(false)
+  const [q, setQ] = useState('')
+  const isAll = value === null
+  const has = (c: string) => isAll || value!.has(c)
+  const count = isAll ? opcoes.length : value!.size
+  const vis = busca && q.trim() ? opcoes.filter((c) => c.toLowerCase().includes(q.trim().toLowerCase())) : opcoes
+  function toggle(c: string) {
+    const base = isAll ? new Set(opcoes) : new Set(value!)
+    if (base.has(c)) base.delete(c); else base.add(c)
+    onChange(base.size === opcoes.length ? null : base)
+  }
+  return (
+    <div className="relative text-sm">
+      <button type="button" onClick={() => setOpen((o) => !o)} className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-2 font-medium text-ink transition hover:bg-paper">
+        <span className="text-muted">{label}</span>
+        <b>{isAll ? 'Todos' : `${count}/${opcoes.length}`}</b>
+        <span className="text-[9px] text-muted">▼</span>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute left-0 top-10 z-50 max-h-[340px] w-56 overflow-hidden rounded-lg border border-line bg-white p-2 shadow-xl">
+            <div className="mb-1 flex gap-2 border-b border-line pb-1.5">
+              <button type="button" className="rounded px-2 py-0.5 text-[11px] font-semibold text-ink hover:bg-paper" onClick={() => onChange(null)}>Todos</button>
+              <button type="button" className="rounded px-2 py-0.5 text-[11px] font-semibold text-muted hover:bg-paper" onClick={() => onChange(new Set())}>Nenhum</button>
+            </div>
+            {busca && (
+              <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar…" className="mb-1 w-full rounded border border-line px-2 py-1 text-[12px] outline-none focus:border-ink/40" />
+            )}
+            <div className="max-h-[264px] overflow-auto">
+              {vis.map((c) => (
+                <label key={c} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 hover:bg-paper">
+                  <input type="checkbox" checked={has(c)} onChange={() => toggle(c)} className="accent-ink" />
+                  <span className="truncate" title={c}>{c}</span>
+                </label>
+              ))}
+              {!vis.length && <div className="px-1.5 py-2 text-[11px] text-muted">Nada encontrado.</div>}
+            </div>
+          </div>
+        </>
       )}
     </div>
   )

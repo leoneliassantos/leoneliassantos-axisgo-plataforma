@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
 import { FiltrosToggle } from '../../components/FiltrosToggle'
-import { fmtBR, statusClasse, prioCor } from './helpers'
+import { fmtBR, statusClasse, prioCor, ANO_MIN, ANO_MAX } from './helpers'
 import { loadPedidos, excluirPedido, reativarPedido, etapaLabel, ETAPAS, STATUS_LABEL, PRIO_LABEL, type Pedido, type StatusProd } from './data'
 
 interface LinhaProduto {
@@ -14,6 +14,7 @@ interface LinhaProduto {
   tecido: string
   qtd: number
   numeroPedido: string
+  vendedor: string
   etapaId: string
   status: StatusProd
   prioridade: 'alta' | 'media' | 'baixa'
@@ -22,6 +23,12 @@ interface LinhaProduto {
   excluido: boolean
   excluidoEm: string
   excluidoPor: string
+}
+
+/** Valores distintos e não-vazios de um campo, ordenados alfabeticamente. */
+function opcoesDistintas<T>(itens: T[], campo: (item: T) => string): string[] {
+  const set = new Set(itens.map(campo).filter(Boolean))
+  return [...set].sort((a, b) => a.localeCompare(b))
 }
 
 const SIT_EXCLUIDO = 'Excluído'
@@ -41,6 +48,10 @@ export function OrdensProducao() {
   const [busca, setBusca] = useState('')
   const [filtroEtapa, setFiltroEtapa] = useState('')
   const [filtroSit, setFiltroSit] = useState<Set<string> | null>(null)
+  const [filtroCliente, setFiltroCliente] = useState<Set<string> | null>(null)
+  const [filtroVendedor, setFiltroVendedor] = useState<Set<string> | null>(null)
+  const [previsaoDe, setPrevisaoDe] = useState('')
+  const [previsaoAte, setPrevisaoAte] = useState('')
   const [excluindo, setExcluindo] = useState(false)
   const [filtrosAbertos, setFiltrosAbertos] = useState(true)
 
@@ -90,7 +101,7 @@ export function OrdensProducao() {
     for (const p of pedidos) for (const it of p.produtos) {
       out.push({
         pedidoId: p.id, produtoId: it.id, cliente: p.clienteNome, uniforme: it.uniformeNome, cor: it.corNome, tecido: it.tecidoNome, qtd: it.qtd,
-        numeroPedido: it.numeroPedido || p.numeroProposta, etapaId: it.etapaId, status: it.status,
+        numeroPedido: it.numeroPedido || p.numeroProposta, vendedor: it.vendedor || p.vendedor, etapaId: it.etapaId, status: it.status,
         prioridade: it.prioridade, previsao: it.previsaoEntrega, responsavel: it.responsavel,
         excluido: p.excluido, excluidoEm: p.excluidoEm, excluidoPor: p.excluidoPor,
       })
@@ -98,15 +109,27 @@ export function OrdensProducao() {
     return out
   }, [pedidos])
 
+  const clientesOpcoes = useMemo(() => opcoesDistintas(linhas, (l) => l.cliente), [linhas])
+  const vendedoresOpcoes = useMemo(() => opcoesDistintas(linhas, (l) => l.vendedor), [linhas])
+
   const visiveis = useMemo(() => {
     const t = busca.trim().toLowerCase()
     return linhas.filter((l) => {
       if (filtroEtapa && l.etapaId !== filtroEtapa) return false
       if (filtroSit && !filtroSit.has(situacaoLabel(l))) return false
+      if (filtroCliente && !filtroCliente.has(l.cliente)) return false
+      if (filtroVendedor && !filtroVendedor.has(l.vendedor)) return false
+      if (previsaoDe && (!l.previsao || l.previsao < previsaoDe)) return false
+      if (previsaoAte && (!l.previsao || l.previsao > previsaoAte)) return false
       if (t && ![l.cliente, l.uniforme, l.cor, l.tecido, l.numeroPedido].join(' ').toLowerCase().includes(t)) return false
       return true
     })
-  }, [linhas, busca, filtroEtapa, filtroSit])
+  }, [linhas, busca, filtroEtapa, filtroSit, filtroCliente, filtroVendedor, previsaoDe, previsaoAte])
+
+  const temFiltro = !!(busca || filtroEtapa || filtroSit || filtroCliente || filtroVendedor || previsaoDe || previsaoAte)
+  function limparFiltros() {
+    setBusca(''); setFiltroEtapa(''); setFiltroSit(null); setFiltroCliente(null); setFiltroVendedor(null); setPrevisaoDe(''); setPrevisaoAte('')
+  }
 
   if (loading) return <div className="py-20 text-center text-muted">Carregando…</div>
   if (erro) return <div className="mx-auto mt-10 max-w-lg rounded-xl border border-neg/30 bg-neg/5 p-5 text-center text-neg">{erro}</div>
@@ -139,21 +162,32 @@ export function OrdensProducao() {
               {ETAPAS.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}
             </select>
             <MultiSelect label="Situação" opcoes={SITUACAO_OPCOES} value={filtroSit} onChange={setFiltroSit} />
+            {clientesOpcoes.length > 1 && <MultiSelect label="Cliente" opcoes={clientesOpcoes} value={filtroCliente} onChange={setFiltroCliente} busca />}
+            {vendedoresOpcoes.length > 1 && <MultiSelect label="Vendedor" opcoes={vendedoresOpcoes} value={filtroVendedor} onChange={setFiltroVendedor} />}
             <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />
+          </div>
+          <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted">
+            <div className="flex items-center gap-1.5">
+              <span>Previsão de entrega:</span>
+              <input type="date" value={previsaoDe} onChange={(e) => setPrevisaoDe(e.target.value)} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`} className="rounded-lg border border-line bg-surface px-2.5 py-2 text-sm text-ink focus:border-ink/40 focus:outline-none" />
+              <span>até</span>
+              <input type="date" value={previsaoAte} onChange={(e) => setPrevisaoAte(e.target.value)} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`} className="rounded-lg border border-line bg-surface px-2.5 py-2 text-sm text-ink focus:border-ink/40 focus:outline-none" />
+            </div>
+            {temFiltro && <button type="button" onClick={limparFiltros} className="font-medium text-ink hover:underline">Limpar filtros</button>}
           </div>
           <p className="mb-3 text-[12px] text-muted">Clique numa linha para abrir o fluxo do pedido, ou use o lápis para alterar todos os dados do item.</p>
         </>
       )}
 
       {visiveis.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-line bg-surface p-12 text-center text-muted">Nenhum item {busca || filtroEtapa || filtroSit ? 'com esse filtro' : 'ainda'}.</div>
+        <div className="rounded-2xl border border-dashed border-line bg-surface p-12 text-center text-muted">Nenhum item {temFiltro ? 'com esse filtro' : 'ainda'}.</div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-line bg-surface">
           <table className="w-full border-collapse">
             <thead>
               <tr>
                 <th className={th}>Cliente</th><th className={th}>Uniforme</th><th className={th}>Cor</th><th className={th}>Tecido</th>
-                <th className={`${th} text-right`}>Qtd</th><th className={th}>Nº Pedido</th><th className={th}>Etapa atual</th>
+                <th className={`${th} text-right`}>Qtd</th><th className={th}>Nº Pedido</th><th className={th}>Vendedor</th><th className={th}>Etapa atual</th>
                 <th className={th}>Situação</th><th className={th}>Prioridade</th><th className={th}>Previsão</th><th className={th}>Resp.</th>
                 <th className={`${th} text-right`}>Ações</th>
               </tr>
@@ -172,6 +206,7 @@ export function OrdensProducao() {
                   <td className={td}>{l.tecido || '—'}</td>
                   <td className={`${td} tnum text-right`}>{l.qtd}</td>
                   <td className={`${td} text-muted`}>{l.numeroPedido || '—'}</td>
+                  <td className={`${td} text-muted`}>{l.vendedor || '—'}</td>
                   <td className={td}>{etapaLabel(l.etapaId)}</td>
                   <td className={td}>
                     {l.excluido
@@ -234,11 +269,13 @@ export function OrdensProducao() {
 }
 
 /** Filtro combinado (checkboxes) — `value=null` significa "todas as opções". */
-function MultiSelect({ label, opcoes, value, onChange }: { label: string; opcoes: string[]; value: Set<string> | null; onChange: (s: Set<string> | null) => void }) {
+function MultiSelect({ label, opcoes, value, onChange, busca }: { label: string; opcoes: string[]; value: Set<string> | null; onChange: (s: Set<string> | null) => void; busca?: boolean }) {
   const [open, setOpen] = useState(false)
+  const [q, setQ] = useState('')
   const isAll = value === null
   const has = (c: string) => isAll || value!.has(c)
   const count = isAll ? opcoes.length : value!.size
+  const vis = busca && q.trim() ? opcoes.filter((c) => c.toLowerCase().includes(q.trim().toLowerCase())) : opcoes
   function toggle(c: string) {
     const base = isAll ? new Set(opcoes) : new Set(value!)
     if (base.has(c)) base.delete(c); else base.add(c)
@@ -254,17 +291,23 @@ function MultiSelect({ label, opcoes, value, onChange }: { label: string; opcoes
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-10 z-50 max-h-[340px] w-56 overflow-auto rounded-lg border border-line bg-white p-2 shadow-xl">
+          <div className="absolute left-0 top-10 z-50 max-h-[340px] w-56 overflow-hidden rounded-lg border border-line bg-white p-2 shadow-xl">
             <div className="mb-1 flex gap-2 border-b border-line pb-1.5">
               <button type="button" className="rounded px-2 py-0.5 text-[11px] font-semibold text-ink hover:bg-paper" onClick={() => onChange(null)}>Todas</button>
               <button type="button" className="rounded px-2 py-0.5 text-[11px] font-semibold text-muted hover:bg-paper" onClick={() => onChange(new Set())}>Nenhuma</button>
             </div>
-            {opcoes.map((c) => (
-              <label key={c} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 hover:bg-paper">
-                <input type="checkbox" checked={has(c)} onChange={() => toggle(c)} className="accent-ink" />
-                <span className="truncate">{c}</span>
-              </label>
-            ))}
+            {busca && (
+              <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar…" className="mb-1 w-full rounded border border-line px-2 py-1 text-[12px] outline-none focus:border-ink/40" />
+            )}
+            <div className="max-h-[264px] overflow-auto">
+              {vis.map((c) => (
+                <label key={c} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 hover:bg-paper">
+                  <input type="checkbox" checked={has(c)} onChange={() => toggle(c)} className="accent-ink" />
+                  <span className="truncate" title={c}>{c}</span>
+                </label>
+              ))}
+              {!vis.length && <div className="px-1.5 py-2 text-[11px] text-muted">Nada encontrado.</div>}
+            </div>
           </div>
         </>
       )}
