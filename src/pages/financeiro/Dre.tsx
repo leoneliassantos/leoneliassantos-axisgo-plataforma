@@ -3,6 +3,7 @@ import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { ModuloTopo } from '../../components/ModuloTopo'
 import { InfoHint } from '../../components/InfoHint'
+import { FiltrosToggle } from '../../components/FiltrosToggle'
 import { readFirstSheetAOA } from '../../lib/xls'
 import { resolveKpiGradient } from '../../lib/chartPalette'
 import {
@@ -80,6 +81,7 @@ export function Dre() {
   const [mesAte, setMesAte] = useState(11)
   const [semEquiv, setSemEquiv] = useState(true)
   const [ocultarFat, setOcultarFat] = useState(false)
+  const [filtrosAbertos, setFiltrosAbertos] = useState(true)
   const [view, setView] = useState<'anual' | 'mensal'>('mensal')
   // Resultado: 'gerencial' inclui o DDL dos sócios · 'contabil' remove só o DDL
   // (mantém as reclassificações), reproduzindo o resultado da contabilidade.
@@ -480,13 +482,18 @@ export function Dre() {
       <ModuloTopo>
       {/* Cabeçalho do módulo */}
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="font-serif text-base font-semibold text-ink">DRE — Demonstração do Resultado</h2>
-          <p className="text-[12px] text-muted">
-            Regime de competência · a partir do Razão Contábil{anos.length ? ` · ${anos.join('/')}` : ''} · negativos entre parênteses
-          </p>
+        <div className="flex items-end gap-2">
+          <div>
+            <h2 className="font-serif text-base font-semibold text-ink">DRE — Demonstração do Resultado</h2>
+            {filtrosAbertos && (
+              <p className="text-[12px] text-muted">
+                Regime de competência · a partir do Razão Contábil{anos.length ? ` · ${anos.join('/')}` : ''} · negativos entre parênteses
+              </p>
+            )}
+          </div>
+          {!filtrosAbertos && !vazio && <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />}
         </div>
-        {modo === 'dre' && (
+        {modo === 'dre' && filtrosAbertos && (
           <div className="flex flex-wrap items-end gap-2">
             {isAdmin && (
               <button
@@ -548,9 +555,10 @@ export function Dre() {
                 warn="Cada envio atualiza o Razão da empresa do arquivo. Seus ajustes e classificações (de-para) são preservados."
               />
             )}
-            <input ref={fileRef} type="file" accept=".xls,.xlsx" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
+            {!vazio && <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />}
           </div>
         )}
+        <input ref={fileRef} type="file" accept=".xls,.xlsx" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
       </div>
 
         {modo === 'dre' && (
@@ -562,7 +570,7 @@ export function Dre() {
           </div>
         )}
 
-        {modo === 'dre' && !vazio && (
+        {modo === 'dre' && !vazio && filtrosAbertos && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface px-4 py-2.5">
             {/* seletor de empresa */}
             <div className="seg flex-wrap">
