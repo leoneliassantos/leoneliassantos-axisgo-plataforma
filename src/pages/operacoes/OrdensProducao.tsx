@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
+import { podeExcluirProducao } from '../../auth/types'
 import { FiltrosToggle } from '../../components/FiltrosToggle'
 import { fmtBR, statusClasse, prioCor, ANO_MIN, ANO_MAX } from './helpers'
 import { loadPedidos, excluirPedido, reativarPedido, etapaLabel, ETAPAS, STATUS_LABEL, PRIO_LABEL, type Pedido, type StatusProd } from './data'
@@ -41,7 +42,7 @@ function situacaoLabel(l: LinhaProduto): string {
 export function OrdensProducao() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const isAdmin = user?.role === 'admin'
+  const podeExcluir = user ? podeExcluirProducao(user.role) : false
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const [pedidos, setPedidos] = useState<Pedido[]>([])
@@ -74,7 +75,7 @@ export function OrdensProducao() {
 
   async function excluirOP(e: React.MouseEvent, l: LinhaProduto) {
     e.stopPropagation()
-    if (!isAdmin) return
+    if (!podeExcluir) return
     const ped = pedidos.find((p) => p.id === l.pedidoId)
     const n = ped?.produtos.length ?? 1
     const ok = window.confirm(`Excluir a Ordem de Produção de "${l.cliente || 'cliente'}"?\n\nIsso remove a OP e todos os seus ${n} ${n === 1 ? 'item' : 'itens'} do Fluxo de Produção. Ela continua aparecendo aqui em Ordens de Produção com a situação "Excluído", e pode ser reativada a qualquer momento.`)
@@ -87,7 +88,7 @@ export function OrdensProducao() {
 
   async function reativarOP(e: React.MouseEvent, l: LinhaProduto) {
     e.stopPropagation()
-    if (!isAdmin) return
+    if (!podeExcluir) return
     const ok = window.confirm(`Reativar a Ordem de Produção de "${l.cliente || 'cliente'}"?\n\nEla volta a aparecer normalmente no Fluxo de Produção.`)
     if (!ok) return
     setExcluindo(true)
@@ -219,7 +220,7 @@ export function OrdensProducao() {
                   <td className={`${td} text-right`}>
                     <div className="flex items-center justify-end gap-1">
                       {l.excluido ? (
-                        isAdmin && (
+                        podeExcluir && (
                           <button
                             type="button"
                             onClick={(e) => reativarOP(e, l)}
@@ -242,7 +243,7 @@ export function OrdensProducao() {
                           >
                             <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"><path d="M4 20h4L18.5 9.5a2.1 2.1 0 0 0-3-3L5 17v3z" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /><path d="M13.5 6.5l3 3" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
                           </button>
-                          {isAdmin && (
+                          {podeExcluir && (
                             <button
                               type="button"
                               onClick={(e) => excluirOP(e, l)}

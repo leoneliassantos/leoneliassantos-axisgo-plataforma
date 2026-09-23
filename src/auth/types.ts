@@ -36,6 +36,10 @@ export function podeVerValorFornecedor(role: Role): boolean {
 export function podeVerFinanceiro(role: Role): boolean {
   return role === 'admin' || role === 'diretoria'
 }
+/** Excluir/reativar OP e excluir item de produção — Admin e Diretoria (legado 'user' também). */
+export function podeExcluirProducao(role: Role): boolean {
+  return role === 'admin' || role === 'diretoria' || role === 'user'
+}
 
 export interface AppUser {
   id: string

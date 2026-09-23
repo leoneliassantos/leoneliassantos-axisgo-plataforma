@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useAuth } from '../../auth/AuthContext'
-import { podeVerFinanceiro } from '../../auth/types'
+import { podeVerFinanceiro, podeExcluirProducao } from '../../auth/types'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
 import { NfResumo } from './NotaFiscal'
 import { MentionPicker } from '../../components/MentionPicker'
@@ -50,7 +50,7 @@ export function ItemModal({
   onClose: () => void
 }) {
   const { user } = useAuth()
-  const isAdmin = user?.role === 'admin'
+  const podeExcluir = user ? podeExcluirProducao(user.role) : false
   const verFinanceiro = user ? podeVerFinanceiro(user.role) : false
   const abas: Array<'detalhes' | 'mov' | 'financeiro'> = verFinanceiro ? ['detalhes', 'mov', 'financeiro'] : ['detalhes', 'mov']
   const [aba, setAba] = useState<'detalhes' | 'mov' | 'financeiro'>('detalhes')
@@ -164,13 +164,13 @@ export function ItemModal({
       footer={
         aba === 'detalhes' ? (
           <>
-            {isAdmin && <button type="button" onClick={onDelete} disabled={saving} className="mr-auto text-sm font-medium text-neg hover:brightness-125 disabled:opacity-50">Excluir item</button>}
+            {podeExcluir && <button type="button" onClick={onDelete} disabled={saving} className="mr-auto text-sm font-medium text-neg hover:brightness-125 disabled:opacity-50">Excluir item</button>}
             <BtnGhost onClick={onClose} disabled={saving}>Fechar</BtnGhost>
             <BtnPrimary onClick={salvar} disabled={saving}>{saving ? 'Salvando…' : 'Salvar alterações'}</BtnPrimary>
           </>
         ) : (
           <>
-            {isAdmin && <button type="button" onClick={onDelete} disabled={saving} className="mr-auto text-sm font-medium text-neg hover:brightness-125 disabled:opacity-50">Excluir item</button>}
+            {podeExcluir && <button type="button" onClick={onDelete} disabled={saving} className="mr-auto text-sm font-medium text-neg hover:brightness-125 disabled:opacity-50">Excluir item</button>}
             <BtnGhost onClick={onClose}>Fechar</BtnGhost>
           </>
         )

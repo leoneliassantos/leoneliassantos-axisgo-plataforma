@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
-import { podeVerValorVenda, podeVerFinanceiro } from '../../auth/types'
+import { podeVerValorVenda, podeVerFinanceiro, podeExcluirProducao } from '../../auth/types'
 import { FiltrosToggle } from '../../components/FiltrosToggle'
 import { NovaOP } from './NovaOP'
 import { NovoItem } from './NovoItem'
@@ -34,7 +34,7 @@ function contextoItem(prod: Produto | null | undefined, ped: Pedido | null | und
 export function FluxoProducao() {
   const { user } = useAuth()
   const usuario = user?.nome || user?.email || ''
-  const isAdmin = user?.role === 'admin'
+  const podeExcluir = user ? podeExcluirProducao(user.role) : false
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const [cadastros, setCadastros] = useState<Cadastros>(CADASTROS_VAZIO)
@@ -190,7 +190,7 @@ export function FluxoProducao() {
   }
 
   async function handleExcluirPedido(ped: Pedido) {
-    if (!isAdmin) return
+    if (!podeExcluir) return
     const n = ped.produtos.length
     const ok = window.confirm(`Excluir a Ordem de Produção de "${ped.clienteNome || 'cliente'}"?\n\nIsso remove a OP e todos os seus ${n} ${n === 1 ? 'item' : 'itens'} do Fluxo de Produção. Ela continua aparecendo em Ordens de Produção com a situação "Excluído", e pode ser reativada a qualquer momento.`)
     if (!ok) return
@@ -277,7 +277,7 @@ export function FluxoProducao() {
             filtroVendedor={filtroVendedor} setFiltroVendedor={setFiltroVendedor}
             pedidoDe={pedidoDe} setPedidoDe={setPedidoDe} pedidoAte={pedidoAte} setPedidoAte={setPedidoAte}
             entregaDe={entregaDe} setEntregaDe={setEntregaDe} entregaAte={entregaAte} setEntregaAte={setEntregaAte}
-            onAbrir={abrirBoard} onNova={() => setShowNova(true)} isAdmin={isAdmin} onExcluir={handleExcluirPedido}
+            onAbrir={abrirBoard} onNova={() => setShowNova(true)} podeExcluir={podeExcluir} onExcluir={handleExcluirPedido}
           />
         : currentOrder && <Quadro order={currentOrder} busca={busca} setBusca={setBusca} onVoltar={voltarLista} onAbrirItem={setItemId} onAddItem={() => setAddItemOpId(currentOrder.id)} onAbrirNf={() => setShowNf(true)} dragId={dragId} onSoltar={pedirMove} onSaveEntrega={handleSaveEntrega} saving={saving} />}
 
@@ -305,7 +305,7 @@ function ListaPedidos({
   pedidos, busca, setBusca, filtroSit, setFiltroSit,
   filtroCliente, setFiltroCliente, filtroVendedor, setFiltroVendedor,
   pedidoDe, setPedidoDe, pedidoAte, setPedidoAte, entregaDe, setEntregaDe, entregaAte, setEntregaAte,
-  onAbrir, onNova, isAdmin, onExcluir,
+  onAbrir, onNova, podeExcluir, onExcluir,
 }: {
   pedidos: Pedido[]; busca: string; setBusca: (s: string) => void
   filtroSit: StatusProd | ''; setFiltroSit: (s: StatusProd | '') => void
@@ -313,7 +313,7 @@ function ListaPedidos({
   filtroVendedor: Set<string> | null; setFiltroVendedor: (s: Set<string> | null) => void
   pedidoDe: string; setPedidoDe: (s: string) => void; pedidoAte: string; setPedidoAte: (s: string) => void
   entregaDe: string; setEntregaDe: (s: string) => void; entregaAte: string; setEntregaAte: (s: string) => void
-  onAbrir: (id: string) => void; onNova: () => void; isAdmin: boolean; onExcluir: (ped: Pedido) => void
+  onAbrir: (id: string) => void; onNova: () => void; podeExcluir: boolean; onExcluir: (ped: Pedido) => void
 }) {
   const [filtrosAbertos, setFiltrosAbertos] = useState(true)
 
@@ -408,7 +408,7 @@ function ListaPedidos({
         </div>
       ) : (
         <div className="flex flex-col gap-2.5">
-          {visiveis.map((p) => <LinhaPedido key={p.id} ped={p} onAbrir={onAbrir} isAdmin={isAdmin} onExcluir={onExcluir} />)}
+          {visiveis.map((p) => <LinhaPedido key={p.id} ped={p} onAbrir={onAbrir} podeExcluir={podeExcluir} onExcluir={onExcluir} />)}
         </div>
       )}
     </div>
@@ -462,7 +462,7 @@ function MultiSelect({ label, opcoes, value, onChange, busca }: { label: string;
   )
 }
 
-function LinhaPedido({ ped, onAbrir, isAdmin, onExcluir }: { ped: Pedido; onAbrir: (id: string) => void; isAdmin: boolean; onExcluir: (ped: Pedido) => void }) {
+function LinhaPedido({ ped, onAbrir, podeExcluir, onExcluir }: { ped: Pedido; onAbrir: (id: string) => void; podeExcluir: boolean; onExcluir: (ped: Pedido) => void }) {
   const r = resumoPedido(ped)
   const cont = contagemPorEtapa(ped)
   const sitTxt = r.situacao === 'atrasado' ? `${r.atrasados} atrasado(s)` : r.situacao === 'aguardando' ? `${r.aguardando} aguardando` : r.situacao === 'alerta' ? `${r.alertas} em alerta` : 'No prazo'
@@ -506,7 +506,7 @@ function LinhaPedido({ ped, onAbrir, isAdmin, onExcluir }: { ped: Pedido; onAbri
       </div>
 
       <div className="flex items-center justify-end gap-3">
-        {isAdmin && (
+        {podeExcluir && (
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); onExcluir(ped) }}
