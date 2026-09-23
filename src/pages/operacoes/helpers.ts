@@ -129,6 +129,35 @@ export function temposPorEtapa(prod: Produto, dataInicial: string, hoje: string)
   return tempos
 }
 
+/**
+ * Data de entrada e de saída de cada etapa que o item já ocupou, derivadas da
+ * mesma movimentação usada em temposPorEtapa (cobre etapas puladas — se o card
+ * pulou direto de uma etapa pra outra, a "pulada" nunca aparece aqui). Saída de
+ * uma etapa e entrada da seguinte são sempre a MESMA data (a que o usuário
+ * escolheu ao confirmar o movimento) — nunca recalculada. Sem saída = ainda não
+ * saiu (é a etapa atual). Etapa nunca visitada não entra no resultado.
+ */
+export function datasPorEtapa(prod: Produto, dataInicial: string): Record<string, { entrada: string; saida?: string }> {
+  const out: Record<string, { entrada: string; saida?: string }> = {}
+  const moves = prod.historico
+    .filter((h) => h.kind === 'mov' && h.etapaDe && h.etapaPara)
+    .slice()
+    .sort((a, b) => a.data.localeCompare(b.data))
+
+  if (moves.length === 0) {
+    out[prod.etapaId] = { entrada: dataInicial }
+    return out
+  }
+  let etapaAtual = moves[0].etapaDe as string
+  out[etapaAtual] = { entrada: dataInicial || moves[0].data }
+  for (const m of moves) {
+    out[etapaAtual] = { ...out[etapaAtual], saida: m.data }
+    etapaAtual = m.etapaPara as string
+    out[etapaAtual] = { entrada: m.data }
+  }
+  return out
+}
+
 /** Etapa em que o item mais tempo ficou (o gargalo). Null se não houver dados. */
 export function etapaGargalo(tempos: Record<string, number>): { etapaId: string; dias: number } | null {
   const ids = Object.keys(tempos)
