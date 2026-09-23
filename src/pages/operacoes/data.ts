@@ -186,6 +186,9 @@ export interface Pedido {
   observacao: string
   nfs: Nf[]
   produtos: Produto[]
+  excluido: boolean
+  excluidoEm: string // YYYY-MM-DD | ''
+  excluidoPor: string
 }
 
 export interface Cadastros {
@@ -230,6 +233,13 @@ export interface NovoPedidoInput {
 }
 
 export const isDemo = !isSupabaseConfigured
+
+/** ISO (YYYY-MM-DD) do dia de hoje, no fuso local. */
+function hojeISOLocal(): string {
+  const d = new Date()
+  const p = (n: number) => `${n < 10 ? '0' : ''}${n}`
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
 
 /** Dias entre hoje (00h local) e uma data ISO (alvo - hoje). Vazio → 0. */
 function diasAte(iso: string): number {
@@ -410,13 +420,17 @@ export async function setBloqueado(tabela: TabelaCadastro, id: string, bloqueado
   if (error) throw new Error(error.message)
 }
 
-export async function loadPedidos(): Promise<Pedido[]> {
+/** Carrega os pedidos. Por padrão NÃO traz os excluídos (soft-deleted) — passe
+ *  `incluirExcluidos: true` só na tela de Ordens de Produção, que precisa exibi-los
+ *  com a opção de Reativar. */
+export async function loadPedidos(opts?: { incluirExcluidos?: boolean }): Promise<Pedido[]> {
   if (isDemo) {
-    return demoLoad().pedidos.map((ped) => {
+    return demoLoad().pedidos.filter((p) => opts?.incluirExcluidos || !p.excluido).map((ped) => {
       const legacyNf = (ped as unknown as { nf?: Nf }).nf
       return {
         ...ped,
         vendedor: ped.vendedor ?? '',
+        excluido: !!ped.excluido, excluidoEm: ped.excluidoEm ?? '', excluidoPor: ped.excluidoPor ?? '',
         nfs: ped.nfs ?? (legacyNf && temNf(legacyNf) ? [{ ...NF_VAZIA, ...legacyNf, id: legacyNf.id || uid() }] : []),
         produtos: ped.produtos.map((p) => {
           const situacaoAuto = p.situacaoAuto ?? true
@@ -426,8 +440,9 @@ export async function loadPedidos(): Promise<Pedido[]> {
       }
     })
   }
+  const opQuery = supabase!.from('op').select('id, cliente_id, numero_proposta, numero_pedido, vendedor, data_pedido, prioridade, evento, amostra, data_entrega, observacao, excluido, excluido_em, excluido_por, clientes(nome)').order('data_pedido', { ascending: false })
   const [ops, prods, logos, datas, hist, nfs] = await Promise.all([
-    supabase!.from('op').select('id, cliente_id, numero_proposta, numero_pedido, vendedor, data_pedido, prioridade, evento, amostra, data_entrega, observacao, clientes(nome)').order('data_pedido', { ascending: false }),
+    opts?.incluirExcluidos ? opQuery : opQuery.eq('excluido', false),
     supabase!.from('op_produtos').select('id, op_id, uniforme_id, cor_id, tecido_id, numero_proposta, numero_pedido, vendedor, qtd, valor_unitario, prioridade, status, situacao_auto, etapa_id, progresso, responsavel, previsao_entrega, observacao, evento, amostra, grade, oficina_fornecedor_id, oficina_mes_fechamento, oficina_data_envio, oficina_valor_unitario, uniformes(nome), cores(nome), tecidos(nome)'),
     supabase!.from('op_produto_logo').select('produto_id, tipo, fornecedor_id, mes_fechamento, data_envio, valor_unitario, fornecedores(nome)'),
     supabase!.from('op_produto_etapa').select('produto_id, etapa_id, data_conclusao'),
@@ -518,6 +533,7 @@ export async function loadPedidos(): Promise<Pedido[]> {
     evento: !!o.evento, amostra: !!o.amostra,
     dataEntrega: dateOnly(o.data_entrega),
     observacao: (o.observacao as string) ?? '',
+    excluido: !!o.excluido, excluidoEm: dateOnly(o.excluido_em), excluidoPor: (o.excluido_por as string) ?? '',
     nfs: nfsByOp.get(o.id as string) ?? [],
     produtos: prodsByOp.get(o.id as string) ?? [],
   }))
@@ -598,7 +614,7 @@ export async function createPedido(input: NovoPedidoInput, cadastros: Cadastros)
       }
     })
     db.pedidos = [
-      { id: opId, clienteId: input.clienteId, clienteNome: cliente?.nome ?? '', numeroProposta: input.numeroProposta, numeroPedido: input.numeroPedido, vendedor: input.vendedor, dataPedido: input.dataPedido, prioridade: input.prioridade, evento: input.evento, amostra: input.amostra, dataEntrega: input.dataEntrega, observacao: input.observacao, nfs: [], produtos },
+      { id: opId, clienteId: input.clienteId, clienteNome: cliente?.nome ?? '', numeroProposta: input.numeroProposta, numeroPedido: input.numeroPedido, vendedor: input.vendedor, dataPedido: input.dataPedido, prioridade: input.prioridade, evento: input.evento, amostra: input.amostra, dataEntrega: input.dataEntrega, observacao: input.observacao, excluido: false, excluidoEm: '', excluidoPor: '', nfs: [], produtos },
       ...db.pedidos,
     ]
     demoSave(db)
@@ -929,28 +945,31 @@ export async function addObservacao(id: string, data: string, texto: string, usu
   if (error) throw new Error(error.message)
 }
 
-/** Exclui uma OP inteira (o pedido, seus itens e tudo relacionado). Irreversível. */
-export async function deletePedido(opId: string): Promise<void> {
+/** Exclui uma OP inteira (o pedido e seus itens somem do Fluxo/Ordens normais).
+ *  É um soft-delete — os dados continuam no banco e a OP pode ser trazida de volta
+ *  com `reativarPedido`. Aparece na tela Ordens de Produção com a situação "Excluído"
+ *  enquanto não for reativada. */
+export async function excluirPedido(opId: string, usuario?: string | null): Promise<void> {
   if (isDemo) {
     const db = demoLoad()
-    db.pedidos = db.pedidos.filter((p) => p.id !== opId)
-    demoSave(db)
+    const ped = db.pedidos.find((p) => p.id === opId)
+    if (ped) { ped.excluido = true; ped.excluidoEm = hojeISOLocal(); ped.excluidoPor = usuario || ''; demoSave(db) }
     return
   }
-  // Busca os itens da OP para apagar os relacionados (caso o banco não tenha cascade).
-  const { data: prods, error: e0 } = await supabase!.from('op_produtos').select('id').eq('op_id', opId)
-  if (e0) throw new Error(e0.message)
-  const ids = ((prods ?? []) as Array<{ id: string }>).map((p) => p.id)
-  if (ids.length) {
-    for (const tabela of ['op_produto_logo', 'op_produto_etapa', 'op_etapa_historico'] as const) {
-      const del = await supabase!.from(tabela).delete().in('produto_id', ids)
-      if (del.error) throw new Error(del.error.message)
-    }
-    const delProd = await supabase!.from('op_produtos').delete().eq('op_id', opId)
-    if (delProd.error) throw new Error(delProd.error.message)
+  const { error } = await supabase!.from('op').update({ excluido: true, excluido_em: hojeISOLocal(), excluido_por: usuario || null }).eq('id', opId)
+  if (error) throw new Error(error.message)
+}
+
+/** Reativa uma OP excluída por engano — volta a aparecer normalmente no Fluxo/Ordens. */
+export async function reativarPedido(opId: string): Promise<void> {
+  if (isDemo) {
+    const db = demoLoad()
+    const ped = db.pedidos.find((p) => p.id === opId)
+    if (ped) { ped.excluido = false; ped.excluidoEm = ''; ped.excluidoPor = ''; demoSave(db) }
+    return
   }
-  const delOp = await supabase!.from('op').delete().eq('id', opId)
-  if (delOp.error) throw new Error(delOp.error.message)
+  const { error } = await supabase!.from('op').update({ excluido: false, excluido_em: null, excluido_por: null }).eq('id', opId)
+  if (error) throw new Error(error.message)
 }
 
 /** Exclui um item/card criado por engano (não mexe nos outros itens do pedido). Irreversível. */
