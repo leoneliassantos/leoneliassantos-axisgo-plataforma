@@ -141,30 +141,25 @@ export function temposPorEtapa(prod: Produto, dataInicial: string, hoje: string)
 }
 
 /**
- * Data de entrada e de saída de cada etapa que o item já ocupou, derivadas da
- * mesma movimentação usada em temposPorEtapa (cobre etapas puladas — se o card
- * pulou direto de uma etapa pra outra, a "pulada" nunca aparece aqui). Saída de
- * uma etapa e entrada da seguinte são sempre a MESMA data (a que o usuário
- * escolheu ao confirmar o movimento) — nunca recalculada. Sem saída = ainda não
- * saiu (é a etapa atual). Etapa nunca visitada não entra no resultado.
+ * Data de entrada e de saída de cada etapa que o item já ocupou, a partir das
+ * datas de conclusão gravadas por etapa (a mesma fonte que sempre alimentou a
+ * linha do tempo — inclusive em cards antigos/importados, que podem não ter
+ * histórico de movimentação completo). Saída de uma etapa e entrada da seguinte
+ * são sempre a MESMA data. Cobre etapas puladas: a entrada da etapa de destino
+ * usa a saída da última etapa realmente ocupada antes dela, não a pulada. Etapa
+ * nunca ocupada não entra no resultado.
  */
 export function datasPorEtapa(prod: Produto, dataInicial: string): Record<string, { entrada: string; saida?: string }> {
   const out: Record<string, { entrada: string; saida?: string }> = {}
-  const moves = prod.historico
-    .filter((h) => h.kind === 'mov' && h.etapaDe && h.etapaPara)
-    .slice()
-    .sort((a, b) => a.data.localeCompare(b.data))
-
-  if (moves.length === 0) {
-    out[prod.etapaId] = { entrada: dataInicial }
-    return out
-  }
-  let etapaAtual = moves[0].etapaDe as string
-  out[etapaAtual] = { entrada: dataInicial || moves[0].data }
-  for (const m of moves) {
-    out[etapaAtual] = { ...out[etapaAtual], saida: m.data }
-    etapaAtual = m.etapaPara as string
-    out[etapaAtual] = { entrada: m.data }
+  let entrada = dataInicial
+  for (const e of ETAPAS) {
+    const saida = prod.datas[e.id]
+    if (saida) {
+      out[e.id] = { entrada, saida }
+      entrada = saida
+    } else if (e.id === prod.etapaId) {
+      out[e.id] = { entrada }
+    }
   }
   return out
 }
