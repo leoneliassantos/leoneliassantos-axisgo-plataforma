@@ -79,6 +79,7 @@ export function Dre() {
   const [mesDe, setMesDe] = useState(0)
   const [mesAte, setMesAte] = useState(11)
   const [semEquiv, setSemEquiv] = useState(true)
+  const [ocultarFat, setOcultarFat] = useState(false)
   const [view, setView] = useState<'anual' | 'mensal'>('mensal')
   // Resultado: 'gerencial' inclui o DDL dos sócios · 'contabil' remove só o DDL
   // (mantém as reclassificações), reproduzindo o resultado da contabilidade.
@@ -264,6 +265,7 @@ export function Dre() {
   const repasseMes = useMemo(() => fatMes.map((v, i) => v - (recBrutaLinha?.mes[i] ?? 0)), [fatMes, recBrutaLinha])
   const repasseTotal = sum12(repasseMes)
   const mostrarFaturamento = fat.length > 0
+  const exibirFat = mostrarFaturamento && !ocultarFat
 
   /* ---------- universo de contas (para o editor de classificação) ---------- */
   const universo = useMemo<ContaUniverso[]>(() => {
@@ -593,6 +595,15 @@ export function Dre() {
                   Sem equivalência patrimonial
                 </label>
               )}
+              {mostrarFaturamento && (
+                <label
+                  className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-line bg-surface px-2.5 py-1.5 text-[12px] font-semibold text-muted transition hover:border-ink/30"
+                  title="Oculta as linhas Faturamento e Repasse (acima da Receita Operacional Bruta)."
+                >
+                  <input type="checkbox" checked={!ocultarFat} onChange={(e) => setOcultarFat(!e.target.checked)} style={{ accentColor: '#122238', width: 15, height: 15 }} />
+                  Faturamento e Repasse
+                </label>
+              )}
               {temDdl && (
                 <div
                   className="seg"
@@ -673,7 +684,7 @@ export function Dre() {
                 </tr>
               </thead>
               <tbody>
-                {mostrarFaturamento && (
+                {exibirFat && (
                   <>
                     <LinhaInfo
                       label="Faturamento"
