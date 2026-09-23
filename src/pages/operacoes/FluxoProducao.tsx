@@ -16,7 +16,7 @@ import {
 } from './helpers'
 import {
   loadCadastros, loadPedidos, addCadastro, createPedido, addProduto, updateProduto, updatePedido, setProdutoLogos, moveProduto, addObservacao,
-  addNf, updateNf, deleteNf, deleteProduto,
+  addNf, updateNf, deleteNf, deleteProduto, excluirPedido,
   isDemo, ETAPAS, ETAPA_COR, STATUS_LABEL, PRIO_LABEL, SITUACAO_REGRA, etapaLabel,
   type Cadastros, type Pedido, type Produto, type ProdutoPatch, type NovoPedidoInput, type NovoProdutoInput, type StatusProd, type LogoInput, type Nf,
 } from './data'
@@ -34,6 +34,7 @@ function contextoItem(prod: Produto | null | undefined, ped: Pedido | null | und
 export function FluxoProducao() {
   const { user } = useAuth()
   const usuario = user?.nome || user?.email || ''
+  const isAdmin = user?.role === 'admin'
   const [loading, setLoading] = useState(true)
   const [erro, setErro] = useState<string | null>(null)
   const [cadastros, setCadastros] = useState<Cadastros>(CADASTROS_VAZIO)
@@ -187,6 +188,17 @@ export function FluxoProducao() {
     finally { setSaving(false) }
   }
 
+  async function handleExcluirPedido(ped: Pedido) {
+    if (!isAdmin) return
+    const n = ped.produtos.length
+    const ok = window.confirm(`Excluir a Ordem de Produção de "${ped.clienteNome || 'cliente'}"?\n\nIsso remove a OP e todos os seus ${n} ${n === 1 ? 'item' : 'itens'} do Fluxo de Produção. Ela continua aparecendo em Ordens de Produção com a situação "Excluído", e pode ser reativada a qualquer momento.`)
+    if (!ok) return
+    setSaving(true)
+    try { await excluirPedido(ped.id, usuario); await refreshPedidos() }
+    catch (e) { alert('Não foi possível excluir a OP: ' + (e instanceof Error ? e.message : '')) }
+    finally { setSaving(false) }
+  }
+
   async function handleDeleteItem() {
     if (!currentOrder || !itemId) return
     const it = currentOrder.produtos.find((p) => p.id === itemId)
@@ -263,7 +275,7 @@ export function FluxoProducao() {
             filtroCliente={filtroCliente} setFiltroCliente={setFiltroCliente}
             pedidoDe={pedidoDe} setPedidoDe={setPedidoDe} pedidoAte={pedidoAte} setPedidoAte={setPedidoAte}
             entregaDe={entregaDe} setEntregaDe={setEntregaDe} entregaAte={entregaAte} setEntregaAte={setEntregaAte}
-            onAbrir={abrirBoard} onNova={() => setShowNova(true)}
+            onAbrir={abrirBoard} onNova={() => setShowNova(true)} isAdmin={isAdmin} onExcluir={handleExcluirPedido}
           />
         : currentOrder && <Quadro order={currentOrder} busca={busca} setBusca={setBusca} onVoltar={voltarLista} onAbrirItem={setItemId} onAddItem={() => setAddItemOpId(currentOrder.id)} onAbrirNf={() => setShowNf(true)} dragId={dragId} onSoltar={pedirMove} onSaveEntrega={handleSaveEntrega} saving={saving} />}
 
@@ -290,14 +302,14 @@ export function FluxoProducao() {
 function ListaPedidos({
   pedidos, busca, setBusca, filtroSit, setFiltroSit,
   filtroCliente, setFiltroCliente, pedidoDe, setPedidoDe, pedidoAte, setPedidoAte, entregaDe, setEntregaDe, entregaAte, setEntregaAte,
-  onAbrir, onNova,
+  onAbrir, onNova, isAdmin, onExcluir,
 }: {
   pedidos: Pedido[]; busca: string; setBusca: (s: string) => void
   filtroSit: StatusProd | ''; setFiltroSit: (s: StatusProd | '') => void
   filtroCliente: string; setFiltroCliente: (s: string) => void
   pedidoDe: string; setPedidoDe: (s: string) => void; pedidoAte: string; setPedidoAte: (s: string) => void
   entregaDe: string; setEntregaDe: (s: string) => void; entregaAte: string; setEntregaAte: (s: string) => void
-  onAbrir: (id: string) => void; onNova: () => void
+  onAbrir: (id: string) => void; onNova: () => void; isAdmin: boolean; onExcluir: (ped: Pedido) => void
 }) {
   const [filtrosAbertos, setFiltrosAbertos] = useState(true)
 
@@ -390,19 +402,24 @@ function ListaPedidos({
         </div>
       ) : (
         <div className="flex flex-col gap-2.5">
-          {visiveis.map((p) => <LinhaPedido key={p.id} ped={p} onAbrir={onAbrir} />)}
+          {visiveis.map((p) => <LinhaPedido key={p.id} ped={p} onAbrir={onAbrir} isAdmin={isAdmin} onExcluir={onExcluir} />)}
         </div>
       )}
     </div>
   )
 }
 
-function LinhaPedido({ ped, onAbrir }: { ped: Pedido; onAbrir: (id: string) => void }) {
+function LinhaPedido({ ped, onAbrir, isAdmin, onExcluir }: { ped: Pedido; onAbrir: (id: string) => void; isAdmin: boolean; onExcluir: (ped: Pedido) => void }) {
   const r = resumoPedido(ped)
   const cont = contagemPorEtapa(ped)
   const sitTxt = r.situacao === 'atrasado' ? `${r.atrasados} atrasado(s)` : r.situacao === 'aguardando' ? `${r.aguardando} aguardando` : r.situacao === 'alerta' ? `${r.alertas} em alerta` : 'No prazo'
   return (
-    <button onClick={() => onAbrir(ped.id)} className="group grid grid-cols-1 items-center gap-3 rounded-xl border border-line bg-surface p-4 text-left transition hover:border-ink/20 hover:shadow-card md:grid-cols-[1.4fr_2fr_1fr]">
+    <div
+      role="button" tabIndex={0}
+      onClick={() => onAbrir(ped.id)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onAbrir(ped.id) }}
+      className="group grid grid-cols-1 cursor-pointer items-center gap-3 rounded-xl border border-line bg-surface p-4 text-left transition hover:border-ink/20 hover:shadow-card md:grid-cols-[1.4fr_2fr_1fr]"
+    >
       <div>
         <div className="flex items-center gap-2">
           <span className="size-2.5 shrink-0 rounded-full" style={{ background: prioCor(r.prioridade) }} title={`Prioridade: ${PRIO_LABEL[r.prioridade]}`} />
@@ -436,6 +453,17 @@ function LinhaPedido({ ped, onAbrir }: { ped: Pedido; onAbrir: (id: string) => v
       </div>
 
       <div className="flex items-center justify-end gap-3">
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onExcluir(ped) }}
+            title="Excluir esta OP"
+            className="rounded-md p-1.5 text-muted transition hover:bg-neg/10 hover:text-neg"
+            aria-label="Excluir OP"
+          >
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </button>
+        )}
         <span className="inline-flex items-center gap-1" title={SITUACAO_REGRA}>
           <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${statusClasse(r.situacao)}`}>{sitTxt}</span>
           <IconInfo />
@@ -446,7 +474,7 @@ function LinhaPedido({ ped, onAbrir }: { ped: Pedido; onAbrir: (id: string) => v
         </div>
         <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" className="text-muted transition group-hover:translate-x-0.5 group-hover:text-ink"><path d="M9 6l6 6-6 6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>
       </div>
-    </button>
+    </div>
   )
 }
 
