@@ -134,7 +134,8 @@ export interface HistEntry {
   kind: 'mov' | 'obs'
   etapaDe?: string | null
   etapaPara?: string | null
-  data: string // YYYY-MM-DD
+  data: string // YYYY-MM-DD — data de ocorrência escolhida pelo usuário (pode ser retroativa)
+  criadoEm: string // timestamp ISO — quando o registro foi de fato salvo no sistema
   texto?: string | null
   usuario?: string | null
 }
@@ -446,7 +447,7 @@ export async function loadPedidos(opts?: { incluirExcluidos?: boolean }): Promis
     supabase!.from('op_produtos').select('id, op_id, uniforme_id, cor_id, tecido_id, numero_proposta, numero_pedido, vendedor, qtd, valor_unitario, prioridade, status, situacao_auto, etapa_id, progresso, responsavel, previsao_entrega, observacao, evento, amostra, grade, oficina_fornecedor_id, oficina_mes_fechamento, oficina_data_envio, oficina_valor_unitario, uniformes(nome), cores(nome), tecidos(nome)'),
     supabase!.from('op_produto_logo').select('produto_id, tipo, fornecedor_id, mes_fechamento, data_envio, valor_unitario, fornecedores(nome)'),
     supabase!.from('op_produto_etapa').select('produto_id, etapa_id, data_conclusao'),
-    supabase!.from('op_etapa_historico').select('id, produto_id, kind, etapa_de, etapa_para, data, texto, usuario').order('created_at'),
+    supabase!.from('op_etapa_historico').select('id, produto_id, kind, etapa_de, etapa_para, data, texto, usuario, created_at').order('created_at'),
     supabase!.from('op_nf').select('id, op_id, numero, data_emissao, valor, frete_mm, frete_empresa, frete_valor').order('created_at'),
   ])
   const err = ops.error || prods.error || logos.error || datas.error || hist.error || nfs.error
@@ -483,7 +484,8 @@ export async function loadPedidos(opts?: { incluirExcluidos?: boolean }): Promis
     arr.push({
       id: h.id as string, kind: h.kind as 'mov' | 'obs',
       etapaDe: (h.etapa_de as string) ?? null, etapaPara: (h.etapa_para as string) ?? null,
-      data: dateOnly(h.data), texto: (h.texto as string) ?? null,
+      data: dateOnly(h.data), criadoEm: (h.created_at as string) ?? '',
+      texto: (h.texto as string) ?? null,
       usuario: (h.usuario as string) ?? null,
     })
     histByProd.set(h.produto_id as string, arr)
@@ -892,7 +894,7 @@ export async function moveProduto(id: string, de: string, para: string, data: st
         prod.etapaId = para
         prod.progresso = prog
         // Log SEMPRE (frente ou trás).
-        prod.historico.push({ kind: 'mov', etapaDe: de, etapaPara: para, data, texto: obs || null, usuario: usuario || null })
+        prod.historico.push({ kind: 'mov', etapaDe: de, etapaPara: para, data, criadoEm: new Date().toISOString(), texto: obs || null, usuario: usuario || null })
         if (avanco) prod.datas[de] = data
         else for (const eid of etapasADesfazer) delete prod.datas[eid]
         // Entrada na Oficina preenche a Data de Envio da oficina (se ainda vazia).
@@ -936,7 +938,7 @@ export async function addObservacao(id: string, data: string, texto: string, usu
     const db = demoLoad()
     for (const ped of db.pedidos) {
       const prod = ped.produtos.find((p) => p.id === id)
-      if (prod) { prod.historico.push({ kind: 'obs', data, texto, usuario: usuario || null }); break }
+      if (prod) { prod.historico.push({ kind: 'obs', data, criadoEm: new Date().toISOString(), texto, usuario: usuario || null }); break }
     }
     demoSave(db)
     return

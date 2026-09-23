@@ -37,6 +37,17 @@ export function fmtBRfull(iso: string): string {
   return d && m && y ? `${d}/${m}/${y}` : iso
 }
 
+/** Timestamp ISO (com hora, ex.: created_at) → 'dd/mm/aaaa às HH:MM' no fuso do navegador.
+ *  É o momento em que o registro foi de fato salvo — diferente da data de ocorrência,
+ *  que o usuário pode escolher retroativa. Vazio/inválido devolve ''. */
+export function fmtBRDataHora(iso: string): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const p = (n: number) => `${n < 10 ? '0' : ''}${n}`
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} às ${p(d.getHours())}:${p(d.getMinutes())}`
+}
+
 /** Menor/maior ano aceito num campo de data (evita erros de digitação, ex.: ano 20026). */
 export const ANO_MIN = 2000
 export const ANO_MAX = 2100

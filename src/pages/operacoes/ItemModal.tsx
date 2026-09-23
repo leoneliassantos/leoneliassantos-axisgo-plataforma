@@ -4,7 +4,7 @@ import { podeVerFinanceiro } from '../../auth/types'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
 import { NfResumo } from './NotaFiscal'
 import { MentionPicker } from '../../components/MentionPicker'
-import { fmtBRfull, fmtBRL, fmtMesAno, hojeISO, daysBetween, statusClasse, temposPorEtapa, datasPorEtapa, etapaGargalo, ANO_MIN, ANO_MAX } from './helpers'
+import { fmtBRfull, fmtBRDataHora, fmtBRL, fmtMesAno, hojeISO, daysBetween, statusClasse, temposPorEtapa, datasPorEtapa, etapaGargalo, ANO_MIN, ANO_MAX } from './helpers'
 import { ProdutoFields, produtoToDraft, oficinaDraftToInput, logosDraftToInput, gradeErro, TIPOS_LOGO, type ProdutoDraft, type TabCad } from './ProdutoFields'
 import {
   type Produto, type ProdutoPatch, type StatusProd, type LogoInput, type Cadastro, type Cadastros, type Grade, type Nf,
@@ -16,6 +16,12 @@ const nomeDe = (list: Cadastro[], id: string | null) => (id ? list.find((c) => c
 const gradeResumo = (g: Grade): string => {
   const parts = TAMANHOS.filter((t) => (g?.[t] ?? 0) > 0).map((t) => `${t}:${g[t]}`)
   return parts.length ? parts.join(' ') : '—'
+}
+/** Data (YYYY-MM-DD) local de um timestamp ISO — pra comparar com a data de ocorrência informada. */
+const dataLocalDe = (iso: string): string => {
+  const d = new Date(iso)
+  const p = (n: number) => `${n < 10 ? '0' : ''}${n}`
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
 }
 
 export function ItemModal({
@@ -68,8 +74,10 @@ export function ItemModal({
   const gargalo = useMemo(() => etapaGargalo(tempos), [tempos])
   const fmtDias = (n: number) => `${n} ${n === 1 ? 'dia' : 'dias'}`
 
+  // Ordem real de auditoria: pelo momento em que cada ação foi de fato registrada
+  // (criadoEm), não pela data de ocorrência informada — que pode ser retroativa.
   const historicoOrd = useMemo(
-    () => [...produto.historico].sort((a, b) => a.data.localeCompare(b.data)),
+    () => [...produto.historico].sort((a, b) => (a.criadoEm || a.data).localeCompare(b.criadoEm || b.data)),
     [produto.historico],
   )
 
@@ -305,26 +313,34 @@ export function ItemModal({
               <p className="text-sm text-muted">Sem movimentações ainda. Mover o item entre as etapas ou salvar alterações registra o histórico.</p>
             ) : (
               <ol className="relative space-y-3 border-l border-line pl-4">
-                {historicoOrd.map((h, i) => (
-                  <li key={h.id ?? i} className="relative">
-                    <span className="absolute -left-[21px] top-1 size-2.5 rounded-full bg-ink" />
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                      <span className="tnum text-[12px] font-semibold text-ink">{fmtBRfull(h.data)}</span>
-                      {h.kind === 'mov' ? (
-                        <span className="flex items-center gap-1.5 text-sm text-ink">
-                          <span>{h.etapaDe ? etapaLabel(h.etapaDe) : ''} → <b>{h.etapaPara ? etapaLabel(h.etapaPara) : ''}</b></span>
-                          {h.etapaDe && h.etapaPara && ETAPAS.findIndex((e) => e.id === h.etapaPara) < ETAPAS.findIndex((e) => e.id === h.etapaDe) && (
-                            <span className="rounded bg-amber-500/12 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">retorno</span>
-                          )}
+                {historicoOrd.map((h, i) => {
+                  const retroativa = !!h.criadoEm && dataLocalDe(h.criadoEm) !== h.data
+                  return (
+                    <li key={h.id ?? i} className="relative">
+                      <span className="absolute -left-[21px] top-1 size-2.5 rounded-full bg-ink" />
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <span className="tnum text-[12px] font-semibold text-ink" title="Momento em que a ação foi registrada no sistema">
+                          {h.criadoEm ? fmtBRDataHora(h.criadoEm) : fmtBRfull(h.data)}
                         </span>
-                      ) : (
-                        <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${statusClasse('alerta')}`}>Alteração</span>
+                        {h.kind === 'mov' ? (
+                          <span className="flex items-center gap-1.5 text-sm text-ink">
+                            <span>{h.etapaDe ? etapaLabel(h.etapaDe) : ''} → <b>{h.etapaPara ? etapaLabel(h.etapaPara) : ''}</b></span>
+                            {h.etapaDe && h.etapaPara && ETAPAS.findIndex((e) => e.id === h.etapaPara) < ETAPAS.findIndex((e) => e.id === h.etapaDe) && (
+                              <span className="rounded bg-amber-500/12 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">retorno</span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${statusClasse('alerta')}`}>Alteração</span>
+                        )}
+                        {h.usuario && <span className="text-[12px] text-muted">· por <b className="text-ink/80">{h.usuario}</b></span>}
+                      </div>
+                      {retroativa && (
+                        <p className="mt-0.5 text-[11px] font-medium text-amber-700">Data informada como ocorrida em {fmtBRfull(h.data)} (retroativa)</p>
                       )}
-                      {h.usuario && <span className="text-[12px] text-muted">· por <b className="text-ink/80">{h.usuario}</b></span>}
-                    </div>
-                    {h.texto && <p className="mt-0.5 text-sm text-muted">{h.texto}</p>}
-                  </li>
-                ))}
+                      {h.texto && <p className="mt-0.5 text-sm text-muted">{h.texto}</p>}
+                    </li>
+                  )
+                })}
               </ol>
             )}
           </div>
