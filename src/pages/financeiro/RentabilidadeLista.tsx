@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { ModuloTopo } from '../../components/ModuloTopo'
+import { FiltrosToggle } from '../../components/FiltrosToggle'
 import {
   calcularJob, receitaEfetiva, competenciaDaData,
   TAXA_GANHO_TRIB_PADRAO, UNIDADES_NEGOCIO, EMPRESAS, MESES_FULL,
@@ -75,6 +76,7 @@ export function RentabilidadeLista() {
   const [unidadeSel, setUnidadeSel] = useState('todos')
   const [busca, setBusca] = useState('')
   const [form, setForm] = useState<MargemJob | null>(null) // modal de lançar/editar
+  const [filtrosAbertos, setFiltrosAbertos] = useState(true)
 
   /* ---------- carregar ---------- */
   const carregar = useCallback(async () => {
@@ -208,13 +210,19 @@ export function RentabilidadeLista() {
 
       <ModuloTopo>
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="font-serif text-base font-semibold text-ink">Rentabilidade de Projetos</h2>
-            <p className="text-[12px] text-muted">
-              Margem por job · receita e margens calculadas automaticamente
-              {demo ? ' · modo demonstração (sem banco)' : ''}
-            </p>
+          <div className="flex items-end gap-2">
+            <div>
+              <h2 className="font-serif text-base font-semibold text-ink">Rentabilidade de Projetos</h2>
+              {filtrosAbertos && (
+                <p className="text-[12px] text-muted">
+                  Margem por job · receita e margens calculadas automaticamente
+                  {demo ? ' · modo demonstração (sem banco)' : ''}
+                </p>
+              )}
+            </div>
+            {!filtrosAbertos && !vazio && <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />}
           </div>
+          {filtrosAbertos && (
           <div className="flex flex-wrap items-end gap-2">
             <button className="botao-sec" onClick={exportar} disabled={busy || vazio} title="Exportar a lista filtrada em Excel">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12" /><path d="m7 10 5 5 5-5" /><path d="M5 21h14" /></svg>
@@ -237,7 +245,9 @@ export function RentabilidadeLista() {
                 </button>
               </>
             )}
+            {!vazio && <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />}
           </div>
+          )}
         </div>
 
         {!vazio && (
@@ -251,7 +261,7 @@ export function RentabilidadeLista() {
           </div>
         )}
 
-        {!vazio && (
+        {!vazio && filtrosAbertos && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface px-4 py-2.5">
             <div className="seg flex-wrap">
               <button className={empresaSel === CONSOLIDADO ? 'on' : ''} onClick={() => setEmpresaSel(CONSOLIDADO)}>Consolidado</button>

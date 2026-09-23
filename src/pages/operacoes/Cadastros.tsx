@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Modal, BtnPrimary, BtnGhost } from './Modal'
+import { FiltrosToggle } from '../../components/FiltrosToggle'
 import { loadCadastros, addCadastro, updateCadastro, setBloqueado, type Cadastro, type TabelaCadastro } from './data'
 
 const TITULO: Record<TabelaCadastro, { titulo: string; singular: string; label: string }> = {
@@ -26,6 +27,7 @@ export function Cadastros({ tipo }: { tipo: TabelaCadastro }) {
   const [form, setForm] = useState<FormState | null>(null)
   const [saving, setSaving] = useState(false)
   const [erroForm, setErroForm] = useState<string | null>(null)
+  const [filtrosAbertos, setFiltrosAbertos] = useState(true)
 
   const carregar = useCallback(async () => {
     setLoading(true); setErro(null)
@@ -85,11 +87,14 @@ export function Cadastros({ tipo }: { tipo: TabelaCadastro }) {
       </div>
 
       <div className="mb-3 flex items-center gap-2">
-        <div className="relative flex-1 min-w-[220px]">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"><circle cx="11" cy="11" r="7" strokeWidth="1.8" /><path d="M21 21l-4-4" strokeWidth="1.8" strokeLinecap="round" /></svg>
-          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={`Buscar ${cfg.singular}…`} className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm text-ink focus:border-ink/40 focus:outline-none" />
-        </div>
+        {filtrosAbertos && (
+          <div className="relative flex-1 min-w-[220px]">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"><circle cx="11" cy="11" r="7" strokeWidth="1.8" /><path d="M21 21l-4-4" strokeWidth="1.8" strokeLinecap="round" /></svg>
+            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder={`Buscar ${cfg.singular}…`} className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm text-ink focus:border-ink/40 focus:outline-none" />
+          </div>
+        )}
         <span className="text-sm text-muted">{visiveis.length} {visiveis.length === 1 ? 'registro' : 'registros'}</span>
+        <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />
       </div>
 
       {visiveis.length === 0 ? (

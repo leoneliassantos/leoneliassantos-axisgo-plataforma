@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
+import { FiltrosToggle } from '../../components/FiltrosToggle'
 
 /* ================================================================== *
  *  Cadastros · Clientes — Razão Social, CNPJ(s) e sócios de cada cliente.
@@ -92,6 +93,7 @@ export function CadastroClientes() {
   const [abertos, setAbertos] = useState<Set<string>>(new Set())
   const [saving, setSaving] = useState(false)
   const [erroForm, setErroForm] = useState<string | null>(null)
+  const [filtrosAbertos, setFiltrosAbertos] = useState(true)
 
   const [formCliente, setFormCliente] = useState<{ id: string | null; nome: string; observacoes: string } | null>(null)
   const [formEmpresa, setFormEmpresa] = useState<{
@@ -344,7 +346,9 @@ export function CadastroClientes() {
         <div>
           <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">Cadastros</div>
           <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">Clientes</h1>
-          <p className="mt-1 max-w-xl text-[12.5px] text-muted">Razão social, CNPJ(s) e sócios de cada cliente — um cliente pode ter quantos CNPJs forem necessários.</p>
+          {filtrosAbertos && (
+            <p className="mt-1 max-w-xl text-[12.5px] text-muted">Razão social, CNPJ(s) e sócios de cada cliente — um cliente pode ter quantos CNPJs forem necessários.</p>
+          )}
         </div>
         <button onClick={() => { setErroForm(null); setFormCliente({ id: null, nome: '', observacoes: '' }) }} className="inline-flex items-center gap-1.5 rounded-lg bg-ink px-3.5 py-2 text-[13px] font-bold text-white transition hover:brightness-125">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14" strokeWidth="2" strokeLinecap="round" /></svg>
@@ -353,11 +357,14 @@ export function CadastroClientes() {
       </div>
 
       <div className="mb-3 flex items-center gap-2">
-        <div className="relative min-w-[240px] flex-1">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"><circle cx="11" cy="11" r="7" strokeWidth="1.8" /><path d="M21 21l-4-4" strokeWidth="1.8" strokeLinecap="round" /></svg>
-          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por cliente, razão social ou CNPJ…" className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm text-ink focus:border-ink/40 focus:outline-none" />
-        </div>
+        {filtrosAbertos && (
+          <div className="relative min-w-[240px] flex-1">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"><circle cx="11" cy="11" r="7" strokeWidth="1.8" /><path d="M21 21l-4-4" strokeWidth="1.8" strokeLinecap="round" /></svg>
+            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por cliente, razão social ou CNPJ…" className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm text-ink focus:border-ink/40 focus:outline-none" />
+          </div>
+        )}
         <span className="text-sm text-muted">{clientesVisiveis.length} {clientesVisiveis.length === 1 ? 'cliente' : 'clientes'}</span>
+        <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />
       </div>
 
       {clientesVisiveis.length === 0 ? (

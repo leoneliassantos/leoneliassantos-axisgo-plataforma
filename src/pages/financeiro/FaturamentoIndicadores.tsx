@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { createPortal } from 'react-dom'
 import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
+import { FiltrosToggle } from '../../components/FiltrosToggle'
 import { buildFaturamentoIndicadores, MESES_PT, type FaturamentoRow, type Fatia } from './publiFaturamento'
 import { resolvePalette, resolveColor, resolveKpiGradient } from '../../lib/chartPalette'
 
@@ -66,6 +67,7 @@ export function FaturamentoIndicadores() {
   const [selCli, setSelCli] = useState<Set<string> | null>(null) // null = todos
   const [selUni, setSelUni] = useState<Set<string> | null>(null)
   const [detalhe, setDetalhe] = useState<Detalhe | null>(null)
+  const [filtrosAbertos, setFiltrosAbertos] = useState(true)
 
   // altura disponível (para caber 100% na tela, sem scroll)
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -224,26 +226,32 @@ export function FaturamentoIndicadores() {
 
       {/* Filtros */}
       <div className="flex flex-none flex-wrap items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2">
-        <div className="seg">
-          <button className={empresaSel === CONSOLIDADO ? 'on' : ''} onClick={() => setEmpresaSel(CONSOLIDADO)} title="Todas as empresas">Consolidado</button>
-          {empresas.map((e) => <button key={e} className={empresaSel === e ? 'on' : ''} onClick={() => setEmpresaSel(e)} title={e}>{e}</button>)}
-        </div>
-        <div className="flex items-center gap-1.5 text-[12px]">
-          <span className="text-muted">De</span>
-          <SelectMesYM value={de} meses={mesesAll} onChange={setDeSel} />
-          <span className="text-muted">até</span>
-          <SelectMesYM value={ate} meses={mesesAll} onChange={setAteSel} />
-        </div>
-        <MultiSelect label="Cliente" opcoes={clientes} value={selCli} onChange={setSelCli} busca />
-        <MultiSelect label="Unidade" opcoes={unidades} value={selUni} onChange={setSelUni} />
-        {temFiltro && (
-          <button
-            className="ml-auto rounded-md border border-line px-2.5 py-1 text-[12px] font-medium text-muted transition hover:bg-paper"
-            onClick={() => { setDeSel(''); setAteSel(''); setSelCli(null); setSelUni(null) }}
-          >
-            Limpar filtros
-          </button>
+        <span className="text-[11px] font-bold uppercase tracking-wider text-muted">Filtros</span>
+        {filtrosAbertos && (
+          <>
+            <div className="seg">
+              <button className={empresaSel === CONSOLIDADO ? 'on' : ''} onClick={() => setEmpresaSel(CONSOLIDADO)} title="Todas as empresas">Consolidado</button>
+              {empresas.map((e) => <button key={e} className={empresaSel === e ? 'on' : ''} onClick={() => setEmpresaSel(e)} title={e}>{e}</button>)}
+            </div>
+            <div className="flex items-center gap-1.5 text-[12px]">
+              <span className="text-muted">De</span>
+              <SelectMesYM value={de} meses={mesesAll} onChange={setDeSel} />
+              <span className="text-muted">até</span>
+              <SelectMesYM value={ate} meses={mesesAll} onChange={setAteSel} />
+            </div>
+            <MultiSelect label="Cliente" opcoes={clientes} value={selCli} onChange={setSelCli} busca />
+            <MultiSelect label="Unidade" opcoes={unidades} value={selUni} onChange={setSelUni} />
+            {temFiltro && (
+              <button
+                className="rounded-md border border-line px-2.5 py-1 text-[12px] font-medium text-muted transition hover:bg-paper"
+                onClick={() => { setDeSel(''); setAteSel(''); setSelCli(null); setSelUni(null) }}
+              >
+                Limpar filtros
+              </button>
+            )}
+          </>
         )}
+        <span className="ml-auto"><FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} /></span>
       </div>
 
       {/* KPIs */}

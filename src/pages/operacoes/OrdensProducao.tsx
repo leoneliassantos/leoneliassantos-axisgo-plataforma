@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
+import { FiltrosToggle } from '../../components/FiltrosToggle'
 import { fmtBR, statusClasse, prioCor } from './helpers'
 import { loadPedidos, deletePedido, etapaLabel, ETAPAS, STATUS_LABEL, PRIO_LABEL, type Pedido, type StatusProd } from './data'
 
@@ -31,6 +32,7 @@ export function OrdensProducao() {
   const [filtroEtapa, setFiltroEtapa] = useState('')
   const [filtroSit, setFiltroSit] = useState<StatusProd | ''>('')
   const [excluindo, setExcluindo] = useState(false)
+  const [filtrosAbertos, setFiltrosAbertos] = useState(true)
 
   const carregar = useCallback(async () => {
     setLoading(true); setErro(null)
@@ -92,28 +94,38 @@ export function OrdensProducao() {
 
   return (
     <div>
-      <div className="mb-5">
-        <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">Operações · Produção</div>
-        <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">Ordens de Produção</h1>
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">Operações · Produção</div>
+          <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">Ordens de Produção</h1>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted">{visiveis.length} itens</span>
+          {!filtrosAbertos && <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />}
+        </div>
       </div>
 
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[220px]">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"><circle cx="11" cy="11" r="7" strokeWidth="1.8" /><path d="M21 21l-4-4" strokeWidth="1.8" strokeLinecap="round" /></svg>
-          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar cliente, uniforme, cor, pedido…" className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm text-ink focus:border-ink/40 focus:outline-none" />
-        </div>
-        <select value={filtroEtapa} onChange={(e) => setFiltroEtapa(e.target.value)} className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-ink/40 focus:outline-none">
-          <option value="">Todas as etapas</option>
-          {ETAPAS.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}
-        </select>
-        <select value={filtroSit} onChange={(e) => setFiltroSit(e.target.value as StatusProd | '')} className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-ink/40 focus:outline-none">
-          <option value="">Todas as situações</option>
-          <option value="ok">No prazo</option><option value="atrasado">Atrasado</option>
-          <option value="alerta">Alerta</option><option value="aguardando">Aguardando</option>
-        </select>
-        <span className="text-sm text-muted">{visiveis.length} itens</span>
-      </div>
-      <p className="mb-3 text-[12px] text-muted">Clique numa linha para abrir o fluxo do pedido, ou use o lápis para alterar todos os dados do item.</p>
+      {filtrosAbertos && (
+        <>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[220px]">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"><circle cx="11" cy="11" r="7" strokeWidth="1.8" /><path d="M21 21l-4-4" strokeWidth="1.8" strokeLinecap="round" /></svg>
+              <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar cliente, uniforme, cor, pedido…" className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm text-ink focus:border-ink/40 focus:outline-none" />
+            </div>
+            <select value={filtroEtapa} onChange={(e) => setFiltroEtapa(e.target.value)} className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-ink/40 focus:outline-none">
+              <option value="">Todas as etapas</option>
+              {ETAPAS.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}
+            </select>
+            <select value={filtroSit} onChange={(e) => setFiltroSit(e.target.value as StatusProd | '')} className="rounded-lg border border-line bg-surface px-3 py-2 text-sm text-ink focus:border-ink/40 focus:outline-none">
+              <option value="">Todas as situações</option>
+              <option value="ok">No prazo</option><option value="atrasado">Atrasado</option>
+              <option value="alerta">Alerta</option><option value="aguardando">Aguardando</option>
+            </select>
+            <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />
+          </div>
+          <p className="mb-3 text-[12px] text-muted">Clique numa linha para abrir o fluxo do pedido, ou use o lápis para alterar todos os dados do item.</p>
+        </>
+      )}
 
       {visiveis.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-line bg-surface p-12 text-center text-muted">Nenhum item {busca || filtroEtapa || filtroSit ? 'com esse filtro' : 'ainda'}.</div>

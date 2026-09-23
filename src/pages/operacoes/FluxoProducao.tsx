@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
 import { podeVerValorVenda, podeVerFinanceiro } from '../../auth/types'
+import { FiltrosToggle } from '../../components/FiltrosToggle'
 import { NovaOP } from './NovaOP'
 import { NovoItem } from './NovoItem'
 import { ItemModal } from './ItemModal'
@@ -298,6 +299,8 @@ function ListaPedidos({
   entregaDe: string; setEntregaDe: (s: string) => void; entregaAte: string; setEntregaAte: (s: string) => void
   onAbrir: (id: string) => void; onNova: () => void
 }) {
+  const [filtrosAbertos, setFiltrosAbertos] = useState(true)
+
   // Só pedidos que ainda estão em produção (100% entregue não entra no painel).
   const emProducao = useMemo(
     () => pedidos.filter((p) => { const r = resumoPedido(p); return !(r.total > 0 && r.entregues === r.total) }),
@@ -341,37 +344,44 @@ function ListaPedidos({
   return (
     <div>
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <div className="relative flex-1 min-w-[220px]">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"><circle cx="11" cy="11" r="7" strokeWidth="1.8" /><path d="M21 21l-4-4" strokeWidth="1.8" strokeLinecap="round" /></svg>
-          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por cliente, pedido ou uniforme…" className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm text-ink focus:border-ink/40 focus:outline-none" />
-        </div>
-        <select value={filtroCliente} onChange={(e) => setFiltroCliente(e.target.value)} className={selCls}>
-          <option value="">Todos os clientes</option>
-          {clientes.map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
-        </select>
-        <select value={filtroSit} onChange={(e) => setFiltroSit(e.target.value as StatusProd | '')} className={selCls}>
-          <option value="">Todas as situações</option>
-          <option value="ok">No prazo</option><option value="atrasado">Atrasado</option>
-          <option value="alerta">Alerta</option><option value="aguardando">Aguardando</option>
-        </select>
+        {filtrosAbertos && (
+          <>
+            <div className="relative flex-1 min-w-[220px]">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted"><circle cx="11" cy="11" r="7" strokeWidth="1.8" /><path d="M21 21l-4-4" strokeWidth="1.8" strokeLinecap="round" /></svg>
+              <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por cliente, pedido ou uniforme…" className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm text-ink focus:border-ink/40 focus:outline-none" />
+            </div>
+            <select value={filtroCliente} onChange={(e) => setFiltroCliente(e.target.value)} className={selCls}>
+              <option value="">Todos os clientes</option>
+              {clientes.map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
+            </select>
+            <select value={filtroSit} onChange={(e) => setFiltroSit(e.target.value as StatusProd | '')} className={selCls}>
+              <option value="">Todas as situações</option>
+              <option value="ok">No prazo</option><option value="atrasado">Atrasado</option>
+              <option value="alerta">Alerta</option><option value="aguardando">Aguardando</option>
+            </select>
+          </>
+        )}
         <span className="text-sm text-muted">{visiveis.length} pedido{visiveis.length === 1 ? '' : 's'}</span>
+        <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />
       </div>
 
-      <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted">
-        <div className="flex items-center gap-1.5">
-          <span>Pedido:</span>
-          <input type="date" value={pedidoDe} onChange={(e) => setPedidoDe(e.target.value)} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`} className={dateCls} />
-          <span>até</span>
-          <input type="date" value={pedidoAte} onChange={(e) => setPedidoAte(e.target.value)} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`} className={dateCls} />
+      {filtrosAbertos && (
+        <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted">
+          <div className="flex items-center gap-1.5">
+            <span>Pedido:</span>
+            <input type="date" value={pedidoDe} onChange={(e) => setPedidoDe(e.target.value)} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`} className={dateCls} />
+            <span>até</span>
+            <input type="date" value={pedidoAte} onChange={(e) => setPedidoAte(e.target.value)} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`} className={dateCls} />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span>Entrega:</span>
+            <input type="date" value={entregaDe} onChange={(e) => setEntregaDe(e.target.value)} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`} className={dateCls} />
+            <span>até</span>
+            <input type="date" value={entregaAte} onChange={(e) => setEntregaAte(e.target.value)} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`} className={dateCls} />
+          </div>
+          {temFiltro && <button type="button" onClick={limparFiltros} className="font-medium text-ink hover:underline">Limpar filtros</button>}
         </div>
-        <div className="flex items-center gap-1.5">
-          <span>Entrega:</span>
-          <input type="date" value={entregaDe} onChange={(e) => setEntregaDe(e.target.value)} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`} className={dateCls} />
-          <span>até</span>
-          <input type="date" value={entregaAte} onChange={(e) => setEntregaAte(e.target.value)} min={`${ANO_MIN}-01-01`} max={`${ANO_MAX}-12-31`} className={dateCls} />
-        </div>
-        {temFiltro && <button type="button" onClick={limparFiltros} className="font-medium text-ink hover:underline">Limpar filtros</button>}
-      </div>
+      )}
 
       {visiveis.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-line bg-surface p-12 text-center">

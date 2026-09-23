@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../../auth/AuthContext'
 import { podeVerValorFornecedor } from '../../auth/types'
+import { FiltrosToggle } from '../../components/FiltrosToggle'
 import { fmtBRL, fmtBRfull, fmtMesAno, hojeISO, ANO_MIN, ANO_MAX } from './helpers'
 import { loadCadastros, loadPedidos, type Cadastros, type Pedido } from './data'
 
@@ -31,6 +32,7 @@ export function CobrancaOficinas() {
   const [mesDe, setMesDe] = useState(mesAtual())
   const [mesAte, setMesAte] = useState(mesAtual())
   const [busca, setBusca] = useState('')
+  const [filtrosAbertos, setFiltrosAbertos] = useState(true)
 
   const carregar = useCallback(async () => {
     setLoading(true); setErro(null)
@@ -122,32 +124,40 @@ export function CobrancaOficinas() {
 
   return (
     <div>
-      <div className="mb-5">
-        <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">Operações · Cobrança</div>
-        <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">Cobrança de Oficinas</h1>
-        <p className="mt-1 text-sm text-muted">Itens enviados às oficinas, agrupados pelo <b>mês de fechamento</b> (a data de corte da cobrança).</p>
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="text-[12px] font-semibold uppercase tracking-[0.14em] text-muted">Operações · Cobrança</div>
+          <h1 className="mt-1 font-serif text-2xl font-semibold text-ink">Cobrança de Oficinas</h1>
+          {filtrosAbertos && (
+            <p className="mt-1 text-sm text-muted">Itens enviados às oficinas, agrupados pelo <b>mês de fechamento</b> (a data de corte da cobrança).</p>
+          )}
+        </div>
+        {!filtrosAbertos && <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />}
       </div>
 
       {/* Filtros */}
-      <div className="mb-4 flex flex-wrap items-end gap-3">
-        <div>
-          <label className="mb-1 block text-[12px] font-medium text-muted">Fechamento de</label>
-          <input type="month" className={inp} value={mesDe} min={`${ANO_MIN}-01`} max={`${ANO_MAX}-12`} onChange={(e) => setMesDe(e.target.value)} />
+      {filtrosAbertos && (
+        <div className="mb-4 flex flex-wrap items-end gap-3">
+          <div>
+            <label className="mb-1 block text-[12px] font-medium text-muted">Fechamento de</label>
+            <input type="month" className={inp} value={mesDe} min={`${ANO_MIN}-01`} max={`${ANO_MAX}-12`} onChange={(e) => setMesDe(e.target.value)} />
+          </div>
+          <div>
+            <label className="mb-1 block text-[12px] font-medium text-muted">até</label>
+            <input type="month" className={inp} value={mesAte} min={`${ANO_MIN}-01`} max={`${ANO_MAX}-12`} onChange={(e) => setMesAte(e.target.value)} />
+          </div>
+          <button type="button" onClick={() => { setMesDe(''); setMesAte('') }} className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-muted transition hover:bg-paper">Todos os meses</button>
+          <div className="relative min-w-[200px] flex-1">
+            <label className="mb-1 block text-[12px] font-medium text-muted">Buscar</label>
+            <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Oficina, cliente ou peça…" className={`${inp} w-full`} />
+          </div>
+          <button type="button" onClick={exportar} disabled={visiveis.length === 0} className="inline-flex items-center gap-2 rounded-lg bg-ink px-3 py-2 text-sm font-medium text-surface transition hover:bg-ink/90 disabled:opacity-40">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4" /><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></svg>
+            Exportar
+          </button>
+          <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />
         </div>
-        <div>
-          <label className="mb-1 block text-[12px] font-medium text-muted">até</label>
-          <input type="month" className={inp} value={mesAte} min={`${ANO_MIN}-01`} max={`${ANO_MAX}-12`} onChange={(e) => setMesAte(e.target.value)} />
-        </div>
-        <button type="button" onClick={() => { setMesDe(''); setMesAte('') }} className="rounded-lg border border-line px-3 py-2 text-sm font-medium text-muted transition hover:bg-paper">Todos os meses</button>
-        <div className="relative min-w-[200px] flex-1">
-          <label className="mb-1 block text-[12px] font-medium text-muted">Buscar</label>
-          <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Oficina, cliente ou peça…" className={`${inp} w-full`} />
-        </div>
-        <button type="button" onClick={exportar} disabled={visiveis.length === 0} className="inline-flex items-center gap-2 rounded-lg bg-ink px-3 py-2 text-sm font-medium text-surface transition hover:bg-ink/90 disabled:opacity-40">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4" /><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" /></svg>
-          Exportar
-        </button>
-      </div>
+      )}
 
       {/* Resumo */}
       <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">

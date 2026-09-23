@@ -3,6 +3,7 @@ import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { ModuloTopo } from '../../components/ModuloTopo'
 import { InfoHint } from '../../components/InfoHint'
+import { FiltrosToggle } from '../../components/FiltrosToggle'
 import { resolveColor } from '../../lib/chartPalette'
 
 const COR_POS = resolveColor('VITE_CHART_POSITIVO', '#15805A')
@@ -168,6 +169,7 @@ export function FluxoCaixa() {
   const [saldoTexto, setSaldoTexto] = useState<string>('0,00')
   const [openCats, setOpenCats] = useState<Record<string, boolean>>({})
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({})
+  const [filtrosAbertos, setFiltrosAbertos] = useState(true)
   const [secReceb, setSecReceb] = useState(false)
   const [secPag, setSecPag] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -447,13 +449,19 @@ export function FluxoCaixa() {
       <ModuloTopo>
       {/* Cabeçalho do módulo */}
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="font-serif text-base font-semibold text-ink">Fluxo de Caixa</h2>
-          <p className="text-[12px] text-muted">
-            Regime de caixa{ano ? ` · ${ano}` : ''}
-            {!vazio && !loading ? ` · ${rowsAno.length} lançamentos · ${nCats} categorias` : ''}
-          </p>
+        <div className="flex items-end gap-2">
+          <div>
+            <h2 className="font-serif text-base font-semibold text-ink">Fluxo de Caixa</h2>
+            {filtrosAbertos && (
+              <p className="text-[12px] text-muted">
+                Regime de caixa{ano ? ` · ${ano}` : ''}
+                {!vazio && !loading ? ` · ${rowsAno.length} lançamentos · ${nCats} categorias` : ''}
+              </p>
+            )}
+          </div>
+          {!filtrosAbertos && !vazio && <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />}
         </div>
+        {filtrosAbertos && (
         <div className="flex flex-wrap items-end gap-2">
           <label className="flex flex-col gap-1">
             <span className="text-[10px] font-bold uppercase tracking-wider text-muted">Saldo inicial (jan)</span>
@@ -500,8 +508,10 @@ export function FluxoCaixa() {
               warn="É arquivo único: o envio substitui TODA a base (todos os meses de uma vez)."
             />
           )}
-          <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
+          {!vazio && <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />}
         </div>
+        )}
+        <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
       </div>
 
       {/* KPIs */}
@@ -513,7 +523,7 @@ export function FluxoCaixa() {
       </div>
 
       {/* Filtro de data (ano + faixa de meses) */}
-      {!vazio && !loading && (
+      {!vazio && !loading && filtrosAbertos && (
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-line bg-surface px-4 py-2.5">
           {anos.length > 1 && (
             <div className="flex items-center gap-1.5 text-[12px] text-muted">

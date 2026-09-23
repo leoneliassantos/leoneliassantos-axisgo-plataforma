@@ -3,6 +3,7 @@ import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { ModuloTopo } from '../../components/ModuloTopo'
 import { InfoHint } from '../../components/InfoHint'
+import { FiltrosToggle } from '../../components/FiltrosToggle'
 import { readFirstSheetAOA } from '../../lib/xls'
 import { parsePubliAOA, MESES_PT, type FaturamentoRow } from './publiFaturamento'
 import { resolveKpiGradient } from '../../lib/chartPalette'
@@ -49,6 +50,7 @@ export function FaturamentoLista() {
   const [uploadEmpresa, setUploadEmpresa] = useState<string>('Batuque')
   const [uploadAno, setUploadAno] = useState<number>(() => new Date().getFullYear())
   const [uploadMes, setUploadMes] = useState<number>(() => new Date().getMonth() + 1) // 1..12
+  const [filtrosAbertos, setFiltrosAbertos] = useState(true)
   const fileRef = useRef<HTMLInputElement>(null)
 
   // Anos disponíveis para seleção no upload (2023 até o próximo ano).
@@ -291,13 +293,19 @@ export function FaturamentoLista() {
 
       <ModuloTopo>
         <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 className="font-serif text-base font-semibold text-ink">Faturamento</h2>
-            <p className="text-[12px] text-muted">
-              Base do Publi (Mapa de Faturamento) · uma linha por nota · métrica: Valor Faturado
-              {demo ? ' · modo demonstração (sem banco)' : ''}
-            </p>
+          <div className="flex items-end gap-2">
+            <div>
+              <h2 className="font-serif text-base font-semibold text-ink">Faturamento</h2>
+              {filtrosAbertos && (
+                <p className="text-[12px] text-muted">
+                  Base do Publi (Mapa de Faturamento) · uma linha por nota · métrica: Valor Faturado
+                  {demo ? ' · modo demonstração (sem banco)' : ''}
+                </p>
+              )}
+            </div>
+            {!filtrosAbertos && !vazio && <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />}
           </div>
+          {filtrosAbertos && (
           <div className="flex flex-wrap items-end gap-2">
             <button
               className="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-4 py-2.5 text-[13px] font-bold text-ink transition hover:bg-paper disabled:opacity-50"
@@ -375,8 +383,10 @@ export function FaturamentoLista() {
                 </button>
               </div>
             )}
-            <input ref={fileRef} type="file" accept=".xls,.xlsx" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
+            {!vazio && <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />}
           </div>
+          )}
+          <input ref={fileRef} type="file" accept=".xls,.xlsx" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
         </div>
 
         {!vazio && (
@@ -388,7 +398,7 @@ export function FaturamentoLista() {
           </div>
         )}
 
-        {!vazio && (
+        {!vazio && filtrosAbertos && (
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-line bg-surface px-4 py-2.5">
             <div className="seg flex-wrap">
               <button className={empresaSel === CONSOLIDADO ? 'on' : ''} onClick={() => setEmpresaSel(CONSOLIDADO)} title="Todas as empresas">Consolidado</button>
