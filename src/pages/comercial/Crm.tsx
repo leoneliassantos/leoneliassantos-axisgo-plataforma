@@ -11,15 +11,16 @@ import {
   ToastProvider, useToast,
 } from './ui'
 import {
-  agora, brl, brlc, corEtapa, dmy, ehAtrasado, iniciais, resetDB,
-  tempCor, uid, propCor, useComercialStore, valorItens,
+  agora, brl, brlc, corEtapa, dmy, ehAtrasado, iniciais,
+  tempCor, uid, propCor, valorItens,
   CANAIS, ETAPAS, MOTIVOS_PERDA, ORIGENS, TEMPS, TIPOS_ATIVIDADE, TIPOS_OP,
-  type ComercialDB, type Compromisso, type EtapaCRM, type Lead, type LeadItem,
+  type Compromisso, type EtapaCRM, type Lead, type LeadItem,
   type OrigemComercial, type Produto, type StatusProposta, type Temperatura, type TipoOportunidade,
 } from './data'
 import type { CnpjDados } from './cnpj'
 import { ApelidoField, CnpjField, ItensVenda } from './campos'
 import { loadProdutos } from './produtosData'
+import { addCompromisso, createLead, loadLeads, saveLead } from './leadsData'
 
 /* ================================================================== *
  *  Componente do módulo (registrado no registry)
@@ -34,9 +35,22 @@ export function Crm() {
 }
 
 function CrmBoard() {
-  const { db, setDb, update } = useComercialStore()
   const { user } = useAuth()
   const { notify } = useToast()
+
+  // Leads (Supabase).
+  const [leads, setLeads] = useState<Lead[]>([])
+  const [leadsLoading, setLeadsLoading] = useState(true)
+  const recarregarLeads = useCallback(async () => {
+    setLeadsLoading(true)
+    try {
+      setLeads(await loadLeads())
+    } catch (e) {
+      notify({ kind: 'error', title: 'Falha ao carregar os leads', desc: (e as Error).message })
+    } finally {
+      setLeadsLoading(false)
+    }
+  }, [notify])
 
   // Clientes cadastrados em Operações (banco da MM) — alimentam o campo Apelido.
   const [clientes, setClientes] = useState<Cadastro[]>([])
@@ -55,9 +69,39 @@ function CrmBoard() {
   // Catálogo de produtos (Supabase) — alimenta o seletor de itens da venda.
   const [produtos, setProdutos] = useState<Produto[]>([])
   useEffect(() => {
+    recarregarLeads()
     recarregarClientes()
     loadProdutos().then(setProdutos).catch(() => { /* sem Supabase em dev */ })
-  }, [recarregarClientes])
+  }, [recarregarLeads, recarregarClientes])
+
+  // Altera um lead (otimista na tela) e persiste a linha no Supabase.
+  const mutarLead = useCallback((leadId: string, fn: (l: Lead) => void) => {
+    setLeads((prev) => {
+      const idx = prev.findIndex((l) => l.id === leadId)
+      if (idx < 0) return prev
+      const novo = structuredClone(prev[idx]) as Lead
+      fn(novo)
+      novo.atualizadoEm = agora()
+      saveLead(novo).catch((e) => notify({ kind: 'error', title: 'Falha ao salvar', desc: (e as Error).message }))
+      const arr = prev.slice()
+      arr[idx] = novo
+      return arr
+    })
+  }, [notify])
+
+  const criarLead = useCallback(async (l: Lead) => {
+    try {
+      const salvo = await createLead(l)
+      setLeads((prev) => [salvo, ...prev])
+      notify({ title: 'Lead cadastrado', desc: salvo.empresa || salvo.nome })
+    } catch (e) {
+      notify({ kind: 'error', title: 'Não foi possível cadastrar', desc: (e as Error).message })
+    }
+  }, [notify])
+
+  const adicionarCompromisso = useCallback((c: Compromisso, leadId?: string) => {
+    addCompromisso(c, leadId).catch(() => { /* silencioso */ })
+  }, [])
 
   const [fConsultor, setFConsultor] = useState('all')
   const [fOrigem, setFOrigem] = useState('all')
@@ -69,13 +113,13 @@ function CrmBoard() {
   const [dragId, setDragId] = useState<string | null>(null)
 
   const consultores = useMemo(
-    () => [...new Set(db.leads.map((l) => l.consultor).filter(Boolean))].sort(),
-    [db.leads],
+    () => [...new Set(leads.map((l) => l.consultor).filter(Boolean))].sort(),
+    [leads],
   )
 
-  const leads = useMemo(
+  const leadsVis = useMemo(
     () =>
-      db.leads.filter((l) => {
+      leads.filter((l) => {
         if (fConsultor !== 'all' && l.consultor !== fConsultor) return false
         if (fOrigem !== 'all' && l.origem !== fOrigem) return false
         if (fTipo !== 'all' && l.tipo !== fTipo) return false
@@ -83,20 +127,19 @@ function CrmBoard() {
         if (q && !`${l.nome} ${l.empresa} ${l.produtoInteresse}`.toLowerCase().includes(q.toLowerCase())) return false
         return true
       }),
-    [db.leads, fConsultor, fOrigem, fTipo, fTemp, q],
+    [leads, fConsultor, fOrigem, fTipo, fTemp, q],
   )
 
-  const porEtapa = (et: EtapaCRM) => leads.filter((l) => l.etapa === et)
-  const selLead = sel ? db.leads.find((l) => l.id === sel) ?? null : null
+  const porEtapa = (et: EtapaCRM) => leadsVis.filter((l) => l.etapa === et)
+  const selLead = sel ? leads.find((l) => l.id === sel) ?? null : null
   const temFiltro = fConsultor !== 'all' || fOrigem !== 'all' || fTipo !== 'all' || fTemp !== 'all' || !!q
 
   const moverEtapa = (leadId: string, etapa: EtapaCRM) => {
-    update((d) => {
-      const l = d.leads.find((x) => x.id === leadId)
-      if (!l || l.etapa === etapa) return
+    const atual = leads.find((x) => x.id === leadId)
+    if (!atual || atual.etapa === etapa) return
+    mutarLead(leadId, (l) => {
       l.atividades.unshift({ data: agora(), tipo: 'Etapa', texto: `Etapa: ${l.etapa} → ${etapa}` })
       l.etapa = etapa
-      l.atualizadoEm = agora()
       if (etapa === 'Fechado ganho') l.probabilidade = 100
       if (etapa === 'Fechado perdido') l.probabilidade = 0
     })
@@ -104,22 +147,15 @@ function CrmBoard() {
 
   const onDropLead = (etapa: EtapaCRM) => {
     if (!dragId) return
-    const lead = db.leads.find((l) => l.id === dragId)
+    const lead = leads.find((l) => l.id === dragId)
     setDragId(null)
     if (lead && lead.etapa !== etapa) {
       moverEtapa(lead.id, etapa)
-      notify({ title: 'Lead movido', desc: `${lead.nome} → ${etapa}` })
+      notify({ title: 'Lead movido', desc: `${lead.empresa || lead.nome} → ${etapa}` })
     }
   }
 
-  const limparExemplos = () => {
-    if (!window.confirm('Isto apaga TODOS os leads e a agenda deste navegador. Continuar?')) return
-    setDb(resetDB())
-    setSel(null)
-    notify({ kind: 'info', title: 'Dados zerados', desc: 'CRM pronto para os dados reais da MM.' })
-  }
-
-  const totalPipeline = leads
+  const totalPipeline = leadsVis
     .filter((l) => l.etapa !== 'Fechado perdido' && l.etapa !== 'Fechado ganho')
     .reduce((a, l) => a + l.valorPotencial, 0)
 
@@ -132,11 +168,8 @@ function CrmBoard() {
           <p className="text-sm text-muted">Arraste os cards entre as etapas do funil.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Badge color="#7A6CF0">{leads.length} oportunidades</Badge>
+          <Badge color="#7A6CF0">{leadsVis.length} oportunidades</Badge>
           <Badge color="#15805A">{brlc(totalPipeline)} em pipeline</Badge>
-          <Btn variant="secondary" sm onClick={limparExemplos} title="Apagar os dados de exemplo">
-            <Ico n="broom" s={14} /> Limpar exemplos
-          </Btn>
           <Btn variant="accent" sm onClick={() => setNovo(true)}>
             <Ico n="plus" s={15} /> Novo lead
           </Btn>
@@ -154,6 +187,8 @@ function CrmBoard() {
           <Btn variant="ghost" sm onClick={() => { setFConsultor('all'); setFOrigem('all'); setFTipo('all'); setFTemp('all'); setQ('') }}>Limpar</Btn>
         )}
       </Card>
+
+      {leadsLoading && <p className="mb-3 text-sm text-muted">Carregando leads…</p>}
 
       {/* Board */}
       <div className="flex gap-3 overflow-x-auto pb-3">
@@ -182,7 +217,8 @@ function CrmBoard() {
           onClientesReload={recarregarClientes}
           onClose={() => setSel(null)}
           onMover={moverEtapa}
-          update={update}
+          mutar={(fn) => mutarLead(selLead.id, fn)}
+          onAddCompromisso={adicionarCompromisso}
         />
       )}
       {novo && (
@@ -193,11 +229,7 @@ function CrmBoard() {
           clientesLoading={clientesLoading}
           onClientesReload={recarregarClientes}
           onClose={() => setNovo(false)}
-          onSave={(l) => {
-            update((d) => d.leads.unshift(l))
-            notify({ title: 'Lead cadastrado', desc: l.nome })
-            setNovo(false)
-          }}
+          onSave={async (l) => { await criarLead(l); setNovo(false) }}
         />
       )}
     </div>
@@ -306,7 +338,7 @@ function CardLead({
  * ================================================================== */
 
 function PainelLead({
-  lead, usuario, produtos, clientes, clientesLoading, onClientesReload, onClose, onMover, update,
+  lead, usuario, produtos, clientes, clientesLoading, onClientesReload, onClose, onMover, mutar, onAddCompromisso,
 }: {
   lead: Lead
   usuario: string
@@ -316,7 +348,8 @@ function PainelLead({
   onClientesReload: () => void
   onClose: () => void
   onMover: (id: string, e: EtapaCRM) => void
-  update: (fn: (d: ComercialDB) => void) => void
+  mutar: (fn: (l: Lead) => void) => void
+  onAddCompromisso: (c: Compromisso, leadId?: string) => void
 }) {
   const { notify } = useToast()
   const navigate = useNavigate()
@@ -332,8 +365,7 @@ function PainelLead({
   const mailUrl = lead.email ? `mailto:${lead.email}` : null
   const atrasado = ehAtrasado(lead)
 
-  const mut = (fn: (l: Lead) => void) =>
-    update((d) => { const l = d.leads.find((x) => x.id === lead.id); if (!l) return; fn(l); l.atualizadoEm = agora() })
+  const mut = (fn: (l: Lead) => void) => mutar(fn)
   const log = (l: Lead, tipo: string, texto: string) => l.atividades.unshift({ data: agora(), tipo, texto })
 
   const setTemp = (t: Temperatura) => {
@@ -404,14 +436,11 @@ function PainelLead({
     })
 
   const salvarAtividade = (c: Compromisso) => {
-    update((d) => {
-      d.compromissos.push(c)
-      const l = d.leads.find((x) => x.id === lead.id)
-      if (!l) return
+    onAddCompromisso(c, lead.id)
+    mut((l) => {
       log(l, 'Atividade', `Atividade agendada: ${c.titulo} (${dmy(c.data)}).`)
       l.proximaAtividade = c.data
       l.diasSemContato = 0
-      l.atualizadoEm = agora()
     })
     notify({ title: 'Atividade agendada' })
     setAtividadeOpen(false)
