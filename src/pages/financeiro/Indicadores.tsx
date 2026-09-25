@@ -37,15 +37,19 @@ export function Indicadores() {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [altura, setAltura] = useState<number | undefined>(undefined)
   useLayoutEffect(() => {
+    let raf = 0
     function calc() {
       const el = wrapRef.current
       if (!el) return
       const top = el.getBoundingClientRect().top
-      setAltura(Math.max(430, window.innerHeight - top - 80))
+      const disponivel = window.innerHeight - top - 80
+      // Teto na altura da janela: se a medição pegar o topo já rolado/negativo, não estoura a tela.
+      setAltura(Math.max(430, Math.min(disponivel, window.innerHeight)))
     }
     calc()
+    raf = requestAnimationFrame(calc) // recalcula após o layout final assentar
     window.addEventListener('resize', calc)
-    return () => window.removeEventListener('resize', calc)
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', calc) }
   }, [loading, erro])
 
   useEffect(() => {
