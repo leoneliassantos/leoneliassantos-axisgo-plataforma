@@ -9,6 +9,9 @@
  * Portado do CRM do MVP da Fukuda, adaptado para o negócio de UNIFORMES da MM.
  */
 
+import { useCallback, useState } from 'react'
+import type { CnpjDados } from './cnpj'
+
 /* ------------------------------------------------------------------ *
  *  Tipos
  * ------------------------------------------------------------------ */
@@ -59,6 +62,23 @@ export interface PropostaLead {
   status: StatusProposta
 }
 
+/** Produto do catálogo (gerido na tela Produtos), com valor por peça. */
+export interface Produto {
+  id: string
+  nome: string
+  valorUnitario: number // valor de venda por peça
+  ativo: boolean
+}
+
+/** Item de venda dentro de um lead (produto escolhido + quantidade). */
+export interface LeadItem {
+  id: string
+  produtoId: string
+  produtoNome: string // snapshot do nome no momento
+  qtd: number
+  valorUnit: number // snapshot do valor unitário no momento
+}
+
 export interface Lead {
   id: string
   nome: string // nome do contato (pessoa)
@@ -80,6 +100,13 @@ export interface Lead {
   motivoPerda?: string
   atividades: Atividade[]
   propostas: PropostaLead[]
+  // --- Cadastro fiscal / vínculo com Operações ---
+  cnpj?: string // só dígitos
+  cnpjDados?: CnpjDados // dados oficiais preenchidos pela BrasilAPI
+  clienteOpId?: string // id do cliente cadastrado em Operações
+  apelido?: string // nome/apelido do cliente de Operações (agrupa vários CNPJs)
+  // --- Itens de venda (base para a futura proposta) ---
+  itens?: LeadItem[]
 }
 
 export interface Compromisso {
@@ -210,6 +237,12 @@ export function brlc(n: number): string {
 export const iniciais = (n: string) =>
   n.trim().split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase()
 
+/** Total de um item = quantidade × valor unitário. */
+export const totalItem = (i: LeadItem) => (Number(i.qtd) || 0) * (Number(i.valorUnit) || 0)
+
+/** Soma dos itens de venda do lead. */
+export const valorItens = (itens?: LeadItem[]) => (itens ?? []).reduce((s, i) => s + totalItem(i), 0)
+
 export function ehAtrasado(l: Lead): boolean {
   if (!l.proximaAtividade) return false
   if (l.etapa === 'Fechado ganho' || l.etapa === 'Fechado perdido') return false
@@ -226,16 +259,30 @@ export interface ComercialDB {
   _v: number
   leads: Lead[]
   compromissos: Compromisso[]
+  produtos: Produto[]
 }
 
 const VERSAO = 1
+
+/** Garante que campos/arrays adicionados depois existam em bases antigas. */
+function normaliza(db: ComercialDB): ComercialDB {
+  db.leads = Array.isArray(db.leads) ? db.leads : []
+  db.compromissos = Array.isArray(db.compromissos) ? db.compromissos : []
+  db.produtos = Array.isArray(db.produtos) ? db.produtos : seedProdutos()
+  for (const l of db.leads) if (!Array.isArray(l.itens)) l.itens = []
+  return db
+}
 
 export function loadDB(): ComercialDB {
   try {
     const raw = localStorage.getItem(KEY)
     if (raw) {
       const parsed = JSON.parse(raw) as ComercialDB
-      if (parsed && parsed._v === VERSAO && Array.isArray(parsed.leads)) return parsed
+      if (parsed && parsed._v === VERSAO && Array.isArray(parsed.leads)) {
+        const norm = normaliza(parsed)
+        saveDB(norm)
+        return norm
+      }
     }
   } catch {
     /* ignore */
@@ -243,6 +290,20 @@ export function loadDB(): ComercialDB {
   const seed = seedDB()
   saveDB(seed)
   return seed
+}
+
+/** Hook de estado compartilhado pelas telas do Comercial (CRM e Produtos). */
+export function useComercialStore() {
+  const [db, setDb] = useState<ComercialDB>(loadDB)
+  const update = useCallback((fn: (d: ComercialDB) => void) => {
+    setDb((prev) => {
+      const next = structuredClone(prev) as ComercialDB
+      fn(next)
+      saveDB(next)
+      return next
+    })
+  }, [])
+  return { db, setDb, update }
 }
 
 export function saveDB(db: ComercialDB) {
@@ -253,11 +314,25 @@ export function saveDB(db: ComercialDB) {
   }
 }
 
-/** Zera todos os dados do CRM (leads + agenda) — usado pelo botão "Limpar exemplos". */
+/** Zera os leads/agenda de exemplo (mantém o catálogo de produtos). */
 export function resetDB(): ComercialDB {
-  const vazio: ComercialDB = { _v: VERSAO, leads: [], compromissos: [] }
+  const atual = loadDB()
+  const vazio: ComercialDB = { _v: VERSAO, leads: [], compromissos: [], produtos: atual.produtos }
   saveDB(vazio)
   return vazio
+}
+
+/** Produtos de exemplo (apagáveis/editáveis na tela Produtos). */
+function seedProdutos(): Produto[] {
+  return [
+    { id: uid(), nome: 'Camisa polo piquê (bordada)', valorUnitario: 48, ativo: true },
+    { id: uid(), nome: 'Camiseta malha PV (silk)', valorUnitario: 29, ativo: true },
+    { id: uid(), nome: 'Camiseta dry-fit personalizada', valorUnitario: 39, ativo: true },
+    { id: uid(), nome: 'Jaleco / avental', valorUnitario: 65, ativo: true },
+    { id: uid(), nome: 'Colete refletivo', valorUnitario: 42, ativo: true },
+    { id: uid(), nome: 'Calça de brim', valorUnitario: 79, ativo: true },
+    { id: uid(), nome: 'Boné bordado', valorUnitario: 22, ativo: true },
+  ]
 }
 
 /* ------------------------------------------------------------------ *
@@ -357,5 +432,5 @@ function seedDB(): ComercialDB {
     }),
   ]
 
-  return { _v: VERSAO, leads, compromissos: [] }
+  return { _v: VERSAO, leads, compromissos: [], produtos: seedProdutos() }
 }

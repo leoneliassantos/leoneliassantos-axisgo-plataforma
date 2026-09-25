@@ -1,38 +1,24 @@
 import {
-  useCallback, useMemo, useRef, useState,
+  useCallback, useEffect, useMemo, useRef, useState,
   type ChangeEvent, type ReactNode,
 } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../auth/AuthContext'
 import { Modal } from '../operacoes/Modal'
+import { loadCadastros, type Cadastro } from '../operacoes/data'
 import {
   Badge, Btn, Card, Field, Ico, Input, Select, Sheet, Tabs, Textarea,
   ToastProvider, useToast,
 } from './ui'
 import {
-  agora, brl, brlc, corEtapa, dmy, ehAtrasado, iniciais,
-  loadDB, resetDB, saveDB, tempCor, uid, propCor,
+  agora, brl, brlc, corEtapa, dmy, ehAtrasado, iniciais, resetDB,
+  tempCor, uid, propCor, useComercialStore, valorItens,
   CANAIS, ETAPAS, MOTIVOS_PERDA, ORIGENS, TEMPS, TIPOS_ATIVIDADE, TIPOS_OP,
-  type ComercialDB, type Compromisso, type EtapaCRM, type Lead,
-  type OrigemComercial, type StatusProposta, type Temperatura, type TipoOportunidade,
+  type ComercialDB, type Compromisso, type EtapaCRM, type Lead, type LeadItem,
+  type OrigemComercial, type Produto, type StatusProposta, type Temperatura, type TipoOportunidade,
 } from './data'
-
-/* ================================================================== *
- *  Store local (localStorage) — espelha o update() do MVP da Fukuda
- * ================================================================== */
-
-function useStore() {
-  const [db, setDb] = useState<ComercialDB>(loadDB)
-  const update = useCallback((fn: (d: ComercialDB) => void) => {
-    setDb((prev) => {
-      const next = structuredClone(prev) as ComercialDB
-      fn(next)
-      saveDB(next)
-      return next
-    })
-  }, [])
-  return { db, setDb, update }
-}
+import type { CnpjDados } from './cnpj'
+import { ApelidoField, CnpjField, ItensVenda } from './campos'
 
 /* ================================================================== *
  *  Componente do módulo (registrado no registry)
@@ -47,9 +33,25 @@ export function Crm() {
 }
 
 function CrmBoard() {
-  const { db, setDb, update } = useStore()
+  const { db, setDb, update } = useComercialStore()
   const { user } = useAuth()
   const { notify } = useToast()
+
+  // Clientes cadastrados em Operações (banco da MM) — alimentam o campo Apelido.
+  const [clientes, setClientes] = useState<Cadastro[]>([])
+  const [clientesLoading, setClientesLoading] = useState(true)
+  const recarregarClientes = useCallback(async () => {
+    setClientesLoading(true)
+    try {
+      const c = await loadCadastros()
+      setClientes(c.clientes.filter((x) => !x.bloqueado))
+    } catch {
+      /* silencioso: instância sem Supabase (dev) fica sem apelidos */
+    } finally {
+      setClientesLoading(false)
+    }
+  }, [])
+  useEffect(() => { recarregarClientes() }, [recarregarClientes])
 
   const [fConsultor, setFConsultor] = useState('all')
   const [fOrigem, setFOrigem] = useState('all')
@@ -168,6 +170,10 @@ function CrmBoard() {
         <PainelLead
           lead={selLead}
           usuario={user?.nome || user?.email || 'Usuário'}
+          produtos={db.produtos}
+          clientes={clientes}
+          clientesLoading={clientesLoading}
+          onClientesReload={recarregarClientes}
           onClose={() => setSel(null)}
           onMover={moverEtapa}
           update={update}
@@ -176,6 +182,10 @@ function CrmBoard() {
       {novo && (
         <NovoLead
           consultorPadrao={user?.nome || ''}
+          produtos={db.produtos}
+          clientes={clientes}
+          clientesLoading={clientesLoading}
+          onClientesReload={recarregarClientes}
           onClose={() => setNovo(false)}
           onSave={(l) => {
             update((d) => d.leads.unshift(l))
@@ -290,10 +300,14 @@ function CardLead({
  * ================================================================== */
 
 function PainelLead({
-  lead, usuario, onClose, onMover, update,
+  lead, usuario, produtos, clientes, clientesLoading, onClientesReload, onClose, onMover, update,
 }: {
   lead: Lead
   usuario: string
+  produtos: Produto[]
+  clientes: Cadastro[]
+  clientesLoading: boolean
+  onClientesReload: () => void
   onClose: () => void
   onMover: (id: string, e: EtapaCRM) => void
   update: (fn: (d: ComercialDB) => void) => void
@@ -329,6 +343,27 @@ function PainelLead({
     if (c === lead.consultor) return
     mut((l) => { log(l, 'Consultor', `Consultor: ${l.consultor} → ${c}`); l.consultor = c })
   }
+  const setCnpj = (cnpj: string, dados?: CnpjDados) => {
+    mut((l) => {
+      l.cnpj = cnpj || undefined
+      l.cnpjDados = dados
+      if (dados && !l.empresa.trim()) l.empresa = dados.nomeFantasia || dados.razaoSocial
+      if (dados && !l.telefone) l.telefone = dados.telefone
+      if (dados && !l.email) l.email = dados.email
+      log(l, 'Cadastro', cnpj ? `CNPJ informado: ${dados?.razaoSocial ?? cnpj}` : 'CNPJ removido')
+    })
+  }
+  const setApelido = (id: string, nome: string) => {
+    mut((l) => { l.clienteOpId = id; l.apelido = nome; log(l, 'Cadastro', `Apelido (cliente): ${nome}`) })
+  }
+  const setItens = (itens: LeadItem[]) => {
+    mut((l) => {
+      l.itens = itens
+      l.valorPotencial = valorItens(itens)
+      log(l, 'Produtos', `Itens da venda atualizados (${itens.length}) — total ${brl(valorItens(itens))}`)
+    })
+  }
+  const temItens = (lead.itens?.length ?? 0) > 0
   const addNota = () => {
     if (!nota.trim()) return
     mut((l) => { log(l, 'Nota', nota.trim()); l.diasSemContato = 0 })
@@ -479,8 +514,25 @@ function PainelLead({
             </div>
             <Field label="Etapa"><Select value={lead.etapa} onChange={(e) => onMover(lead.id, e.target.value as EtapaCRM)}>{ETAPAS.map((e) => <option key={e.key}>{e.key}</option>)}</Select></Field>
             <Field label="Consultor"><Input key={`c${lead.id}`} defaultValue={lead.consultor} onBlur={(e) => setConsultor(e.target.value.trim())} /></Field>
-            <Field label="Valor potencial (R$)"><Input key={`v${lead.id}`} type="number" defaultValue={lead.valorPotencial} onBlur={(e) => commitNum('valorPotencial', Number(e.target.value), 'Valor potencial', (n) => brl(n))} /></Field>
+            {temItens ? (
+              <Field label="Valor da venda (R$)">
+                <div className="rounded-lg border border-line bg-paper/60 px-3 py-2 text-sm font-semibold text-ink tnum">{brl(lead.valorPotencial)}</div>
+                <span className="mt-1 block text-[11px] text-muted/80">Calculado pelos produtos.</span>
+              </Field>
+            ) : (
+              <Field label="Valor potencial (R$)"><Input key={`v${lead.id}`} type="number" defaultValue={lead.valorPotencial} onBlur={(e) => commitNum('valorPotencial', Number(e.target.value), 'Valor potencial', (n) => brl(n))} /></Field>
+            )}
             <Field label="Probabilidade (%)"><Input key={`p${lead.id}`} type="number" defaultValue={lead.probabilidade} onBlur={(e) => commitNum('probabilidade', Number(e.target.value), 'Probabilidade', (n) => `${n}%`)} /></Field>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted/80">Cadastro da empresa</p>
+            <CnpjField cnpj={lead.cnpj} dados={lead.cnpjDados} onChange={setCnpj} />
+            <ApelidoField value={lead.clienteOpId} clientes={clientes} loading={clientesLoading} onSelect={setApelido} onAdded={onClientesReload} />
+          </div>
+
+          <div className="mt-5">
+            <ItensVenda itens={lead.itens ?? []} produtos={produtos} onChange={setItens} />
           </div>
 
           {lead.proximaAtividade && (
@@ -650,9 +702,13 @@ function NovaAtividade({
 }
 
 function NovoLead({
-  consultorPadrao, onClose, onSave,
+  consultorPadrao, produtos, clientes, clientesLoading, onClientesReload, onClose, onSave,
 }: {
   consultorPadrao: string
+  produtos: Produto[]
+  clientes: Cadastro[]
+  clientesLoading: boolean
+  onClientesReload: () => void
   onClose: () => void
   onSave: (l: Lead) => void
 }) {
@@ -666,6 +722,24 @@ function NovoLead({
   const [temp, setTemp] = useState('')
   const [telefone, setTelefone] = useState('')
   const [email, setEmail] = useState('')
+  const [cnpj, setCnpj] = useState('')
+  const [cnpjDados, setCnpjDados] = useState<CnpjDados | undefined>(undefined)
+  const [clienteOpId, setClienteOpId] = useState('')
+  const [apelido, setApelido] = useState('')
+  const [itens, setItens] = useState<LeadItem[]>([])
+
+  const totalVenda = valorItens(itens)
+  const temItens = itens.length > 0
+
+  const onCnpj = (c: string, d?: CnpjDados) => {
+    setCnpj(c)
+    setCnpjDados(d)
+    if (d) {
+      if (!empresa.trim()) setEmpresa(d.nomeFantasia || d.razaoSocial)
+      if (!telefone) setTelefone(d.telefone)
+      if (!email) setEmail(d.email)
+    }
+  }
 
   const salvar = () =>
     onSave({
@@ -676,7 +750,7 @@ function NovoLead({
       produtoInteresse: produto.trim(),
       origem: (origem || 'Indicação') as OrigemComercial,
       consultor: consultor.trim() || 'Comercial MM',
-      valorPotencial: Number(valor) || 0,
+      valorPotencial: temItens ? totalVenda : Number(valor) || 0,
       etapa: 'Novo lead',
       probabilidade: 10,
       temperatura: (temp || 'Morno') as Temperatura,
@@ -687,22 +761,34 @@ function NovoLead({
       email: email.trim(),
       atividades: [{ data: agora(), tipo: 'Criação', texto: 'Lead cadastrado manualmente.' }],
       propostas: [],
+      cnpj: cnpj || undefined,
+      cnpjDados,
+      clienteOpId: clienteOpId || undefined,
+      apelido: apelido || undefined,
+      itens,
     })
 
   return (
-    <Modal title="Novo lead" subtitle="Cadastro rápido de oportunidade" width={560} onClose={onClose}
+    <Modal title="Novo lead" subtitle="Cadastro de oportunidade" width={620} onClose={onClose}
       footer={<><Btn variant="ghost" onClick={onClose}>Cancelar</Btn><Btn variant="accent" disabled={!empresa.trim() && !nome.trim()} onClick={salvar}>Cadastrar lead</Btn></>}>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Empresa*" className="col-span-2"><Input value={empresa} onChange={(e) => setEmpresa(e.target.value)} placeholder="Nome da empresa/cliente" /></Field>
-        <Field label="Contato"><Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome da pessoa" /></Field>
-        <Field label="Tipo"><Select value={tipo} onChange={(e) => setTipo(e.target.value)}><option value="">Selecione…</option>{TIPOS_OP.map((t) => <option key={t}>{t}</option>)}</Select></Field>
-        <Field label="Produto de interesse" className="col-span-2"><Input value={produto} onChange={(e) => setProduto(e.target.value)} placeholder="Ex.: Camisas polo + agasalho (80 peças)" /></Field>
-        <Field label="Origem"><Select value={origem} onChange={(e) => setOrigem(e.target.value)}><option value="">Selecione…</option>{ORIGENS.map((o) => <option key={o}>{o}</option>)}</Select></Field>
-        <Field label="Consultor"><Input value={consultor} onChange={(e) => setConsultor(e.target.value)} placeholder="Vendedor responsável" /></Field>
-        <Field label="Valor potencial (R$)"><Input type="number" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0" /></Field>
-        <Field label="Temperatura"><Select value={temp} onChange={(e) => setTemp(e.target.value)}><option value="">Selecione…</option>{TEMPS.map((t) => <option key={t}>{t}</option>)}</Select></Field>
-        <Field label="Telefone"><Input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(11) 9…" /></Field>
-        <Field label="E-mail"><Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@cliente.com" /></Field>
+      <div className="space-y-4">
+        <CnpjField cnpj={cnpj} dados={cnpjDados} onChange={onCnpj} />
+        <ApelidoField value={clienteOpId} clientes={clientes} loading={clientesLoading} onSelect={(id, n) => { setClienteOpId(id); setApelido(n) }} onAdded={onClientesReload} />
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Empresa*" className="col-span-2"><Input value={empresa} onChange={(e) => setEmpresa(e.target.value)} placeholder="Nome da empresa/cliente" /></Field>
+          <Field label="Contato"><Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome da pessoa" /></Field>
+          <Field label="Tipo"><Select value={tipo} onChange={(e) => setTipo(e.target.value)}><option value="">Selecione…</option>{TIPOS_OP.map((t) => <option key={t}>{t}</option>)}</Select></Field>
+          <Field label="Produto de interesse (descrição)" className="col-span-2"><Input value={produto} onChange={(e) => setProduto(e.target.value)} placeholder="Ex.: Camisas polo + agasalho (80 peças)" /></Field>
+          <Field label="Origem"><Select value={origem} onChange={(e) => setOrigem(e.target.value)}><option value="">Selecione…</option>{ORIGENS.map((o) => <option key={o}>{o}</option>)}</Select></Field>
+          <Field label="Consultor"><Input value={consultor} onChange={(e) => setConsultor(e.target.value)} placeholder="Vendedor responsável" /></Field>
+          {!temItens && <Field label="Valor potencial (R$)"><Input type="number" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0" /></Field>}
+          <Field label="Temperatura"><Select value={temp} onChange={(e) => setTemp(e.target.value)}><option value="">Selecione…</option>{TEMPS.map((t) => <option key={t}>{t}</option>)}</Select></Field>
+          <Field label="Telefone"><Input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(11) 9…" /></Field>
+          <Field label="E-mail"><Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@cliente.com" /></Field>
+        </div>
+
+        <ItensVenda itens={itens} produtos={produtos} onChange={setItens} />
       </div>
     </Modal>
   )

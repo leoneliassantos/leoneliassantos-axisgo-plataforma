@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { podeVerValorFornecedor, type Role } from '../auth/types'
+import { podeVerValorFornecedor, podeVerValorVenda, type Role } from '../auth/types'
 import { EmConstrucao } from '../components/EmConstrucao'
 import { Rentabilidade } from '../pages/financeiro/Rentabilidade'
 import { FluxoCaixaHub } from '../pages/financeiro/FluxoCaixaHub'
@@ -14,6 +14,7 @@ import { CobrancaOficinas } from '../pages/operacoes/CobrancaOficinas'
 import { Cadastros } from '../pages/operacoes/Cadastros'
 import { CadastroClientes } from '../pages/cadastros/Clientes'
 import { Crm } from '../pages/comercial/Crm'
+import { Produtos } from '../pages/comercial/Produtos'
 
 /**
  * ============================================================
@@ -193,6 +194,12 @@ const icCrm = (
     <path d="M3 5h18M6 10h12M9 15h6M11 20h2" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
   </>
 )
+const icProdutos = (
+  <>
+    <path d="M3.5 7.5l8.5-4.5 8.5 4.5v9L12 21l-8.5-4.5z" strokeWidth="1.5" strokeLinejoin="round" />
+    <path d="M3.5 7.5L12 12l8.5-4.5M12 12v9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+  </>
+)
 
 const TODAS_FRENTES: Frente[] = [
   {
@@ -203,6 +210,7 @@ const TODAS_FRENTES: Frente[] = [
     icon: iconComercial,
     modulos: [
       { slug: 'crm', label: 'CRM', icon: icCrm, element: <Crm /> },
+      { slug: 'produtos', label: 'Produtos', icon: icProdutos, element: <Produtos />, podeVer: podeVerValorVenda },
       {
         slug: 'indicadores',
         label: 'Indicadores',
