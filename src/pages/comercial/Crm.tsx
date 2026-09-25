@@ -19,6 +19,7 @@ import {
 } from './data'
 import type { CnpjDados } from './cnpj'
 import { ApelidoField, CnpjField, ItensVenda } from './campos'
+import { loadProdutos } from './produtosData'
 
 /* ================================================================== *
  *  Componente do módulo (registrado no registry)
@@ -51,7 +52,12 @@ function CrmBoard() {
       setClientesLoading(false)
     }
   }, [])
-  useEffect(() => { recarregarClientes() }, [recarregarClientes])
+  // Catálogo de produtos (Supabase) — alimenta o seletor de itens da venda.
+  const [produtos, setProdutos] = useState<Produto[]>([])
+  useEffect(() => {
+    recarregarClientes()
+    loadProdutos().then(setProdutos).catch(() => { /* sem Supabase em dev */ })
+  }, [recarregarClientes])
 
   const [fConsultor, setFConsultor] = useState('all')
   const [fOrigem, setFOrigem] = useState('all')
@@ -170,7 +176,7 @@ function CrmBoard() {
         <PainelLead
           lead={selLead}
           usuario={user?.nome || user?.email || 'Usuário'}
-          produtos={db.produtos}
+          produtos={produtos}
           clientes={clientes}
           clientesLoading={clientesLoading}
           onClientesReload={recarregarClientes}
@@ -182,7 +188,7 @@ function CrmBoard() {
       {novo && (
         <NovoLead
           consultorPadrao={user?.nome || ''}
-          produtos={db.produtos}
+          produtos={produtos}
           clientes={clientes}
           clientesLoading={clientesLoading}
           onClientesReload={recarregarClientes}

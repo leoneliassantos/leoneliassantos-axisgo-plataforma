@@ -3,8 +3,8 @@
  * de Operações) e Itens de venda (produtos + quantidade → total). Usados tanto
  * no cadastro (Novo lead) quanto na edição (aba Dados do painel).
  */
-import { useState } from 'react'
-import { Btn, Field, Ico, Input, Select } from './ui'
+import { useEffect, useRef, useState } from 'react'
+import { Btn, Field, Ico, Input } from './ui'
 import { brl, totalItem, uid, valorItens, type LeadItem, type Produto } from './data'
 import { buscarCnpj, mascaraCnpj, soDigitos, type CnpjDados } from './cnpj'
 import { Combobox } from '../operacoes/Combobox'
@@ -152,10 +152,6 @@ export function ItensVenda({
   const addRow = () => onChange([...itens, { id: uid(), produtoId: '', produtoNome: '', qtd: 1, valorUnit: 0 }])
   const delRow = (id: string) => onChange(itens.filter((i) => i.id !== id))
   const setRow = (id: string, patch: Partial<LeadItem>) => onChange(itens.map((i) => (i.id === id ? { ...i, ...patch } : i)))
-  const setProduto = (id: string, produtoId: string) => {
-    const p = ativos.find((x) => x.id === produtoId)
-    setRow(id, { produtoId, produtoNome: p?.nome ?? '', valorUnit: p?.valorUnitario ?? 0 })
-  }
 
   return (
     <div>
@@ -172,17 +168,15 @@ export function ItensVenda({
         <div className="flex flex-col gap-2">
           {itens.map((i) => (
             <div key={i.id} className="flex items-end gap-2 rounded-xl border border-line bg-surface p-2">
-              <label className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1">
                 <span className="mb-1 block text-[11px] text-muted">Produto</span>
-                <Select value={i.produtoId} onChange={(e) => setProduto(i.id, e.target.value)}>
-                  <option value="">Selecione…</option>
-                  {ativos.map((p) => <option key={p.id} value={p.id}>{p.nome} — {brl(p.valorUnitario)}</option>)}
-                  {/* mantém visível um produto que tenha sido inativado depois de escolhido */}
-                  {i.produtoId && !ativos.some((p) => p.id === i.produtoId) && (
-                    <option value={i.produtoId}>{i.produtoNome} (inativo)</option>
-                  )}
-                </Select>
-              </label>
+                <ProdutoPicker
+                  produtos={ativos}
+                  value={i.produtoId}
+                  snapshot={i}
+                  onPick={(p) => setRow(i.id, { produtoId: p.id, produtoNome: p.nome, cor: p.cor, tecido: p.tecido, valorUnit: p.valorUnitario })}
+                />
+              </div>
               <label className="w-20">
                 <span className="mb-1 block text-[11px] text-muted">Qtd</span>
                 <Input type="number" min={0} value={i.qtd} onChange={(e) => setRow(i.id, { qtd: Number(e.target.value) || 0 })} />
@@ -203,6 +197,92 @@ export function ItensVenda({
         <div className="mt-2 flex items-center justify-between rounded-xl bg-paper px-3 py-2">
           <span className="text-xs font-semibold uppercase tracking-wide text-muted">Valor total da venda</span>
           <span className="text-base font-bold text-ink tnum">{brl(total)}</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Descrição curta de um produto (nome · cor · tecido). */
+function descricaoProduto(p: Produto): string {
+  return [p.nome, p.cor, p.tecido].filter(Boolean).join(' · ')
+}
+
+/** Seletor de produto com BUSCA (aguenta o catálogo completo, centenas de itens). */
+function ProdutoPicker({
+  produtos,
+  value,
+  snapshot,
+  onPick,
+}: {
+  produtos: Produto[]
+  value: string
+  snapshot: { produtoNome: string; cor?: string; tecido?: string }
+  onPick: (p: Produto) => void
+}) {
+  const [aberto, setAberto] = useState(false)
+  const [busca, setBusca] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function fora(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setAberto(false)
+    }
+    document.addEventListener('mousedown', fora)
+    return () => document.removeEventListener('mousedown', fora)
+  }, [])
+
+  const sel = produtos.find((p) => p.id === value)
+  const filtro = busca.trim().toLowerCase()
+  const lista = filtro
+    ? produtos.filter((p) => `${p.nome} ${p.cor} ${p.tecido} ${p.categoria}`.toLowerCase().includes(filtro))
+    : produtos
+  const MAX = 60
+  const mostrados = lista.slice(0, MAX)
+  const escolhido = sel || snapshot.produtoNome
+  const label = sel
+    ? descricaoProduto(sel)
+    : snapshot.produtoNome
+      ? [snapshot.produtoNome, snapshot.cor, snapshot.tecido].filter(Boolean).join(' · ')
+      : 'Selecione o produto…'
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setAberto((v) => !v)}
+        className="flex w-full items-center justify-between gap-2 rounded-lg border border-line bg-surface px-3 py-2 text-left text-sm hover:border-ink/30 focus:outline-none"
+      >
+        <span className={`truncate ${escolhido ? 'text-ink' : 'text-muted'}`}>{label}</span>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" className="shrink-0 text-muted">
+          <path d="M6 9l6 6 6-6" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {aberto && (
+        <div className="absolute z-[70] mt-1 w-full min-w-[300px] overflow-hidden rounded-lg border border-line bg-surface shadow-brand">
+          <div className="border-b border-line p-2">
+            <Input autoFocus value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar produto, cor ou tecido…" />
+          </div>
+          <div className="max-h-64 overflow-y-auto py-1">
+            {mostrados.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => { onPick(p); setAberto(false); setBusca('') }}
+                className={`block w-full px-3 py-2 text-left hover:bg-paper ${p.id === value ? 'bg-paper/60' : ''}`}
+              >
+                <span className="block truncate text-sm text-ink">{p.nome}</span>
+                <span className="block truncate text-[11px] text-muted">
+                  {[p.categoria, p.cor, p.tecido].filter(Boolean).join(' · ')} — <b className="text-ink">{brl(p.valorUnitario)}</b>
+                </span>
+              </button>
+            ))}
+            {mostrados.length === 0 && <div className="px-3 py-3 text-sm text-muted">Nenhum produto encontrado.</div>}
+            {lista.length > MAX && (
+              <div className="px-3 py-2 text-[11px] text-muted/70">Mostrando {MAX} de {lista.length}. Refine a busca…</div>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -62,11 +62,15 @@ export interface PropostaLead {
   status: StatusProposta
 }
 
-/** Produto do catálogo (gerido na tela Produtos), com valor por peça. */
+/** Produto do catálogo (gerido na tela Produtos), com valor por peça.
+ *  Persistido no Supabase (tabela crm_produtos) — ver produtosData.ts. */
 export interface Produto {
   id: string
+  categoria: string // Malharia e Blusa de Lã · Social · Operacional
   nome: string
-  valorUnitario: number // valor de venda por peça
+  cor: string
+  tecido: string
+  valorUnitario: number // valor de venda por peça (VALOR ATUAL da Tabela de Vendas)
   ativo: boolean
 }
 
@@ -75,6 +79,8 @@ export interface LeadItem {
   id: string
   produtoId: string
   produtoNome: string // snapshot do nome no momento
+  cor?: string // snapshot
+  tecido?: string // snapshot
   qtd: number
   valorUnit: number // snapshot do valor unitário no momento
 }
@@ -259,16 +265,15 @@ export interface ComercialDB {
   _v: number
   leads: Lead[]
   compromissos: Compromisso[]
-  produtos: Produto[]
 }
 
 const VERSAO = 1
 
-/** Garante que campos/arrays adicionados depois existam em bases antigas. */
+/** Garante que campos/arrays adicionados depois existam em bases antigas.
+ *  (Os PRODUTOS agora vivem no Supabase — ver produtosData.ts — não neste store.) */
 function normaliza(db: ComercialDB): ComercialDB {
   db.leads = Array.isArray(db.leads) ? db.leads : []
   db.compromissos = Array.isArray(db.compromissos) ? db.compromissos : []
-  db.produtos = Array.isArray(db.produtos) ? db.produtos : seedProdutos()
   for (const l of db.leads) if (!Array.isArray(l.itens)) l.itens = []
   return db
 }
@@ -314,25 +319,11 @@ export function saveDB(db: ComercialDB) {
   }
 }
 
-/** Zera os leads/agenda de exemplo (mantém o catálogo de produtos). */
+/** Zera os leads/agenda de exemplo. */
 export function resetDB(): ComercialDB {
-  const atual = loadDB()
-  const vazio: ComercialDB = { _v: VERSAO, leads: [], compromissos: [], produtos: atual.produtos }
+  const vazio: ComercialDB = { _v: VERSAO, leads: [], compromissos: [] }
   saveDB(vazio)
   return vazio
-}
-
-/** Produtos de exemplo (apagáveis/editáveis na tela Produtos). */
-function seedProdutos(): Produto[] {
-  return [
-    { id: uid(), nome: 'Camisa polo piquê (bordada)', valorUnitario: 48, ativo: true },
-    { id: uid(), nome: 'Camiseta malha PV (silk)', valorUnitario: 29, ativo: true },
-    { id: uid(), nome: 'Camiseta dry-fit personalizada', valorUnitario: 39, ativo: true },
-    { id: uid(), nome: 'Jaleco / avental', valorUnitario: 65, ativo: true },
-    { id: uid(), nome: 'Colete refletivo', valorUnitario: 42, ativo: true },
-    { id: uid(), nome: 'Calça de brim', valorUnitario: 79, ativo: true },
-    { id: uid(), nome: 'Boné bordado', valorUnitario: 22, ativo: true },
-  ]
 }
 
 /* ------------------------------------------------------------------ *
@@ -432,5 +423,5 @@ function seedDB(): ComercialDB {
     }),
   ]
 
-  return { _v: VERSAO, leads, compromissos: [], produtos: seedProdutos() }
+  return { _v: VERSAO, leads, compromissos: [] }
 }
