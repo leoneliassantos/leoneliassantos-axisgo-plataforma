@@ -250,17 +250,16 @@ function CardLead({
   return (
     <div
       draggable
+      onClick={() => onOpen(lead.id)}
       onDragStart={(e) => { e.dataTransfer.setData('text/plain', lead.id); e.dataTransfer.effectAllowed = 'move'; onDragStart(lead.id) }}
       onDragEnd={onDragEnd}
-      className="group cursor-grab rounded-xl border border-line bg-surface p-3 shadow-card transition-shadow active:cursor-grabbing"
+      className="group cursor-pointer rounded-xl border border-line bg-surface p-3 shadow-card transition-shadow hover:border-brand/50 active:cursor-grabbing"
     >
       <div className="flex items-start justify-between gap-1">
-        <button onClick={() => onOpen(lead.id)} className="min-w-0 text-left">
-          <p className="truncate text-sm font-semibold text-ink hover:underline">{lead.empresa}</p>
-        </button>
+        <p className="min-w-0 truncate text-sm font-semibold text-ink group-hover:underline">{lead.empresa}</p>
         <span className="flex items-center gap-1">
           <span className="h-2 w-2 rounded-full" style={{ background: tempCor[lead.temperatura] }} title={lead.temperatura} />
-          <span className="text-muted/40"><Ico n="grip" s={14} /></span>
+          <span className="text-muted/40" title="Arraste para mover de etapa"><Ico n="grip" s={14} /></span>
         </span>
       </div>
       <p className="mt-0.5 truncate text-xs text-muted">{lead.nome}</p>
