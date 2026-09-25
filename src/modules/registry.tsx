@@ -13,6 +13,7 @@ import { Acompanhamento } from '../pages/operacoes/Acompanhamento'
 import { CobrancaOficinas } from '../pages/operacoes/CobrancaOficinas'
 import { Cadastros } from '../pages/operacoes/Cadastros'
 import { CadastroClientes } from '../pages/cadastros/Clientes'
+import { Crm } from '../pages/comercial/Crm'
 
 /**
  * ============================================================
@@ -187,24 +188,30 @@ const icCadClientesEmpresas = (
 const icVisaoGeral = (
   <path d="M4 20V4M4 20h16M8 16v-4M12 16V8M16 16v-6" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
 )
+const icCrm = (
+  <>
+    <path d="M3 5h18M6 10h12M9 15h6M11 20h2" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+  </>
+)
 
 const TODAS_FRENTES: Frente[] = [
   {
     slug: 'comercial',
     nome: 'Comercial',
     descricao: 'Funil, propostas e indicadores de vendas.',
-    disponivel: false,
+    disponivel: true,
     icon: iconComercial,
     modulos: [
+      { slug: 'crm', label: 'CRM', icon: icCrm, element: <Crm /> },
       {
-        slug: 'visao-geral',
-        label: 'Visão geral',
+        slug: 'indicadores',
+        label: 'Indicadores',
         icon: icVisaoGeral,
         element: (
           <EmConstrucao
-            titulo="Frente Comercial"
-            descricao="Acompanhamento de funil de vendas, propostas e metas — a partir da base de dados do cliente."
-            itens={['Pipeline', 'Propostas', 'Metas', 'Taxa de conversão']}
+            titulo="Indicadores Comerciais"
+            descricao="Funil, meta de vendas, conversão e volume — a partir dos leads do CRM."
+            itens={['Funil de vendas', 'Meta', 'Taxa de conversão', 'Volume por mês']}
           />
         ),
       },
