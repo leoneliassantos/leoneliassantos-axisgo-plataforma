@@ -933,9 +933,12 @@ function AreaFat({ serie, serieAnt }: { serie: { label: string; fat: number }[];
     if (!el) return
     const update = () => setDim({ w: Math.max(220, el.clientWidth), h: Math.max(150, el.clientHeight) })
     update()
+    // Re-mede no próximo frame: na 1ª montagem a altura do painel ainda não foi
+    // aplicada, então a medição inicial sai pequena; aqui corrigimos assim que assenta.
+    const raf = requestAnimationFrame(update)
     const ro = new ResizeObserver(update)
     ro.observe(el)
-    return () => ro.disconnect()
+    return () => { cancelAnimationFrame(raf); ro.disconnect() }
   }, [])
   if (!serie.length) return <div className="flex h-full items-center text-[12px] text-muted">Sem vendas no filtro.</div>
   const temAnt = !!serieAnt && serieAnt.length > 0
@@ -964,12 +967,12 @@ function AreaFat({ serie, serieAnt }: { serie: { label: string; fat: number }[];
   const corLinha = resolveColor('VITE_CHART_POSITIVO', GRAD[0])
   const corAnt = '#9CA3AF'
   return (
-    // Medimos o elemento que ENVOLVE o SVG diretamente com h-full (mesmo padrão do
-    // Pareto, que é robusto). A legenda vai sobreposta (absolute), sem roubar altura
-    // via flex aninhado — era isso que fazia o gráfico "encolher" ao mexer no filtro.
-    <div className="relative h-full w-full">
-      <div ref={ref} className="h-full w-full">
-        <svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ display: 'block' }} role="img" aria-label="Faturamento no tempo">
+    // Medimos o próprio quadro (h-full) e desenhamos o SVG em tamanho REAL (W×H em
+    // pixels, sem esticar) — assim preenche o quadro e a fonte fica nítida no tamanho
+    // certo. Mesmo padrão robusto do Pareto. A legenda vai sobreposta (absolute), sem
+    // roubar altura via flex aninhado — era isso que fazia o gráfico "encolher".
+    <div ref={ref} className="relative h-full w-full">
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }} role="img" aria-label="Faturamento no tempo">
           <defs>
             <linearGradient id="fatFill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0" stopColor={corLinha} stopOpacity="0.32" />
@@ -1010,7 +1013,6 @@ function AreaFat({ serie, serieAnt }: { serie: { label: string; fat: number }[];
             )
           })}
         </svg>
-      </div>
       {temAnt && (
         <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center gap-3 text-[10px] text-muted">
           <span className="inline-flex items-center gap-1"><span className="inline-block h-[2px] w-3 rounded-full" style={{ background: corLinha }} />Período atual</span>
