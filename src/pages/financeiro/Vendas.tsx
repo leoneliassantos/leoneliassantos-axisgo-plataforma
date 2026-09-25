@@ -217,15 +217,22 @@ export function Vendas() {
   const wrapRef = useRef<HTMLDivElement>(null)
   const [altura, setAltura] = useState<number | undefined>(undefined)
   useLayoutEffect(() => {
+    let raf = 0
     function calc() {
       const el = wrapRef.current
       if (!el) return
-      setAltura(Math.max(440, window.innerHeight - el.getBoundingClientRect().top - 80))
+      const top = el.getBoundingClientRect().top
+      const disponivel = window.innerHeight - top - 80
+      // Piso de 440 (nunca some), teto na altura da janela (se a medição pegar o
+      // topo já rolado/negativo, não estoura a tela — evitava o "layout quebrado").
+      setAltura(Math.max(440, Math.min(disponivel, window.innerHeight)))
     }
     calc()
+    // Recalcula após o layout final assentar (fontes/sidebar), quando o getBoundingClientRect já é confiável.
+    raf = requestAnimationFrame(calc)
     window.addEventListener('resize', calc)
-    return () => window.removeEventListener('resize', calc)
-  }, [loading, erro, rows.length])
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', calc) }
+  }, [loading, erro, rows.length, view, filtrosAbertos])
 
   /* ---------- carregar do Supabase ---------- */
   const carregar = useCallback(async () => {
@@ -933,7 +940,9 @@ function AreaFat({ serie, serieAnt }: { serie: { label: string; fat: number }[];
   if (!serie.length) return <div className="flex h-full items-center text-[12px] text-muted">Sem vendas no filtro.</div>
   const temAnt = !!serieAnt && serieAnt.length > 0
   const { w: W, h: H } = dim
-  const padL = 10, padR = 14, padT = 24, padB = 26
+  // Quando há comparação com o ano anterior, a legenda fica sobreposta no topo:
+  // reservamos mais espaço em cima (padT) para o traçado/rótulos não colidirem com ela.
+  const padL = 10, padR = 14, padT = temAnt ? 40 : 24, padB = 26
   const innerW = W - padL - padR
   const innerH = H - padT - padB
   const n = serie.length
@@ -955,15 +964,12 @@ function AreaFat({ serie, serieAnt }: { serie: { label: string; fat: number }[];
   const corLinha = resolveColor('VITE_CHART_POSITIVO', GRAD[0])
   const corAnt = '#9CA3AF'
   return (
-    <div className="flex h-full w-full flex-col">
-      {temAnt && (
-        <div className="mb-1 flex flex-none items-center gap-3 text-[10px] text-muted">
-          <span className="inline-flex items-center gap-1"><span className="inline-block h-[2px] w-3 rounded-full" style={{ background: corLinha }} />Período atual</span>
-          <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-3 border-t-2 border-dashed" style={{ borderColor: corAnt }} />Mesmo período, ano anterior</span>
-        </div>
-      )}
-      <div ref={ref} className="min-h-0 flex-1">
-        <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }} role="img" aria-label="Faturamento no tempo">
+    // Medimos o elemento que ENVOLVE o SVG diretamente com h-full (mesmo padrão do
+    // Pareto, que é robusto). A legenda vai sobreposta (absolute), sem roubar altura
+    // via flex aninhado — era isso que fazia o gráfico "encolher" ao mexer no filtro.
+    <div className="relative h-full w-full">
+      <div ref={ref} className="h-full w-full">
+        <svg width="100%" height="100%" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ display: 'block' }} role="img" aria-label="Faturamento no tempo">
           <defs>
             <linearGradient id="fatFill" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0" stopColor={corLinha} stopOpacity="0.32" />
@@ -1005,6 +1011,12 @@ function AreaFat({ serie, serieAnt }: { serie: { label: string; fat: number }[];
           })}
         </svg>
       </div>
+      {temAnt && (
+        <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center gap-3 text-[10px] text-muted">
+          <span className="inline-flex items-center gap-1"><span className="inline-block h-[2px] w-3 rounded-full" style={{ background: corLinha }} />Período atual</span>
+          <span className="inline-flex items-center gap-1"><span className="inline-block h-0 w-3 border-t-2 border-dashed" style={{ borderColor: corAnt }} />Mesmo período, ano anterior</span>
+        </div>
+      )}
     </div>
   )
 }
