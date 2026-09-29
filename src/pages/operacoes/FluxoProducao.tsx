@@ -486,9 +486,11 @@ function LinhaPedido({ ped, onAbrir, podeExcluir, onExcluir }: { ped: Pedido; on
         <div className="mt-0.5 text-[13px] text-muted">
           {ped.numeroProposta && <>PC Cliente <b className="text-ink/80">{ped.numeroProposta}</b> · </>}
           {numPedido && <>Pedido <b className="text-ink/80">{numPedido}</b> · </>}
-          {fmtBR(ped.dataPedido)} · <b className="text-ink/80">{r.total}</b> itens · <b className="text-ink/80">{r.totalPecas}</b> pçs · {r.entregues}/{r.total} entregues
+          <b className="text-ink/80">{r.total}</b> itens · <b className="text-ink/80">{r.totalPecas}</b> pçs · {r.entregues}/{r.total} entregues
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[13px] text-muted">
+          <span>Entrada: <b className="tnum text-ink/80">{fmtBRfull(ped.dataPedido)}</b></span>
+          <span className="text-muted/40">·</span>
           <span>Entrega: <b className="tnum text-ink/80">{ped.dataEntrega ? fmtBRfull(ped.dataEntrega) : '—'}</b></span>
           <AlertaEntrega ped={ped} concluido={r.entregues === r.total && r.total > 0} />
         </div>
