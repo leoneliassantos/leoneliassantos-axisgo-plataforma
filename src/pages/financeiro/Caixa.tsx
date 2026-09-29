@@ -720,11 +720,19 @@ function rotSit(s: Situacao): string {
 
 /* ============================ FLUXO tradicional ============================ */
 const HDR = '#f1f0ec', WHITE = '#ffffff', BG_IN = '#e9f7ef', BG_OUT = '#fdecec', BG_SLD = '#eef1f6'
-function ValCell({ v, bold, color }: { v: number; bold?: boolean; color?: string }) {
+function ValCell({ v, bold, color, onClick }: { v: number; bold?: boolean; color?: string; onClick?: () => void }) {
   // NaN = célula não aplicável (ex.: saldo na coluna "Atrasado", que é isolada) → mostra "—".
   if (Number.isNaN(v)) return <td className="whitespace-nowrap px-4 py-2 text-right tabular-nums" style={{ color: '#c3c0bb' }} title="A coluna Atrasado é só para visualizar os vencidos; não entra no saldo.">—</td>
   const zerado = Math.abs(v) < 0.005
-  return <td className="whitespace-nowrap px-4 py-2 text-right tabular-nums" style={{ fontWeight: bold ? 700 : 400, color: zerado ? '#c3c0bb' : color }}>{`R$ ${fmt2(v)}`}</td>
+  const clicavel = !!onClick && !zerado
+  return (
+    <td
+      className={`whitespace-nowrap px-4 py-2 text-right tabular-nums ${clicavel ? 'cursor-pointer underline decoration-dotted decoration-line underline-offset-2 hover:bg-paper hover:decoration-ink' : ''}`}
+      style={{ fontWeight: bold ? 700 : 400, color: zerado ? '#c3c0bb' : color }}
+      onClick={clicavel ? onClick : undefined}
+      title={clicavel ? 'Clique para ver a composição deste valor' : undefined}
+    >{`R$ ${fmt2(v)}`}</td>
+  )
 }
 function LinhaFluxo({ label, children, bg, bold, indent, sub, chevron, open, onToggle }: {
   label: string; children: ReactNode; bg?: string; bold?: boolean; indent?: 1 | 2; sub?: boolean; chevron?: boolean; open?: boolean; onToggle?: () => void
@@ -1177,6 +1185,7 @@ function ProjetadoView() {
   const [editAbertura, setEditAbertura] = useState(false)
   const [editFixos, setEditFixos] = useState(false)
   const [filtrosAbertos, setFiltrosAbertos] = useState(true)
+  const [comp, setComp] = useState<CompProj | null>(null)
 
   useEffect(() => { setDe((prev) => prev || hoje) }, [hoje])
   useEffect(() => { setAte((prev) => prev || horizontePadrao) }, [horizontePadrao])
@@ -1266,20 +1275,21 @@ function ProjetadoView() {
     // pago fica em "Atrasado" (só visual, isolado do saldo). A projeção corre dela em diante.
     const abertura = aberturaData || hoje
     const deFiltro = de || abertura
-    type Ev = { date: string; valor: number; tipo: 'entrada' | 'saida'; canal: string; quem: string; categoria: string; atrasado: boolean }
+    type Ev = { date: string; valor: number; tipo: 'entrada' | 'saida'; canal: string; quem: string; categoria: string; atrasado: boolean; numero: string; item: string; fonte: 'titulo' | 'fixo' }
     const eventos: Ev[] = []
     for (const r of rows) {
       if (!origemOk(r.origem)) continue
       eventos.push({
         date: r.vencimento, valor: r.valor, tipo: r.tipo, canal: r.origem, quem: r.participante || '(sem nome)',
         categoria: r.tipo === 'saida' ? (r.categoria || SEM_CAT) : '', atrasado: r.vencimento < abertura,
+        numero: r.numero || '', item: r.item || '', fonte: 'titulo',
       })
     }
     if (origemOk('Lançamentos fixos')) {
       for (const f of fixos) {
         if (!f.ativo) continue
         for (const date of ocorrenciasFixo(f, hoje, horizonte)) {
-          eventos.push({ date, valor: f.valor, tipo: f.tipo, canal: 'Lançamentos fixos', quem: f.nome, categoria: f.tipo === 'saida' ? (f.categoria || SEM_CAT) : '', atrasado: date < abertura })
+          eventos.push({ date, valor: f.valor, tipo: f.tipo, canal: 'Lançamentos fixos', quem: f.nome, categoria: f.tipo === 'saida' ? (f.categoria || SEM_CAT) : '', atrasado: date < abertura, numero: '', item: '', fonte: 'fixo' })
         }
       }
     }
@@ -1334,7 +1344,10 @@ function ProjetadoView() {
       if (c.key === '__atrasado__') { saldoInicial[c.key] = NaN; saldoFinal[c.key] = NaN; continue }
       saldoInicial[c.key] = prev; saldoFinal[c.key] = prev + te - ts; prev = saldoFinal[c.key]
     }
-    return { cols, entradaRows, despesaRows, totalEntradas, totalSaidas, fluxoOp, saldoInicial, saldoFinal }
+    // Lista detalhada dos lançamentos (com a coluna a que cada um pertence) — usada para
+    // abrir a "composição" ao clicar numa célula de valor na matriz.
+    const eventosDet = dentro.map((e) => ({ colKey: bucketKey(e), tipo: e.tipo, canal: e.canal, categoria: e.categoria || SEM_CAT, quem: e.quem, date: e.date, valor: e.valor, numero: e.numero, item: e.item, fonte: e.fonte }))
+    return { cols, entradaRows, despesaRows, totalEntradas, totalSaidas, fluxoOp, saldoInicial, saldoFinal, eventos: eventosDet }
   }, [rows, fixos, de, ate, horizontePadrao, gran, origemOk, selCat, aberturaValor, aberturaData, hoje])
 
   const kpis = useMemo(() => {
@@ -1537,7 +1550,7 @@ function ProjetadoView() {
             <Kpi lbl="A receber (até o horizonte)" valor={reais(kpis.futEntradas)} cor={COR_IN} tip="Soma de entradas projetadas da data do saldo de abertura até o horizonte (não inclui o Atrasado)." />
             <Kpi lbl="A pagar (até o horizonte)" valor={reais(kpis.futSaidas)} cor={COR_OUT} tip="Soma de saídas projetadas da data do saldo de abertura até o horizonte (não inclui o Atrasado)." />
           </div>
-          <FluxoViewProjetado f={fluxo} abertura={aberturaData || hoje} />
+          <FluxoViewProjetado f={fluxo} abertura={aberturaData || hoje} onAbrir={setComp} />
         </>
       ) : view === 'indicadores' ? (
         <IndicadoresProjetado f={fluxo} abertura={aberturaData || hoje} />
@@ -1548,18 +1561,30 @@ function ProjetadoView() {
       {editAbertura && <ModalAberturaProjetado data={aberturaData || hoje} valor={aberturaValor} onSalvar={salvarAbertura} onClose={() => setEditAbertura(false)} />}
       {editCat && <ModalCategoriasProjetado rows={rows} catMap={catMap} categorias={categorias.filter((c) => c !== SEM_CAT)} onSalvar={salvarCategorias} onClose={() => setEditCat(false)} />}
       {editFixos && <ModalLancamentosFixos fixos={fixos} categorias={categorias.filter((c) => c !== SEM_CAT)} onSalvar={salvarFixo} onExcluir={excluirFixo} onClose={() => setEditFixos(false)} />}
+      {comp && <ModalComposicao comp={comp} onClose={() => setComp(null)} />}
     </div>
   )
 }
 
 /* ============================ FLUXO Projetado (matriz) ============================ */
+type EvDet = { colKey: string; tipo: 'entrada' | 'saida'; canal: string; categoria: string; quem: string; date: string; valor: number; numero: string; item: string; fonte: 'titulo' | 'fixo' }
+type CompProj = { titulo: string; sub: string; total: number; itens: { nome: string; data: string; valor: number; canal: string; numero: string; fonte: string }[] }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function FluxoViewProjetado({ f, abertura }: { f: any; abertura: string }) {
+function FluxoViewProjetado({ f, abertura, onAbrir }: { f: any; abertura: string; onAbrir: (c: CompProj) => void }) {
   const [aberto, setAberto] = useState<Set<string>>(new Set())
   const cols = f.cols as { key: string; label: string }[]
   const toggle = (c: string) => setAberto((p) => { const n = new Set(p); n.has(c) ? n.delete(c) : n.add(c); return n })
   const entradaRows = f.entradaRows as { nome: string; vals: Record<string, number>; total: number }[]
   const despesaRows = f.despesaRows as { nome: string; vals: Record<string, number>; total: number; fornecedores: { nome: string; vals: Record<string, number>; total: number }[] }[]
+
+  // Abre a composição de uma célula: filtra os lançamentos daquela linha (entrada/canal,
+  // categoria ou fornecedor) naquela coluna (período) e envia para o modal.
+  const abrir = (filtro: (e: EvDet) => boolean, titulo: string, colLabel: string) => {
+    const itens = (f.eventos as EvDet[]).filter(filtro)
+      .map((e) => ({ nome: e.quem, data: e.date, valor: e.valor, canal: e.canal, numero: e.numero, fonte: e.fonte }))
+      .sort((a, b) => a.data.localeCompare(b.data) || b.valor - a.valor)
+    onAbrir({ titulo, sub: colLabel, itens, total: itens.reduce((s, i) => s + i.valor, 0) })
+  }
 
   if (!cols.length) return <div className="rounded-xl border border-line bg-surface p-12 text-center text-muted">Nenhum título em aberto ou lançamento fixo dentro do horizonte selecionado.</div>
 
@@ -1592,7 +1617,7 @@ function FluxoViewProjetado({ f, abertura }: { f: any; abertura: string }) {
 
           {entradaRows.map((r) => (
             <LinhaFluxo key={r.nome} label={`(+) ${r.nome}`} indent={1}>
-              {cols.map((c) => <ValCell key={c.key} v={r.vals[c.key]} color={COR_IN} />)}
+              {cols.map((c) => <ValCell key={c.key} v={r.vals[c.key]} color={COR_IN} onClick={() => abrir((e) => e.tipo === 'entrada' && e.canal === r.nome && e.colKey === c.key, `Entradas · ${r.nome}`, c.label)} />)}
             </LinhaFluxo>
           ))}
           <LinhaFluxo label="Total de Entradas" bold bg={BG_IN}>
@@ -1602,11 +1627,11 @@ function FluxoViewProjetado({ f, abertura }: { f: any; abertura: string }) {
           {despesaRows.map((r) => (
             <Fragment key={r.nome}>
               <LinhaFluxo label={`(-) ${r.nome}`} indent={1} chevron={r.fornecedores.length > 0} open={aberto.has(r.nome)} onToggle={() => toggle(r.nome)}>
-                {cols.map((c) => <ValCell key={c.key} v={r.vals[c.key]} color={COR_OUT} />)}
+                {cols.map((c) => <ValCell key={c.key} v={r.vals[c.key]} color={COR_OUT} onClick={() => abrir((e) => e.tipo === 'saida' && e.categoria === r.nome && e.colKey === c.key, r.nome, c.label)} />)}
               </LinhaFluxo>
               {aberto.has(r.nome) && r.fornecedores.map((fo, i) => (
                 <LinhaFluxo key={i} label={fo.nome.length > 42 ? `${fo.nome.slice(0, 42)}…` : fo.nome} indent={2} sub>
-                  {cols.map((c) => <ValCell key={c.key} v={fo.vals[c.key]} />)}
+                  {cols.map((c) => <ValCell key={c.key} v={fo.vals[c.key]} onClick={() => abrir((e) => e.tipo === 'saida' && e.categoria === r.nome && e.quem === fo.nome && e.colKey === c.key, `${r.nome} · ${fo.nome}`, c.label)} />)}
                 </LinhaFluxo>
               ))}
             </Fragment>
@@ -1625,6 +1650,54 @@ function FluxoViewProjetado({ f, abertura }: { f: any; abertura: string }) {
       </table>
       </div>
     </div>
+  )
+}
+
+function ModalComposicao({ comp, onClose }: { comp: CompProj; onClose: () => void }) {
+  return (
+    <Overlay onClose={onClose} wide>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-[15px] font-bold text-ink">{comp.titulo}</h3>
+          <p className="mt-0.5 text-[12px] text-muted">Composição em <b className="text-ink">{comp.sub}</b> · {comp.itens.length} lançamento{comp.itens.length === 1 ? '' : 's'}</p>
+        </div>
+        <button onClick={onClose} className="text-muted transition hover:text-ink" aria-label="Fechar">✕</button>
+      </div>
+      {comp.itens.length === 0 ? (
+        <p className="py-8 text-center text-sm text-muted">Sem lançamentos nesta célula.</p>
+      ) : (
+        <div className="mt-3 max-h-[62vh] overflow-auto rounded-lg border border-line">
+          <table className="min-w-full border-collapse text-[12.5px]">
+            <thead>
+              <tr className="sticky top-0 bg-paper text-[11px] uppercase tracking-wide text-muted">
+                <th className="px-3 py-2 text-left font-bold">Participante</th>
+                <th className="px-3 py-2 text-left font-bold">Vencimento</th>
+                <th className="px-3 py-2 text-left font-bold">Canal</th>
+                <th className="px-3 py-2 text-left font-bold">Nº doc.</th>
+                <th className="px-3 py-2 text-right font-bold">Valor</th>
+              </tr>
+            </thead>
+            <tbody>
+              {comp.itens.map((it, i) => (
+                <tr key={i} className="border-t border-line hover:bg-paper/60">
+                  <td className="px-3 py-1.5 text-ink">{it.nome}{it.fonte === 'fixo' && <span className="ml-1 rounded bg-paper px-1 text-[10px] text-muted">fixo</span>}</td>
+                  <td className="px-3 py-1.5 text-muted">{br(it.data)}</td>
+                  <td className="px-3 py-1.5 text-muted">{it.canal}</td>
+                  <td className="px-3 py-1.5 text-muted">{it.numero || '—'}</td>
+                  <td className="px-3 py-1.5 text-right font-semibold tabular-nums text-ink">{`R$ ${fmt2(it.valor)}`}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-line bg-paper font-bold text-ink">
+                <td className="px-3 py-2" colSpan={4}>Total</td>
+                <td className="px-3 py-2 text-right tabular-nums">{`R$ ${fmt2(comp.total)}`}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </Overlay>
   )
 }
 
