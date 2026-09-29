@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { podeVerFinanceiro, podeVerValorFornecedor, podeVerValorVenda, type Role } from '../auth/types'
+import { podeVerValorFornecedor, podeVerValorVenda, type Role } from '../auth/types'
 import { EmConstrucao } from '../components/EmConstrucao'
 import { Rentabilidade } from '../pages/financeiro/Rentabilidade'
 import { FluxoCaixaHub } from '../pages/financeiro/FluxoCaixaHub'
@@ -263,7 +263,9 @@ const TODAS_FRENTES: Frente[] = [
       // Fluxo de Caixa por títulos (Foodpro) — específico da MC (VITE_MODULES incluir "caixa").
       { slug: 'caixa', label: 'Fluxo de Caixa', icon: icCaixaTitulos, element: <Caixa />, optIn: true },
       // Fluxo de Caixa Projetado (MM) — alimentado pelo Bling. optIn aditivo via VITE_MODULES_EXTRA.
-      { slug: 'caixa-projetado', label: 'Fluxo de Caixa Projetado', icon: icCaixaProjetado, element: <CaixaProjetado />, optIn: true, podeVer: podeVerFinanceiro },
+      // Sem gate de perfil (igual aos demais módulos do Financeiro): a escrita já é
+      // restrita a admin na própria tela; a leitura fica visível a quem acessa o Financeiro.
+      { slug: 'caixa-projetado', label: 'Fluxo de Caixa Projetado', icon: icCaixaProjetado, element: <CaixaProjetado />, optIn: true },
       // Cadastros (Clientes/CNPJs/Sócios) — sob demanda, admin-only (dados pessoais dos sócios).
       { slug: 'cad-clientes-emp', label: 'Clientes', grupo: 'Cadastros', icon: icCadClientesEmpresas, element: <CadastroClientes />, optIn: true, podeVer: (role) => role === 'admin' },
       { slug: 'dre', label: 'DRE', icon: icDre, element: <Dre /> },
