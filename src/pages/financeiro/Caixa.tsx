@@ -363,7 +363,10 @@ function RealizadoView() {
     const rcfg = await supabase.from('fin_config').select('chave, valor')
     if (!rcfg.error && rcfg.data) for (const c of rcfg.data as { chave: string; valor: string }[]) {
       if (c.chave === 'abertura_data') setAberturaData((c.valor ?? '').slice(0, 10))
-      if (c.chave === 'abertura_valor') setAberturaValor(parseBR(c.valor ?? '0'))
+      // Gravamos o valor como String(number) → formato JS ("76133.8", ponto = decimal).
+      // Ler de volta com Number(), NÃO com parseBR (que trata o ponto como milhar e
+      // multiplicava o valor a cada recarga — ex.: 76133.8 virava 761338).
+      if (c.chave === 'abertura_valor') setAberturaValor(Number(c.valor) || 0)
     }
     const mapped: Titulo[] = (res.data).map((r) => {
       const participante = (r.participante ?? '').toString().trim()
@@ -1200,7 +1203,9 @@ function ProjetadoView() {
 
     const rcfg = await supabase.from('fin_config').select('chave, valor').eq('chave', 'projetado_abertura_valor')
     if (!rcfg.error && rcfg.data) for (const c of rcfg.data as { chave: string; valor: string }[]) {
-      if (c.chave === 'projetado_abertura_valor') setAberturaValor(parseBR(c.valor ?? '0'))
+      // Ler com Number() (formato JS gravado por String(number)); parseBR aqui tratava
+      // o ponto decimal como separador de milhar e multiplicava o saldo a cada recarga.
+      if (c.chave === 'projetado_abertura_valor') setAberturaValor(Number(c.valor) || 0)
     }
 
     const rfix = await supabase.from('fin_lancamentos_fixos').select('id, nome, tipo, categoria, valor, dia_mes, data_inicio, data_fim, ativo').order('nome')
