@@ -721,6 +721,8 @@ function rotSit(s: Situacao): string {
 /* ============================ FLUXO tradicional ============================ */
 const HDR = '#f1f0ec', WHITE = '#ffffff', BG_IN = '#e9f7ef', BG_OUT = '#fdecec', BG_SLD = '#eef1f6'
 function ValCell({ v, bold, color }: { v: number; bold?: boolean; color?: string }) {
+  // NaN = célula não aplicável (ex.: saldo na coluna "Atrasado", que é isolada) → mostra "—".
+  if (Number.isNaN(v)) return <td className="whitespace-nowrap px-4 py-2 text-right tabular-nums" style={{ color: '#c3c0bb' }} title="A coluna Atrasado é só para visualizar os vencidos; não entra no saldo.">—</td>
   const zerado = Math.abs(v) < 0.005
   return <td className="whitespace-nowrap px-4 py-2 text-right tabular-nums" style={{ fontWeight: bold ? 700 : 400, color: zerado ? '#c3c0bb' : color }}>{`R$ ${fmt2(v)}`}</td>
 }
@@ -1158,6 +1160,7 @@ function ProjetadoView() {
   const [fixos, setFixos] = useState<LancamentoFixo[]>([])
   const [catMap, setCatMap] = useState<Record<string, string>>({})
   const [aberturaValor, setAberturaValor] = useState(0)
+  const [aberturaData, setAberturaData] = useState('')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
@@ -1177,6 +1180,7 @@ function ProjetadoView() {
 
   useEffect(() => { setDe((prev) => prev || hoje) }, [hoje])
   useEffect(() => { setAte((prev) => prev || horizontePadrao) }, [horizontePadrao])
+  useEffect(() => { setAberturaData((prev) => prev || hoje) }, [hoje])
 
   const carregar = useCallback(async () => {
     setLoading(true); setErro(null)
@@ -1201,11 +1205,12 @@ function ProjetadoView() {
     }
     setCatMap(cm)
 
-    const rcfg = await supabase.from('fin_config').select('chave, valor').eq('chave', 'projetado_abertura_valor')
+    const rcfg = await supabase.from('fin_config').select('chave, valor').in('chave', ['projetado_abertura_valor', 'projetado_abertura_data'])
     if (!rcfg.error && rcfg.data) for (const c of rcfg.data as { chave: string; valor: string }[]) {
       // Ler com Number() (formato JS gravado por String(number)); parseBR aqui tratava
       // o ponto decimal como separador de milhar e multiplicava o saldo a cada recarga.
       if (c.chave === 'projetado_abertura_valor') setAberturaValor(Number(c.valor) || 0)
+      if (c.chave === 'projetado_abertura_data' && c.valor) setAberturaData((c.valor ?? '').slice(0, 10))
     }
 
     const rfix = await supabase.from('fin_lancamentos_fixos').select('id, nome, tipo, categoria, valor, dia_mes, data_inicio, data_fim, ativo').order('nome')
@@ -1257,21 +1262,24 @@ function ProjetadoView() {
    * (a partir do mês atual, nunca retroagindo). vencimento/ocorrência < hoje entra no bucket "Atrasado". */
   const fluxo = useMemo(() => {
     const horizonte = ate || horizontePadrao
-    const deFiltro = de || hoje
+    // Data de abertura = referência do saldo inicial. O que vence ANTES dela e não foi
+    // pago fica em "Atrasado" (só visual, isolado do saldo). A projeção corre dela em diante.
+    const abertura = aberturaData || hoje
+    const deFiltro = de || abertura
     type Ev = { date: string; valor: number; tipo: 'entrada' | 'saida'; canal: string; quem: string; categoria: string; atrasado: boolean }
     const eventos: Ev[] = []
     for (const r of rows) {
       if (!origemOk(r.origem)) continue
       eventos.push({
         date: r.vencimento, valor: r.valor, tipo: r.tipo, canal: r.origem, quem: r.participante || '(sem nome)',
-        categoria: r.tipo === 'saida' ? (r.categoria || SEM_CAT) : '', atrasado: r.vencimento < hoje,
+        categoria: r.tipo === 'saida' ? (r.categoria || SEM_CAT) : '', atrasado: r.vencimento < abertura,
       })
     }
     if (origemOk('Lançamentos fixos')) {
       for (const f of fixos) {
         if (!f.ativo) continue
         for (const date of ocorrenciasFixo(f, hoje, horizonte)) {
-          eventos.push({ date, valor: f.valor, tipo: f.tipo, canal: 'Lançamentos fixos', quem: f.nome, categoria: f.tipo === 'saida' ? (f.categoria || SEM_CAT) : '', atrasado: date < hoje })
+          eventos.push({ date, valor: f.valor, tipo: f.tipo, canal: 'Lançamentos fixos', quem: f.nome, categoria: f.tipo === 'saida' ? (f.categoria || SEM_CAT) : '', atrasado: date < abertura })
         }
       }
     }
@@ -1315,15 +1323,19 @@ function ProjetadoView() {
     })).sort((a, b) => b.total - a.total)
 
     const totalEntradas = zero(), totalSaidas = zero(), fluxoOp = zero(), saldoInicial = zero(), saldoFinal = zero()
+    // O saldo corrente parte do saldo de abertura e corre SÓ pelas colunas cronológicas
+    // (de hoje/abertura em diante). A coluna "Atrasado" mostra os vencidos mas fica
+    // ISOLADA do saldo (saldoInicial/Final = NaN → célula mostra "—"), como pedido.
     let prev = aberturaValor
     for (const c of cols) {
       const te = entradaRows.reduce((s, r) => s + r.vals[c.key], 0)
       const ts = despesaRows.reduce((s, r) => s + r.vals[c.key], 0)
       totalEntradas[c.key] = te; totalSaidas[c.key] = ts; fluxoOp[c.key] = te - ts
+      if (c.key === '__atrasado__') { saldoInicial[c.key] = NaN; saldoFinal[c.key] = NaN; continue }
       saldoInicial[c.key] = prev; saldoFinal[c.key] = prev + te - ts; prev = saldoFinal[c.key]
     }
     return { cols, entradaRows, despesaRows, totalEntradas, totalSaidas, fluxoOp, saldoInicial, saldoFinal }
-  }, [rows, fixos, de, ate, horizontePadrao, gran, origemOk, selCat, aberturaValor, hoje])
+  }, [rows, fixos, de, ate, horizontePadrao, gran, origemOk, selCat, aberturaValor, aberturaData, hoje])
 
   const kpis = useMemo(() => {
     const atrasadoRec = fluxo.entradaRows.reduce((s, r) => s + (r.vals['__atrasado__'] || 0), 0)
@@ -1380,12 +1392,16 @@ function ProjetadoView() {
     }
   }
 
-  async function salvarAbertura(valor: number) {
+  async function salvarAbertura(data: string, valor: number) {
+    const d = data || hoje
     if (mode === 'supabase' && supabase) {
-      const { error } = await supabase.from('fin_config').upsert([{ chave: 'projetado_abertura_valor', valor: String(valor) }], { onConflict: 'chave' })
+      const { error } = await supabase.from('fin_config').upsert([
+        { chave: 'projetado_abertura_valor', valor: String(valor) },
+        { chave: 'projetado_abertura_data', valor: d },
+      ], { onConflict: 'chave' })
       if (error) { setErro(`Não consegui salvar o saldo de abertura: ${error.message}`); return }
     }
-    setAberturaValor(valor); setEditAbertura(false)
+    setAberturaValor(valor); setAberturaData(d); setEditAbertura(false)
     setAviso('Saldo de abertura salvo.')
   }
 
@@ -1516,18 +1532,18 @@ function ProjetadoView() {
       ) : view === 'fluxo' ? (
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Kpi lbl="Atrasado a receber" valor={reais(kpis.atrasadoRec)} cor={COR_IN} tip="Títulos ou lançamentos fixos com vencimento antes de hoje, ainda não recebidos." />
-            <Kpi lbl="Atrasado a pagar" valor={reais(kpis.atrasadoPag)} cor={COR_OUT} tip="Títulos ou lançamentos fixos com vencimento antes de hoje, ainda não pagos." />
-            <Kpi lbl="A receber (até o horizonte)" valor={reais(kpis.futEntradas)} cor={COR_IN} tip="Soma de entradas futuras (a partir de hoje) até a data do horizonte." />
-            <Kpi lbl="A pagar (até o horizonte)" valor={reais(kpis.futSaidas)} cor={COR_OUT} tip="Soma de saídas futuras (a partir de hoje) até a data do horizonte." />
+            <Kpi lbl="Atrasado a receber" valor={reais(kpis.atrasadoRec)} cor={COR_IN} tip="Títulos ou lançamentos fixos vencidos antes da data do saldo de abertura, ainda não recebidos. Ficam isolados, não entram no saldo." />
+            <Kpi lbl="Atrasado a pagar" valor={reais(kpis.atrasadoPag)} cor={COR_OUT} tip="Títulos ou lançamentos fixos vencidos antes da data do saldo de abertura, ainda não pagos. Ficam isolados, não entram no saldo." />
+            <Kpi lbl="A receber (até o horizonte)" valor={reais(kpis.futEntradas)} cor={COR_IN} tip="Soma de entradas projetadas da data do saldo de abertura até o horizonte (não inclui o Atrasado)." />
+            <Kpi lbl="A pagar (até o horizonte)" valor={reais(kpis.futSaidas)} cor={COR_OUT} tip="Soma de saídas projetadas da data do saldo de abertura até o horizonte (não inclui o Atrasado)." />
           </div>
-          <FluxoViewProjetado f={fluxo} />
+          <FluxoViewProjetado f={fluxo} abertura={aberturaData || hoje} />
         </>
       ) : (
         <TitulosViewProjetado rows={titulosFiltrados} hoje={hoje} categorias={categorias} selCat={selCat} setSelCat={setSelCat} />
       )}
 
-      {editAbertura && <ModalAberturaProjetado valor={aberturaValor} onSalvar={salvarAbertura} onClose={() => setEditAbertura(false)} />}
+      {editAbertura && <ModalAberturaProjetado data={aberturaData || hoje} valor={aberturaValor} onSalvar={salvarAbertura} onClose={() => setEditAbertura(false)} />}
       {editCat && <ModalCategoriasProjetado rows={rows} catMap={catMap} categorias={categorias.filter((c) => c !== SEM_CAT)} onSalvar={salvarCategorias} onClose={() => setEditCat(false)} />}
       {editFixos && <ModalLancamentosFixos fixos={fixos} categorias={categorias.filter((c) => c !== SEM_CAT)} onSalvar={salvarFixo} onExcluir={excluirFixo} onClose={() => setEditFixos(false)} />}
     </div>
@@ -1536,7 +1552,7 @@ function ProjetadoView() {
 
 /* ============================ FLUXO Projetado (matriz) ============================ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function FluxoViewProjetado({ f }: { f: any }) {
+function FluxoViewProjetado({ f, abertura }: { f: any; abertura: string }) {
   const [aberto, setAberto] = useState<Set<string>>(new Set())
   const cols = f.cols as { key: string; label: string }[]
   const toggle = (c: string) => setAberto((p) => { const n = new Set(p); n.has(c) ? n.delete(c) : n.add(c); return n })
@@ -1548,7 +1564,8 @@ function FluxoViewProjetado({ f }: { f: any }) {
   return (
     <div className="rounded-xl border border-line bg-surface shadow-card">
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-b border-line px-4 py-2 text-[11px] text-muted">
-        <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: '#fef3c7', border: '1px solid #fcd34d' }} /><b style={{ color: '#92400e' }}>Atrasado</b> — vencimento antes de hoje, ainda não pago/recebido.</span>
+        <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: '#fef3c7', border: '1px solid #fcd34d' }} /><b style={{ color: '#92400e' }}>Atrasado</b> — vencido antes de {br(abertura)}, ainda não pago/recebido. Só para visualizar; não entra no saldo.</span>
+        <span className="inline-flex items-center gap-1.5">Saldo inicial em <b className="text-ink">{br(abertura)}</b>.</span>
         <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: '#fff', border: '1px solid #d9cfc4' }} /><b className="text-ink">Demais colunas</b> — projeção pelo vencimento (títulos em aberto + lançamentos fixos).</span>
       </div>
       <div className="overflow-x-auto">
@@ -1672,18 +1689,22 @@ function TitulosViewProjetado({ rows, hoje, categorias, selCat, setSelCat }: {
 }
 
 /* ============================ modais do Projetado ============================ */
-function ModalAberturaProjetado({ valor, onSalvar, onClose }: { valor: number; onSalvar: (v: number) => void; onClose: () => void }) {
+function ModalAberturaProjetado({ data, valor, onSalvar, onClose }: { data: string; valor: number; onSalvar: (d: string, v: number) => void; onClose: () => void }) {
+  const [d, setD] = useState(data)
   const [v, setV] = useState(valor ? fmt2(valor) : '')
   return (
     <Overlay onClose={onClose}>
       <h3 className="text-[15px] font-bold text-ink">Saldo de abertura (Projetado)</h3>
-      <p className="mt-1 text-[12px] text-muted">Ponto de partida da projeção — normalmente o seu saldo de caixa atual. Independente do saldo de abertura do Realizado.</p>
-      <label className="mt-4 block text-[12px] font-semibold text-ink">Saldo (R$)
+      <p className="mt-1 text-[12px] text-muted">Ponto de partida da projeção — normalmente o seu saldo de caixa na data informada. A projeção corre desta data em diante; o que venceu antes dela fica na coluna “Atrasado”, só para visualizar, sem entrar no saldo. Independente do Realizado.</p>
+      <label className="mt-4 block text-[12px] font-semibold text-ink">Data do saldo
+        <input type="date" value={d} onChange={(e) => setD(e.target.value)} className="mt-1 w-full rounded-md border border-line bg-white px-2 py-1.5 text-[13px] text-ink outline-none focus:border-ink/40" />
+      </label>
+      <label className="mt-3 block text-[12px] font-semibold text-ink">Saldo (R$)
         <input value={v} onChange={(e) => setV(e.target.value)} placeholder="0,00" inputMode="decimal" className="mt-1 w-full rounded-md border border-line bg-white px-2 py-1.5 text-[13px] text-ink outline-none focus:border-ink/40" />
       </label>
       <div className="mt-5 flex justify-end gap-2">
         <button onClick={onClose} className="rounded-lg border border-line px-3 py-1.5 text-[12px] font-semibold text-muted hover:bg-paper">Cancelar</button>
-        <button onClick={() => onSalvar(parseBR(v))} className="rounded-lg bg-ink px-4 py-1.5 text-[12px] font-bold text-white hover:brightness-125">Salvar</button>
+        <button onClick={() => onSalvar(d, parseBR(v))} className="rounded-lg bg-ink px-4 py-1.5 text-[12px] font-bold text-white hover:brightness-125">Salvar</button>
       </div>
     </Overlay>
   )
