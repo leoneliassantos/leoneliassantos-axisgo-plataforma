@@ -778,7 +778,7 @@ function FluxoViewProjetado({ f, abertura, onAbrir }: { f: any; abertura: string
         <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: '#fff', border: '1px solid #d9cfc4' }} /><b className="text-ink">Demais colunas</b> — projeção pelo vencimento (títulos em aberto + lançamentos fixos).</span>
       </div>
       <div className="overflow-x-auto">
-      <table className="min-w-full border-collapse text-[12.5px]">
+      <table className="w-auto border-collapse text-[12.5px]">
         <thead>
           <tr>
             <th className="sticky left-0 z-20 px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wide text-muted" style={{ background: HDR }}>Descrição</th>
