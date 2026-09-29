@@ -1,10 +1,10 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { InfoHint } from '../../components/InfoHint'
 import { FiltrosToggle } from '../../components/FiltrosToggle'
 import { CLIENT } from '../../config/client'
-import { resolveColor } from '../../lib/chartPalette'
+import { resolveColor, resolvePalette } from '../../lib/chartPalette'
 
 /* ================================================================== *
  *  Fluxo de Caixa — módulo do Financeiro (títulos a pagar/receber)
@@ -1645,47 +1645,76 @@ function IndicadoresProjetado({ f }: { f: any; abertura: string }) {
   const saldoFim = serie.length ? serie[serie.length - 1].saldo : 0
   const menorSaldo = serie.length ? Math.min(...serie.map((p) => p.saldo)) : 0
 
+  // Layout "Power BI": ocupa a altura da tela (sem rolagem). Mede o topo do painel e
+  // fixa a altura = janela − topo. Recalcula a cada render (acompanha recolher filtros) e no resize.
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const [altura, setAltura] = useState<number | undefined>(undefined)
+  const calcAltura = useCallback(() => {
+    const el = wrapRef.current; if (!el) return
+    const top = el.getBoundingClientRect().top
+    setAltura(Math.max(340, Math.min(window.innerHeight - top - 14, window.innerHeight)))
+  }, [])
+  useLayoutEffect(() => { calcAltura() })
+  useEffect(() => { window.addEventListener('resize', calcAltura); return () => window.removeEventListener('resize', calcAltura) }, [calcAltura])
+
   if (!serie.length) return <div className="rounded-xl border border-line bg-surface p-12 text-center text-muted">Sem projeção no período selecionado. Ajuste o período/horizonte ou cadastre lançamentos.</div>
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+    <div ref={wrapRef} style={{ height: altura, overflow: 'hidden' }} className="flex flex-col gap-2">
+      <div className="grid flex-none grid-cols-2 gap-2 lg:grid-cols-4">
         <Kpi lbl="Entradas projetadas" valor={reais(totEnt)} cor={COR_IN} tip="Soma das entradas projetadas da data de abertura até o horizonte (não inclui o Atrasado)." />
         <Kpi lbl="Saídas projetadas" valor={reais(totSai)} cor={COR_OUT} tip="Soma das saídas projetadas da data de abertura até o horizonte (não inclui o Atrasado)." />
         <Kpi lbl="Saldo final projetado" valor={reais(saldoFim)} cor={saldoFim >= 0 ? COR_IN : COR_OUT} tip="Saldo de caixa projetado ao fim do horizonte, partindo do saldo de abertura." />
         <Kpi lbl="Menor saldo no período" valor={reais(menorSaldo)} cor={menorSaldo >= 0 ? COR_IN : COR_OUT} tip="Ponto mais baixo da curva de caixa no período — alerta de risco. Negativo indica necessidade de caixa." />
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        <ChartCard titulo="Entradas × Saídas no tempo" tip="Entradas (verde) e saídas (vermelho) projetadas em cada período, pela granularidade escolhida (Dia/Semana/Mês). O Atrasado não entra.">
+      <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-2 gap-2 lg:grid-cols-3">
+        <TileC className="min-h-0 lg:col-span-2" titulo="Entradas × Saídas no tempo" tip="Entradas (verde) e saídas (vermelho) projetadas em cada período, pela granularidade escolhida. O Atrasado não entra.">
           <EntradasSaidasChart serie={serie} />
-        </ChartCard>
-        <ChartCard titulo="Curva do saldo de caixa" tip="Saldo de caixa projetado ao fim de cada período, partindo do saldo de abertura. Abaixo de zero indica falta de caixa.">
+        </TileC>
+        <TileC className="min-h-0 lg:col-span-1 lg:row-span-2" titulo="Concentração de despesas" tip="Participação de cada categoria de despesa projetada no total (rosca). As menores entram em “Outros”.">
+          <DonutDespesas itens={despesas} />
+        </TileC>
+        <TileC className="min-h-0 lg:col-span-2" titulo="Curva do saldo de caixa" tip="Saldo de caixa projetado ao fim de cada período, partindo do saldo de abertura. Abaixo de zero indica falta de caixa.">
           <SaldoCurvaChart serie={serie} />
-        </ChartCard>
+        </TileC>
       </div>
-
-      <ChartCard titulo="Concentração de despesas" tip="Ordena as categorias de despesa da maior para a menor; a curva acumulada mostra quantas categorias concentram a maior parte das saídas. A linha tracejada marca 80%.">
-        <ConcentracaoDespesas itens={despesas} />
-      </ChartCard>
     </div>
   )
 }
 
-function ChartCard({ titulo, tip, children }: { titulo: string; tip: string; children: ReactNode }) {
+function TileC({ titulo, tip, className, children }: { titulo: string; tip: string; className?: string; children: ReactNode }) {
   return (
-    <div className="rounded-xl border border-line bg-surface p-4 shadow-card">
-      <div className="mb-2 flex items-center gap-1">
-        <h3 className="text-[13px] font-bold text-ink">{titulo}</h3>
+    <div className={`flex min-h-0 flex-col rounded-xl border border-line bg-surface p-3 shadow-card ${className ?? ''}`}>
+      <div className="mb-1 flex flex-none items-center gap-1">
+        <h3 className="text-[12px] font-bold text-ink">{titulo}</h3>
         <Info tip={tip} />
       </div>
-      {children}
+      <div className="relative min-h-0 flex-1">{children}</div>
     </div>
   )
+}
+
+// Mede o próprio quadro (largura e altura reais) para o SVG preencher o tile em
+// tamanho 1:1 (fonte nítida), como no padrão robusto do Vendas. Re-mede no 1º frame e no resize.
+function useMedido() {
+  const ref = useRef<HTMLDivElement>(null)
+  const [dim, setDim] = useState({ w: 600, h: 220 })
+  useLayoutEffect(() => {
+    const el = ref.current; if (!el) return
+    const u = () => setDim({ w: Math.max(240, el.clientWidth), h: Math.max(120, el.clientHeight) })
+    u()
+    const raf = requestAnimationFrame(u)
+    const ro = new ResizeObserver(u); ro.observe(el)
+    return () => { cancelAnimationFrame(raf); ro.disconnect() }
+  }, [])
+  return { ref, dim }
 }
 
 function EntradasSaidasChart({ serie }: { serie: { label: string; ent: number; sai: number }[] }) {
-  const W = 720, H = 260, PADL = 64, PADR = 16, PADT = 16, PADB = 42
+  const { ref, dim } = useMedido()
+  const { w: W, h: H } = dim
+  const PADL = 48, PADR = 12, PADT = 8, PADB = 22
   const n = serie.length
   const max = Math.max(1, ...serie.map((p) => Math.max(p.ent, p.sai)))
   const x = (i: number) => (n <= 1 ? PADL + (W - PADL - PADR) / 2 : PADL + (i * (W - PADL - PADR)) / (n - 1))
@@ -1693,43 +1722,43 @@ function EntradasSaidasChart({ serie }: { serie: { label: string; ent: number; s
   const entLine = serie.map((p, i) => `${x(i)},${y(p.ent)}`).join(' ')
   const saiLine = serie.map((p, i) => `${x(i)},${y(p.sai)}`).join(' ')
   const entArea = `${x(0)},${y(0)} ${entLine} ${x(n - 1)},${y(0)}`
-  const ticks = 4
+  const ticks = 3
   const step = Math.max(1, Math.ceil(n / 8))
   return (
-    <>
-      <div className="mb-1 flex gap-4 text-[11px]">
+    <div ref={ref} className="relative h-full w-full">
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }}>
+        {Array.from({ length: ticks + 1 }, (_, i) => {
+          const v = (max * i) / ticks
+          return (
+            <g key={i}>
+              <line x1={PADL} x2={W - PADR} y1={y(v)} y2={y(v)} stroke="#ececec" strokeWidth={1} />
+              <text x={PADL - 6} y={y(v) + 3} textAnchor="end" fontSize={10} fill="#888">{fmtCompacto(v)}</text>
+            </g>
+          )
+        })}
+        <polygon points={entArea} fill={COR_IN} opacity={0.1} />
+        <polyline points={entLine} fill="none" stroke={COR_IN} strokeWidth={2.2} strokeLinejoin="round" />
+        <polyline points={saiLine} fill="none" stroke={COR_OUT} strokeWidth={2.2} strokeLinejoin="round" />
+        {serie.map((p, i) => (
+          <g key={i}>
+            <circle cx={x(i)} cy={y(p.ent)} r={2.4} fill={COR_IN}><title>{`${p.label}\nEntradas: ${reais(p.ent)}`}</title></circle>
+            <circle cx={x(i)} cy={y(p.sai)} r={2.4} fill={COR_OUT}><title>{`${p.label}\nSaídas: ${reais(p.sai)}`}</title></circle>
+            {(i === 0 || i === n - 1 || i % step === 0) && <text x={x(i)} y={H - 6} textAnchor="middle" fontSize={10} fill="#666">{p.label}</text>}
+          </g>
+        ))}
+      </svg>
+      <div className="pointer-events-none absolute right-1 top-0 flex gap-3 text-[10px]">
         <span style={{ color: COR_IN }}>● Entradas</span>
         <span style={{ color: COR_OUT }}>● Saídas</span>
       </div>
-      <div className="overflow-x-auto">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: 520 }}>
-          {Array.from({ length: ticks + 1 }, (_, i) => {
-            const v = (max * i) / ticks
-            return (
-              <g key={i}>
-                <line x1={PADL} x2={W - PADR} y1={y(v)} y2={y(v)} stroke="#ececec" strokeWidth={1} />
-                <text x={PADL - 8} y={y(v) + 3} textAnchor="end" fontSize={10} fill="#888">{fmtCompacto(v)}</text>
-              </g>
-            )
-          })}
-          <polygon points={entArea} fill={COR_IN} opacity={0.1} />
-          <polyline points={entLine} fill="none" stroke={COR_IN} strokeWidth={2.2} strokeLinejoin="round" />
-          <polyline points={saiLine} fill="none" stroke={COR_OUT} strokeWidth={2.2} strokeLinejoin="round" />
-          {serie.map((p, i) => (
-            <g key={i}>
-              <circle cx={x(i)} cy={y(p.ent)} r={2.6} fill={COR_IN}><title>{`${p.label}\nEntradas: ${reais(p.ent)}`}</title></circle>
-              <circle cx={x(i)} cy={y(p.sai)} r={2.6} fill={COR_OUT}><title>{`${p.label}\nSaídas: ${reais(p.sai)}`}</title></circle>
-              {(i === 0 || i === n - 1 || i % step === 0) && <text x={x(i)} y={H - PADB + 16} textAnchor="middle" fontSize={10} fill="#666">{p.label}</text>}
-            </g>
-          ))}
-        </svg>
-      </div>
-    </>
+    </div>
   )
 }
 
 function SaldoCurvaChart({ serie }: { serie: { label: string; saldo: number }[] }) {
-  const W = 720, H = 260, PADL = 64, PADR = 16, PADT = 16, PADB = 42
+  const { ref, dim } = useMedido()
+  const { w: W, h: H } = dim
+  const PADL = 48, PADR = 12, PADT = 8, PADB = 22
   const n = serie.length
   const saldos = serie.map((p) => p.saldo)
   const min = Math.min(0, ...saldos), max = Math.max(0, ...saldos)
@@ -1739,17 +1768,17 @@ function SaldoCurvaChart({ serie }: { serie: { label: string; saldo: number }[] 
   const line = serie.map((p, i) => `${x(i)},${y(p.saldo)}`).join(' ')
   const area = `${x(0)},${y(min)} ${line} ${x(n - 1)},${y(min)}`
   const y0 = y(0)
-  const ticks = 4
+  const ticks = 3
   const step = Math.max(1, Math.ceil(n / 8))
   return (
-    <div className="overflow-x-auto">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: 520 }}>
+    <div ref={ref} className="h-full w-full">
+      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block' }}>
         {Array.from({ length: ticks + 1 }, (_, i) => {
           const v = min + (span * i) / ticks
           return (
             <g key={i}>
               <line x1={PADL} x2={W - PADR} y1={y(v)} y2={y(v)} stroke="#ececec" strokeWidth={1} />
-              <text x={PADL - 8} y={y(v) + 3} textAnchor="end" fontSize={10} fill="#888">{fmtCompacto(v)}</text>
+              <text x={PADL - 6} y={y(v) + 3} textAnchor="end" fontSize={10} fill="#888">{fmtCompacto(v)}</text>
             </g>
           )
         })}
@@ -1758,8 +1787,8 @@ function SaldoCurvaChart({ serie }: { serie: { label: string; saldo: number }[] 
         <polyline points={line} fill="none" stroke={COR_PROJECAO} strokeWidth={2.2} strokeLinejoin="round" />
         {serie.map((p, i) => (
           <g key={i}>
-            <circle cx={x(i)} cy={y(p.saldo)} r={i === 0 ? 4 : 3} fill={p.saldo < 0 ? COR_OUT : COR_PROJECAO}><title>{`${p.label}\nSaldo: ${reais(p.saldo)}`}</title></circle>
-            {(i === 0 || i === n - 1 || i % step === 0) && <text x={x(i)} y={H - PADB + 16} textAnchor="middle" fontSize={10} fill="#666">{p.label}</text>}
+            <circle cx={x(i)} cy={y(p.saldo)} r={i === 0 ? 3.5 : 2.6} fill={p.saldo < 0 ? COR_OUT : COR_PROJECAO}><title>{`${p.label}\nSaldo: ${reais(p.saldo)}`}</title></circle>
+            {(i === 0 || i === n - 1 || i % step === 0) && <text x={x(i)} y={H - 6} textAnchor="middle" fontSize={10} fill="#666">{p.label}</text>}
           </g>
         ))}
       </svg>
@@ -1767,50 +1796,47 @@ function SaldoCurvaChart({ serie }: { serie: { label: string; saldo: number }[] 
   )
 }
 
-function ConcentracaoDespesas({ itens }: { itens: { nome: string; valor: number }[] }) {
-  const W = 720, H = 300, PADL = 64, PADR = 52, PADT = 16, PADB = 96
-  if (!itens.length) return <p className="py-8 text-center text-sm text-muted">Sem despesas projetadas no período.</p>
-  const total = itens.reduce((s, i) => s + i.valor, 0) || 1
-  const top = itens.slice(0, 12)
-  const maxv = top[0].valor || 1
-  let acc = 0
-  const cum = top.map((it) => { acc += it.valor; return acc / total })
-  const nb = top.length
-  const bw = (W - PADL - PADR) / nb
-  const base = PADT + (H - PADT - PADB)
-  const yBar = (v: number) => PADT + (1 - v / maxv) * (H - PADT - PADB)
-  const yLine = (p: number) => PADT + (1 - p) * (H - PADT - PADB)
-  const cx = (i: number) => PADL + bw * i + bw / 2
-  let k = 0, a2 = 0
-  for (const it of itens) { a2 += it.valor; k++; if (a2 / total >= 0.8) break }
+const PAL_DESP = resolvePalette(['#5a6be0', '#16b8a6', '#e5484d', '#e7a13a', '#7a6cf0', '#22a7c4', '#d65b98', '#64748b'])
+function DonutDespesas({ itens }: { itens: { nome: string; valor: number }[] }) {
+  const total = itens.reduce((s, i) => s + i.valor, 0)
+  if (!total) return <p className="grid h-full place-items-center text-sm text-muted">Sem despesas projetadas no período.</p>
+  // Top 6 categorias + "Outros" (as menores agrupadas) — rosca legível.
+  const top = itens.slice(0, 6)
+  const outros = itens.slice(6).reduce((s, i) => s + i.valor, 0)
+  const dados = outros > 0.005 ? [...top, { nome: 'Outros', valor: outros }] : top
+  const size = 200, cxy = 100, r = 66, sw = 26, C = 2 * Math.PI * r
+  let off = 0
+  const segs = dados.map((d, i) => {
+    const len = (d.valor / total) * C
+    const el = (
+      <circle key={i} cx={cxy} cy={cxy} r={r} fill="none" stroke={PAL_DESP[i % PAL_DESP.length]} strokeWidth={sw}
+        strokeDasharray={`${len} ${C - len}`} strokeDashoffset={-off} transform={`rotate(-90 ${cxy} ${cxy})`}>
+        <title>{`${d.nome}\n${reais(d.valor)}\n${Math.round((d.valor / total) * 100)}%`}</title>
+      </circle>
+    )
+    off += len
+    return el
+  })
   return (
-    <>
-      <p className="mb-2 text-[12px] text-muted"><b className="text-ink">{k}</b> de {itens.length} categorias concentram 80% das despesas projetadas.</p>
-      <div className="overflow-x-auto">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: 520 }}>
-          {[0, 0.25, 0.5, 0.75, 1].map((p, i) => (
-            <g key={i}>
-              <line x1={PADL} x2={W - PADR} y1={yLine(p)} y2={yLine(p)} stroke="#ececec" strokeWidth={1} />
-              <text x={W - PADR + 6} y={yLine(p) + 3} fontSize={10} fill="#94a3b8">{Math.round(p * 100)}%</text>
-            </g>
-          ))}
-          <line x1={PADL} x2={W - PADR} y1={yLine(0.8)} y2={yLine(0.8)} stroke="#cbd5e1" strokeWidth={1} strokeDasharray="4 4" />
-          {top.map((it, i) => {
-            const bh = Math.max(0, base - yBar(it.valor))
-            return (
-              <g key={i}>
-                <rect x={PADL + bw * i + 3} y={yBar(it.valor)} width={Math.max(1, bw - 6)} height={bh} rx={2} fill={COR_OUT} opacity={0.85 - (i * 0.5) / nb}>
-                  <title>{`${it.nome}\nDespesa: ${reais(it.valor)}\nAcumulado: ${Math.round(cum[i] * 100)}%`}</title>
-                </rect>
-                <text x={cx(i)} y={base + 12} textAnchor="end" fontSize={9.5} fill="#666" transform={`rotate(-35 ${cx(i)} ${base + 12})`}>{it.nome.length > 16 ? `${it.nome.slice(0, 16)}…` : it.nome}</text>
-              </g>
-            )
-          })}
-          <polyline points={cum.map((p, i) => `${cx(i)},${yLine(p)}`).join(' ')} fill="none" stroke={COR_PROJECAO} strokeWidth={2} />
-          {cum.map((p, i) => <circle key={i} cx={cx(i)} cy={yLine(p)} r={2.4} fill={COR_PROJECAO}><title>{`${top[i].nome}\nAcumulado: ${Math.round(p * 100)}%`}</title></circle>)}
+    <div className="flex h-full flex-col items-center gap-2">
+      <div className="flex-none" style={{ height: 'min(56%, 190px)', aspectRatio: '1 / 1' }}>
+        <svg viewBox={`0 0 ${size} ${size}`} width="100%" height="100%">
+          {segs}
+          <text x={cxy} y={cxy - 3} textAnchor="middle" fontSize={11} fill="#64748B">Despesas</text>
+          <text x={cxy} y={cxy + 14} textAnchor="middle" fontSize={15} fontWeight={700} fill={COR_OUT}>{fmtCompacto(total)}</text>
         </svg>
       </div>
-    </>
+      <div className="flex min-h-0 w-full flex-1 flex-col gap-0.5 overflow-auto">
+        {dados.map((d, i) => (
+          <div key={i} className="flex items-center gap-1.5 text-[11px]">
+            <span className="inline-block h-2.5 w-2.5 flex-none rounded-sm" style={{ background: PAL_DESP[i % PAL_DESP.length] }} />
+            <span className="min-w-0 flex-1 truncate text-ink" title={d.nome}>{d.nome}</span>
+            <span className="flex-none font-semibold tabular-nums text-ink">{reais(d.valor)}</span>
+            <span className="flex-none w-9 text-right tabular-nums text-muted">{Math.round((d.valor / total) * 100)}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
   )
 }
 
