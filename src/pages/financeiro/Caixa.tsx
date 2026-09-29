@@ -1508,7 +1508,7 @@ function ProjetadoView() {
           <span className="text-muted">até</span>
           <DateIn value={ate || horizontePadrao} onChange={setAte} />
           {origens.length > 1 && <MultiSelect label="Canal" opcoes={origens} value={selOrigem} onChange={setSelOrigem} />}
-          {view === 'fluxo' && (
+          {view !== 'titulos' && (
             <div className="ml-1 flex items-center gap-1.5">
               <span className="text-[11px] font-semibold uppercase tracking-wide text-muted">Ver por</span>
               <Toggle valor={gran} set={setGran} ops={[['dia', 'Dia'], ['semana', 'Semana'], ['mes', 'Mês']]} />
