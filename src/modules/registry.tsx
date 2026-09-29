@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { podeVerValorFornecedor, podeVerValorVenda, type Role } from '../auth/types'
+import { podeVerFinanceiro, podeVerValorFornecedor, podeVerValorVenda, type Role } from '../auth/types'
 import { EmConstrucao } from '../components/EmConstrucao'
 import { Rentabilidade } from '../pages/financeiro/Rentabilidade'
 import { FluxoCaixaHub } from '../pages/financeiro/FluxoCaixaHub'
@@ -7,6 +7,7 @@ import { FaturamentoHub } from '../pages/financeiro/FaturamentoHub'
 import { Dre } from '../pages/financeiro/Dre'
 import { Vendas } from '../pages/financeiro/Vendas'
 import { Caixa } from '../pages/financeiro/Caixa'
+import { CaixaProjetado } from '../pages/financeiro/CaixaProjetado'
 import { FluxoProducao } from '../pages/operacoes/FluxoProducao'
 import { OrdensProducao } from '../pages/operacoes/OrdensProducao'
 import { Acompanhamento } from '../pages/operacoes/Acompanhamento'
@@ -114,6 +115,13 @@ const icCaixaTitulos = (
   <>
     <ellipse cx="12" cy="6" rx="7" ry="3" strokeWidth="1.6" />
     <path d="M5 6v6c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12v6c0 1.7 3.1 3 7 3s7-1.3 7-3v-6" strokeWidth="1.6" />
+  </>
+)
+const icCaixaProjetado = (
+  <>
+    <path d="M3 19h18M3 5v14" strokeWidth="1.6" strokeLinecap="round" />
+    <path d="M6 15l4-4 3 2 5-6" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M15 7h4v4" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
   </>
 )
 const icRentabilidade = (
@@ -254,6 +262,8 @@ const TODAS_FRENTES: Frente[] = [
       { slug: 'vendas', label: 'Vendas', icon: icVendas, element: <Vendas />, optIn: true },
       // Fluxo de Caixa por títulos (Foodpro) — específico da MC (VITE_MODULES incluir "caixa").
       { slug: 'caixa', label: 'Fluxo de Caixa', icon: icCaixaTitulos, element: <Caixa />, optIn: true },
+      // Fluxo de Caixa Projetado (MM) — alimentado pelo Bling. optIn aditivo via VITE_MODULES_EXTRA.
+      { slug: 'caixa-projetado', label: 'Fluxo de Caixa Projetado', icon: icCaixaProjetado, element: <CaixaProjetado />, optIn: true, podeVer: podeVerFinanceiro },
       // Cadastros (Clientes/CNPJs/Sócios) — sob demanda, admin-only (dados pessoais dos sócios).
       { slug: 'cad-clientes-emp', label: 'Clientes', grupo: 'Cadastros', icon: icCadClientesEmpresas, element: <CadastroClientes />, optIn: true, podeVer: (role) => role === 'admin' },
       { slug: 'dre', label: 'DRE', icon: icDre, element: <Dre /> },
@@ -286,11 +296,28 @@ const modulosAtivos = (import.meta.env.VITE_MODULES as string | undefined)
   .map((s) => s.trim().toLowerCase())
   .filter(Boolean)
 
+/**
+ * Módulos optIn ADICIONAIS (aditivo, não é whitelist exclusiva como VITE_MODULES).
+ * VITE_MODULES_EXTRA = lista de slugs a ACRESCENTAR aos módulos padrão da instância.
+ *   Ex.: MM → VITE_MODULES_EXTRA="caixa-projetado" liga só o Projetado, sem
+ *   esconder os demais módulos (evita o efeito colateral do VITE_MODULES).
+ */
+const modulosExtra = (import.meta.env.VITE_MODULES_EXTRA as string | undefined)
+  ?.split(',')
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean)
+
 function aplicaModulos(f: Frente): Frente {
-  const mods =
+  const base =
     modulosAtivos && modulosAtivos.length
       ? f.modulos.filter((m) => modulosAtivos.includes(m.slug))
       : f.modulos.filter((m) => !m.optIn)
+  const set = new Set(base)
+  if (modulosExtra && modulosExtra.length) {
+    for (const m of f.modulos) if (m.optIn && modulosExtra.includes(m.slug)) set.add(m)
+  }
+  // preserva a ordem original de declaração dos módulos
+  const mods = f.modulos.filter((m) => set.has(m))
   return { ...f, modulos: mods }
 }
 
