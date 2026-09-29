@@ -1148,7 +1148,7 @@ function Info({ tip }: { tip: string }) {
  *  fixos cadastrados. 100% isolado do Realizado: tabelas, upload, saldo
  *  de abertura e categorias próprios. Vencimento < hoje vira "Atrasado".
  * ================================================================== */
-type ViewProj = 'fluxo' | 'titulos'
+type ViewProj = 'fluxo' | 'indicadores' | 'titulos'
 
 function ProjetadoView() {
   const { user, mode } = useAuth()
@@ -1456,7 +1456,7 @@ function ProjetadoView() {
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
         {filtrosAbertos ? (
-          <Toggle valor={view} set={setView} ops={[['fluxo', 'Fluxo Projetado'], ['titulos', 'Títulos']]} />
+          <Toggle valor={view} set={setView} ops={[['fluxo', 'Fluxo Projetado'], ['indicadores', 'Indicadores'], ['titulos', 'Títulos']]} />
         ) : (
           <span className="text-sm font-semibold text-ink">Fluxo de Caixa Projetado</span>
         )}
@@ -1539,6 +1539,8 @@ function ProjetadoView() {
           </div>
           <FluxoViewProjetado f={fluxo} abertura={aberturaData || hoje} />
         </>
+      ) : view === 'indicadores' ? (
+        <IndicadoresProjetado f={fluxo} abertura={aberturaData || hoje} />
       ) : (
         <TitulosViewProjetado rows={titulosFiltrados} hoje={hoje} categorias={categorias} selCat={selCat} setSelCat={setSelCat} />
       )}
@@ -1623,6 +1625,192 @@ function FluxoViewProjetado({ f, abertura }: { f: any; abertura: string }) {
       </table>
       </div>
     </div>
+  )
+}
+
+/* ============================ INDICADORES Projetado (painel de gráficos) ============================ */
+function IndicadoresProjetado({ f }: { f: any; abertura: string }) {
+  const cols = f.cols as { key: string; label: string }[]
+  const futCols = useMemo(() => cols.filter((c) => c.key !== '__atrasado__'), [cols])
+  const serie = useMemo(() => futCols.map((c) => ({
+    label: c.label, ent: f.totalEntradas[c.key] || 0, sai: f.totalSaidas[c.key] || 0, saldo: f.saldoFinal[c.key] || 0,
+  })), [futCols, f])
+  const despesas = useMemo(() => (f.despesaRows as { nome: string; vals: Record<string, number> }[])
+    .map((r) => ({ nome: r.nome, valor: futCols.reduce((s, c) => s + (r.vals[c.key] || 0), 0) }))
+    .filter((x) => x.valor > 0.005)
+    .sort((a, b) => b.valor - a.valor), [f, futCols])
+
+  const totEnt = useMemo(() => serie.reduce((s, p) => s + p.ent, 0), [serie])
+  const totSai = useMemo(() => serie.reduce((s, p) => s + p.sai, 0), [serie])
+  const saldoFim = serie.length ? serie[serie.length - 1].saldo : 0
+  const menorSaldo = serie.length ? Math.min(...serie.map((p) => p.saldo)) : 0
+
+  if (!serie.length) return <div className="rounded-xl border border-line bg-surface p-12 text-center text-muted">Sem projeção no período selecionado. Ajuste o período/horizonte ou cadastre lançamentos.</div>
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Kpi lbl="Entradas projetadas" valor={reais(totEnt)} cor={COR_IN} tip="Soma das entradas projetadas da data de abertura até o horizonte (não inclui o Atrasado)." />
+        <Kpi lbl="Saídas projetadas" valor={reais(totSai)} cor={COR_OUT} tip="Soma das saídas projetadas da data de abertura até o horizonte (não inclui o Atrasado)." />
+        <Kpi lbl="Saldo final projetado" valor={reais(saldoFim)} cor={saldoFim >= 0 ? COR_IN : COR_OUT} tip="Saldo de caixa projetado ao fim do horizonte, partindo do saldo de abertura." />
+        <Kpi lbl="Menor saldo no período" valor={reais(menorSaldo)} cor={menorSaldo >= 0 ? COR_IN : COR_OUT} tip="Ponto mais baixo da curva de caixa no período — alerta de risco. Negativo indica necessidade de caixa." />
+      </div>
+
+      <div className="grid gap-3 lg:grid-cols-2">
+        <ChartCard titulo="Entradas × Saídas no tempo" tip="Entradas (verde) e saídas (vermelho) projetadas em cada período, pela granularidade escolhida (Dia/Semana/Mês). O Atrasado não entra.">
+          <EntradasSaidasChart serie={serie} />
+        </ChartCard>
+        <ChartCard titulo="Curva do saldo de caixa" tip="Saldo de caixa projetado ao fim de cada período, partindo do saldo de abertura. Abaixo de zero indica falta de caixa.">
+          <SaldoCurvaChart serie={serie} />
+        </ChartCard>
+      </div>
+
+      <ChartCard titulo="Concentração de despesas" tip="Ordena as categorias de despesa da maior para a menor; a curva acumulada mostra quantas categorias concentram a maior parte das saídas. A linha tracejada marca 80%.">
+        <ConcentracaoDespesas itens={despesas} />
+      </ChartCard>
+    </div>
+  )
+}
+
+function ChartCard({ titulo, tip, children }: { titulo: string; tip: string; children: ReactNode }) {
+  return (
+    <div className="rounded-xl border border-line bg-surface p-4 shadow-card">
+      <div className="mb-2 flex items-center gap-1">
+        <h3 className="text-[13px] font-bold text-ink">{titulo}</h3>
+        <Info tip={tip} />
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function EntradasSaidasChart({ serie }: { serie: { label: string; ent: number; sai: number }[] }) {
+  const W = 720, H = 260, PADL = 64, PADR = 16, PADT = 16, PADB = 42
+  const n = serie.length
+  const max = Math.max(1, ...serie.map((p) => Math.max(p.ent, p.sai)))
+  const x = (i: number) => (n <= 1 ? PADL + (W - PADL - PADR) / 2 : PADL + (i * (W - PADL - PADR)) / (n - 1))
+  const y = (v: number) => PADT + (1 - v / max) * (H - PADT - PADB)
+  const entLine = serie.map((p, i) => `${x(i)},${y(p.ent)}`).join(' ')
+  const saiLine = serie.map((p, i) => `${x(i)},${y(p.sai)}`).join(' ')
+  const entArea = `${x(0)},${y(0)} ${entLine} ${x(n - 1)},${y(0)}`
+  const ticks = 4
+  const step = Math.max(1, Math.ceil(n / 8))
+  return (
+    <>
+      <div className="mb-1 flex gap-4 text-[11px]">
+        <span style={{ color: COR_IN }}>● Entradas</span>
+        <span style={{ color: COR_OUT }}>● Saídas</span>
+      </div>
+      <div className="overflow-x-auto">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: 520 }}>
+          {Array.from({ length: ticks + 1 }, (_, i) => {
+            const v = (max * i) / ticks
+            return (
+              <g key={i}>
+                <line x1={PADL} x2={W - PADR} y1={y(v)} y2={y(v)} stroke="#ececec" strokeWidth={1} />
+                <text x={PADL - 8} y={y(v) + 3} textAnchor="end" fontSize={10} fill="#888">{fmtCompacto(v)}</text>
+              </g>
+            )
+          })}
+          <polygon points={entArea} fill={COR_IN} opacity={0.1} />
+          <polyline points={entLine} fill="none" stroke={COR_IN} strokeWidth={2.2} strokeLinejoin="round" />
+          <polyline points={saiLine} fill="none" stroke={COR_OUT} strokeWidth={2.2} strokeLinejoin="round" />
+          {serie.map((p, i) => (
+            <g key={i}>
+              <circle cx={x(i)} cy={y(p.ent)} r={2.6} fill={COR_IN}><title>{`${p.label}\nEntradas: ${reais(p.ent)}`}</title></circle>
+              <circle cx={x(i)} cy={y(p.sai)} r={2.6} fill={COR_OUT}><title>{`${p.label}\nSaídas: ${reais(p.sai)}`}</title></circle>
+              {(i === 0 || i === n - 1 || i % step === 0) && <text x={x(i)} y={H - PADB + 16} textAnchor="middle" fontSize={10} fill="#666">{p.label}</text>}
+            </g>
+          ))}
+        </svg>
+      </div>
+    </>
+  )
+}
+
+function SaldoCurvaChart({ serie }: { serie: { label: string; saldo: number }[] }) {
+  const W = 720, H = 260, PADL = 64, PADR = 16, PADT = 16, PADB = 42
+  const n = serie.length
+  const saldos = serie.map((p) => p.saldo)
+  const min = Math.min(0, ...saldos), max = Math.max(0, ...saldos)
+  const span = max - min || 1
+  const x = (i: number) => (n <= 1 ? PADL + (W - PADL - PADR) / 2 : PADL + (i * (W - PADL - PADR)) / (n - 1))
+  const y = (v: number) => PADT + (1 - (v - min) / span) * (H - PADT - PADB)
+  const line = serie.map((p, i) => `${x(i)},${y(p.saldo)}`).join(' ')
+  const area = `${x(0)},${y(min)} ${line} ${x(n - 1)},${y(min)}`
+  const y0 = y(0)
+  const ticks = 4
+  const step = Math.max(1, Math.ceil(n / 8))
+  return (
+    <div className="overflow-x-auto">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: 520 }}>
+        {Array.from({ length: ticks + 1 }, (_, i) => {
+          const v = min + (span * i) / ticks
+          return (
+            <g key={i}>
+              <line x1={PADL} x2={W - PADR} y1={y(v)} y2={y(v)} stroke="#ececec" strokeWidth={1} />
+              <text x={PADL - 8} y={y(v) + 3} textAnchor="end" fontSize={10} fill="#888">{fmtCompacto(v)}</text>
+            </g>
+          )
+        })}
+        {min < 0 && <line x1={PADL} x2={W - PADR} y1={y0} y2={y0} stroke="#bbb" strokeWidth={1} strokeDasharray="3 3" />}
+        <polygon points={area} fill={COR_PROJECAO} opacity={0.1} />
+        <polyline points={line} fill="none" stroke={COR_PROJECAO} strokeWidth={2.2} strokeLinejoin="round" />
+        {serie.map((p, i) => (
+          <g key={i}>
+            <circle cx={x(i)} cy={y(p.saldo)} r={i === 0 ? 4 : 3} fill={p.saldo < 0 ? COR_OUT : COR_PROJECAO}><title>{`${p.label}\nSaldo: ${reais(p.saldo)}`}</title></circle>
+            {(i === 0 || i === n - 1 || i % step === 0) && <text x={x(i)} y={H - PADB + 16} textAnchor="middle" fontSize={10} fill="#666">{p.label}</text>}
+          </g>
+        ))}
+      </svg>
+    </div>
+  )
+}
+
+function ConcentracaoDespesas({ itens }: { itens: { nome: string; valor: number }[] }) {
+  const W = 720, H = 300, PADL = 64, PADR = 52, PADT = 16, PADB = 96
+  if (!itens.length) return <p className="py-8 text-center text-sm text-muted">Sem despesas projetadas no período.</p>
+  const total = itens.reduce((s, i) => s + i.valor, 0) || 1
+  const top = itens.slice(0, 12)
+  const maxv = top[0].valor || 1
+  let acc = 0
+  const cum = top.map((it) => { acc += it.valor; return acc / total })
+  const nb = top.length
+  const bw = (W - PADL - PADR) / nb
+  const base = PADT + (H - PADT - PADB)
+  const yBar = (v: number) => PADT + (1 - v / maxv) * (H - PADT - PADB)
+  const yLine = (p: number) => PADT + (1 - p) * (H - PADT - PADB)
+  const cx = (i: number) => PADL + bw * i + bw / 2
+  let k = 0, a2 = 0
+  for (const it of itens) { a2 += it.valor; k++; if (a2 / total >= 0.8) break }
+  return (
+    <>
+      <p className="mb-2 text-[12px] text-muted"><b className="text-ink">{k}</b> de {itens.length} categorias concentram 80% das despesas projetadas.</p>
+      <div className="overflow-x-auto">
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minWidth: 520 }}>
+          {[0, 0.25, 0.5, 0.75, 1].map((p, i) => (
+            <g key={i}>
+              <line x1={PADL} x2={W - PADR} y1={yLine(p)} y2={yLine(p)} stroke="#ececec" strokeWidth={1} />
+              <text x={W - PADR + 6} y={yLine(p) + 3} fontSize={10} fill="#94a3b8">{Math.round(p * 100)}%</text>
+            </g>
+          ))}
+          <line x1={PADL} x2={W - PADR} y1={yLine(0.8)} y2={yLine(0.8)} stroke="#cbd5e1" strokeWidth={1} strokeDasharray="4 4" />
+          {top.map((it, i) => {
+            const bh = Math.max(0, base - yBar(it.valor))
+            return (
+              <g key={i}>
+                <rect x={PADL + bw * i + 3} y={yBar(it.valor)} width={Math.max(1, bw - 6)} height={bh} rx={2} fill={COR_OUT} opacity={0.85 - (i * 0.5) / nb}>
+                  <title>{`${it.nome}\nDespesa: ${reais(it.valor)}\nAcumulado: ${Math.round(cum[i] * 100)}%`}</title>
+                </rect>
+                <text x={cx(i)} y={base + 12} textAnchor="end" fontSize={9.5} fill="#666" transform={`rotate(-35 ${cx(i)} ${base + 12})`}>{it.nome.length > 16 ? `${it.nome.slice(0, 16)}…` : it.nome}</text>
+              </g>
+            )
+          })}
+          <polyline points={cum.map((p, i) => `${cx(i)},${yLine(p)}`).join(' ')} fill="none" stroke={COR_PROJECAO} strokeWidth={2} />
+          {cum.map((p, i) => <circle key={i} cx={cx(i)} cy={yLine(p)} r={2.4} fill={COR_PROJECAO}><title>{`${top[i].nome}\nAcumulado: ${Math.round(p * 100)}%`}</title></circle>)}
+        </svg>
+      </div>
+    </>
   )
 }
 
