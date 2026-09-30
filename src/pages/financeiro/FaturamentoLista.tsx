@@ -7,6 +7,7 @@ import { GUIA_FATURAMENTO } from '../../components/guiasUpload'
 import { FiltrosToggle } from '../../components/FiltrosToggle'
 import { readFirstSheetAOA } from '../../lib/xls'
 import { parsePubliAOA, parseBaseFaturamentoAOA, MESES_PT, type FaturamentoRow } from './publiFaturamento'
+import { apelidoEmpresa } from './razaoDre'
 import { resolveKpiGradient } from '../../lib/chartPalette'
 
 /* ================================================================== *
@@ -107,7 +108,27 @@ export function FaturamentoLista() {
     carregar()
   }, [carregar])
 
-  /* ---------- upload do Publi ---------- */
+  // Casa a empresa do arquivo com a chave JÁ gravada no banco, evitando
+  // duplicar quando a grafia difere (espaço/maiúsculas). Retorna a chave
+  // canônica e as variantes de grafia do MESMO nome (para limpar). Nunca
+  // mescla empresas realmente distintas: só une por apelido se for inequívoco.
+  const resolverEmpresa = useCallback(
+    (nome: string): { canonical: string; variantes: string[] } => {
+      const existentes = [...new Set(rows.map((r) => r.empresa))]
+      const alvo = nome.trim().toLowerCase()
+      let variantes = existentes.filter((x) => x.trim().toLowerCase() === alvo)
+      if (!variantes.length) {
+        const apel = apelidoEmpresa(nome).toLowerCase()
+        const porApelido = existentes.filter((x) => apelidoEmpresa(x).toLowerCase() === apel)
+        if (porApelido.length === 1) variantes = porApelido // só se não houver ambiguidade
+      }
+      // canônica = a grafia limpa do arquivo; variantes divergentes são limpas.
+      return { canonical: nome, variantes }
+    },
+    [rows],
+  )
+
+  /* ---------- upload (Base exportada ou Mapa do Publi) ---------- */
   async function handleFile(file: File) {
     setErro(null)
     setAviso(null)
@@ -125,15 +146,27 @@ export function FaturamentoLista() {
       if (base && base.empresas.length) {
         const totalRows = base.empresas.reduce((s, e) => s + e.rows.length, 0)
         if (!totalRows) throw new Error('a planilha "Base" não tem notas (linhas com data de Emissão).')
+        // resolve cada empresa do arquivo para a chave já gravada (dedup grafia)
+        const resolvidas = base.empresas.map((e) => ({ ...e, ...resolverEmpresa(e.empresa) }))
         if (mode === 'supabase' && supabase) {
-          for (const e of base.empresas) {
+          for (const e of resolvidas) {
+            const comps = [...new Set(e.rows.map((r) => (r.emissao ?? '').slice(0, 7)).filter(Boolean))]
+              .map((ym) => ({ ano: Number(ym.slice(0, 4)), mes: Number(ym.slice(5, 7)) }))
+            // limpa essas competências gravadas sob outra grafia da MESMA empresa
+            for (const v of e.variantes) {
+              if (v === e.canonical) continue
+              for (const c of comps) {
+                const { error } = await supabase.rpc('faturamento_apagar_competencia', { p_empresa: v, p_ano: c.ano, p_mes: c.mes })
+                if (error) throw new Error(error.message)
+              }
+            }
             const payload = e.rows.map((r) => ({
               cliente: r.cliente, sacado: r.sacado, origem: r.origem, descricao: r.descricao,
               documento: r.documento, ecs: r.ecs, pit: r.pit,
               emissao: r.emissao, vencimento: r.vencimento, pagamento: r.pagamento, valor: r.valor,
             }))
-            // substitui por competência: só os meses presentes de cada empresa.
-            const { error } = await supabase.rpc('faturamento_upload', { p_empresa: e.empresa, p_rows: payload })
+            // substitui por competência: só os meses presentes, sob a chave canônica.
+            const { error } = await supabase.rpc('faturamento_upload', { p_empresa: e.canonical, p_rows: payload })
             if (error) throw new Error(error.message)
           }
           await carregar()
@@ -141,17 +174,18 @@ export function FaturamentoLista() {
           // modo demo: por empresa, substitui em memória só as competências do arquivo
           setRows((prev) => {
             let next = prev
-            for (const e of base.empresas) {
+            for (const e of resolvidas) {
               const comps = new Set(e.rows.map((r) => (r.emissao ?? '').slice(0, 7)))
+              const grafias = new Set(e.variantes.length ? e.variantes : [e.canonical])
               next = [
-                ...next.filter((r) => !(r.empresa === e.empresa && comps.has((r.emissao ?? '').slice(0, 7)))),
-                ...e.rows,
+                ...next.filter((r) => !(grafias.has(r.empresa) && comps.has((r.emissao ?? '').slice(0, 7)))),
+                ...e.rows.map((r) => ({ ...r, empresa: e.canonical })),
               ]
             }
             return next
           })
         }
-        const nomesEmp = base.empresas.map((e) => e.empresa)
+        const nomesEmp = [...new Set(resolvidas.map((e) => e.canonical))]
         setEmpresaSel(nomesEmp.length === 1 ? nomesEmp[0] : CONSOLIDADO)
         if (base.meses.length) { setDeSel(base.meses[0]); setAteSel(base.meses[base.meses.length - 1]) }
         const mesesLbl = base.meses.map(mesLabel).join(', ')
@@ -174,24 +208,32 @@ export function FaturamentoLista() {
         throw new Error(`o arquivo não tem notas de ${rotuloMes}. Meses encontrados no arquivo: ${achados}. Selecione um mês presente no arquivo (ou exporte ${rotuloMes} no Publi).`)
       }
 
+      const { canonical: empCanon, variantes: empVar } = resolverEmpresa(uploadEmpresa)
       if (mode === 'supabase' && supabase) {
+        // limpa esse mês gravado sob outra grafia da MESMA empresa (dedup)
+        for (const v of empVar) {
+          if (v === empCanon) continue
+          const { error } = await supabase.rpc('faturamento_apagar_competencia', { p_empresa: v, p_ano: uploadAno, p_mes: uploadMes })
+          if (error) throw new Error(error.message)
+        }
         const payload = rowsMes.map((r) => ({
           cliente: r.cliente, sacado: r.sacado, origem: r.origem, descricao: r.descricao,
           documento: r.documento, ecs: r.ecs, pit: r.pit,
           emissao: r.emissao, vencimento: r.vencimento, pagamento: r.pagamento, valor: r.valor,
         }))
         // faturamento_upload substitui por competência: só o mês enviado é apagado/reinserido.
-        const { error } = await supabase.rpc('faturamento_upload', { p_empresa: uploadEmpresa, p_rows: payload })
+        const { error } = await supabase.rpc('faturamento_upload', { p_empresa: empCanon, p_rows: payload })
         if (error) throw new Error(error.message)
         await carregar()
       } else {
         // modo demo: substitui em memória apenas o mês/empresa selecionado
+        const grafias = new Set(empVar.length ? empVar : [empCanon])
         setRows((prev) => [
-          ...prev.filter((r) => !(r.empresa === uploadEmpresa && (r.emissao ?? '').slice(0, 7) === ymAlvo)),
-          ...rowsMes,
+          ...prev.filter((r) => !(grafias.has(r.empresa) && (r.emissao ?? '').slice(0, 7) === ymAlvo)),
+          ...rowsMes.map((r) => ({ ...r, empresa: empCanon })),
         ])
       }
-      setEmpresaSel(uploadEmpresa)
+      setEmpresaSel(empCanon)
       setDeSel(ymAlvo)
       setAteSel(ymAlvo)
       const ignorados = parsed.rows.length - rowsMes.length
