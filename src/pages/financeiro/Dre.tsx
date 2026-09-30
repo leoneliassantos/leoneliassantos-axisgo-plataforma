@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { ModuloTopo } from '../../components/ModuloTopo'
-import { InfoHint } from '../../components/InfoHint'
+import { GuiaUploadDre } from '../../components/GuiaUploadDre'
 import { FiltrosToggle } from '../../components/FiltrosToggle'
 import { readFirstSheetAOA } from '../../lib/xls'
 import { resolveKpiGradient } from '../../lib/chartPalette'
@@ -544,17 +544,7 @@ export function Dre() {
                 {busy ? 'Processando…' : 'Subir Razão'}
               </button>
             )}
-            {isAdmin && (
-              <InfoHint
-                title="Como atualizar o DRE"
-                steps={[
-                  'Na contabilidade, exporte o Razão Contábil da empresa (.xls ou .xlsx).',
-                  'Clique em "Subir Razão" e selecione o arquivo.',
-                  'A empresa é identificada pelo próprio arquivo — repita para cada empresa.',
-                ]}
-                warn="Cada envio atualiza o Razão da empresa do arquivo. Seus ajustes e classificações (de-para) são preservados."
-              />
-            )}
+            {isAdmin && <GuiaUploadDre />}
             {!vazio && <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />}
           </div>
         )}
