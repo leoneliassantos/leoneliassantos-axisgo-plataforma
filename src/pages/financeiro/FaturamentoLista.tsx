@@ -140,19 +140,65 @@ export function FaturamentoLista() {
       if (!aoa.length) throw new Error('não consegui ler a planilha (arquivo vazio ou formato não suportado).')
 
       // 1) Formato "Base" (o mesmo do botão "Baixar base"): traz a coluna
-      // EMPRESA e pode ter várias empresas/meses juntos. Sobe tudo do arquivo,
-      // substituindo por empresa só as competências (meses) presentes nele.
+      // EMPRESA e é a fonte da verdade do mês. Sobe o arquivo SUBSTITUINDO o mês
+      // inteiro (TODAS as empresas): o que não está no arquivo sai daquele mês.
       const base = parseBaseFaturamentoAOA(aoa)
       if (base && base.empresas.length) {
-        const totalRows = base.empresas.reduce((s, e) => s + e.rows.length, 0)
+        // dedup interno por (documento, emissão): evita reintroduzir nota repetida
+        // digitada duas vezes no Excel; e resolve a grafia da empresa (chave gravada).
+        const resolvidas = base.empresas.map((e) => {
+          const vistos = new Set<string>()
+          const rows_ = e.rows.filter((r) => {
+            if (!r.documento) return true
+            const k = `${r.documento}|${r.emissao ?? ''}`
+            if (vistos.has(k)) return false
+            vistos.add(k)
+            return true
+          })
+          return { ...e, rows: rows_, ...resolverEmpresa(e.empresa) }
+        })
+        const totalRows = resolvidas.reduce((s, e) => s + e.rows.length, 0)
         if (!totalRows) throw new Error('a planilha "Base" não tem notas (linhas com data de Emissão).')
-        // resolve cada empresa do arquivo para a chave já gravada (dedup grafia)
-        const resolvidas = base.empresas.map((e) => ({ ...e, ...resolverEmpresa(e.empresa) }))
+
+        // meses do arquivo = competências que serão substituídas por completo
+        const targetYM = base.meses
+        const targetSet = new Set(targetYM)
+        const mesesLbl = targetYM.map(mesLabel).join(', ')
+        // grafias das empresas do arquivo (canônica + variantes) — repostas pelo upload
+        const grafiasArquivo = new Set<string>()
+        resolvidas.forEach((e) => { grafiasArquivo.add(e.canonical); e.variantes.forEach((v) => grafiasArquivo.add(v)) })
+        // notas já gravadas nesses meses, de empresas que NÃO estão no arquivo → sairão
+        const removidos = new Map<string, { notas: number; valor: number; meses: Set<string> }>()
+        for (const r of rows) {
+          const ym = (r.emissao ?? '').slice(0, 7)
+          if (!targetSet.has(ym) || grafiasArquivo.has(r.empresa)) continue
+          const g = removidos.get(r.empresa) ?? { notas: 0, valor: 0, meses: new Set<string>() }
+          g.notas++; g.valor += r.valor; g.meses.add(ym); removidos.set(r.empresa, g)
+        }
+        // confirmação só quando algo será removido (evita apagar sem querer)
+        if (removidos.size) {
+          const lista = [...removidos.entries()].map(([e, g]) => `• ${apelidoEmpresa(e)}: ${g.notas} nota(s), R$ ${fmt0(g.valor)}`).join('\n')
+          const ok = window.confirm(
+            `Substituir a base de ${mesesLbl} por completo (todas as empresas)?\n\n` +
+              `O seu arquivo tem: ${[...new Set(resolvidas.map((e) => apelidoEmpresa(e.canonical)))].join(', ')}.\n\n` +
+              `Estas notas estão em ${mesesLbl} no sistema mas NÃO estão no arquivo e serão REMOVIDAS:\n${lista}\n\n` +
+              `Esta ação não pode ser desfeita.`,
+          )
+          if (!ok) return
+        }
+
         if (mode === 'supabase' && supabase) {
+          // 1) remove empresas que estão no mês mas fora do arquivo (ex.: canceladas)
+          for (const [emp, g] of removidos) {
+            for (const ym of g.meses) {
+              const { error } = await supabase.rpc('faturamento_apagar_competencia', { p_empresa: emp, p_ano: Number(ym.slice(0, 4)), p_mes: Number(ym.slice(5, 7)) })
+              if (error) throw new Error(error.message)
+            }
+          }
+          // 2) cada empresa do arquivo: limpa grafias divergentes e substitui o mês
           for (const e of resolvidas) {
             const comps = [...new Set(e.rows.map((r) => (r.emissao ?? '').slice(0, 7)).filter(Boolean))]
               .map((ym) => ({ ano: Number(ym.slice(0, 4)), mes: Number(ym.slice(5, 7)) }))
-            // limpa essas competências gravadas sob outra grafia da MESMA empresa
             for (const v of e.variantes) {
               if (v === e.canonical) continue
               for (const c of comps) {
@@ -165,31 +211,26 @@ export function FaturamentoLista() {
               documento: r.documento, ecs: r.ecs, pit: r.pit,
               emissao: r.emissao, vencimento: r.vencimento, pagamento: r.pagamento, valor: r.valor,
             }))
-            // substitui por competência: só os meses presentes, sob a chave canônica.
             const { error } = await supabase.rpc('faturamento_upload', { p_empresa: e.canonical, p_rows: payload })
             if (error) throw new Error(error.message)
           }
           await carregar()
         } else {
-          // modo demo: por empresa, substitui em memória só as competências do arquivo
+          // modo demo: substitui em memória o mês inteiro (remove tudo dos meses do
+          // arquivo e reinsere só o que veio do arquivo)
           setRows((prev) => {
-            let next = prev
-            for (const e of resolvidas) {
-              const comps = new Set(e.rows.map((r) => (r.emissao ?? '').slice(0, 7)))
-              const grafias = new Set(e.variantes.length ? e.variantes : [e.canonical])
-              next = [
-                ...next.filter((r) => !(grafias.has(r.empresa) && comps.has((r.emissao ?? '').slice(0, 7)))),
-                ...e.rows.map((r) => ({ ...r, empresa: e.canonical })),
-              ]
-            }
-            return next
+            const mantidos = prev.filter((r) => !targetSet.has((r.emissao ?? '').slice(0, 7)))
+            const novos = resolvidas.flatMap((e) => e.rows.map((r) => ({ ...r, empresa: e.canonical })))
+            return [...mantidos, ...novos]
           })
         }
+
         const nomesEmp = [...new Set(resolvidas.map((e) => e.canonical))]
         setEmpresaSel(nomesEmp.length === 1 ? nomesEmp[0] : CONSOLIDADO)
-        if (base.meses.length) { setDeSel(base.meses[0]); setAteSel(base.meses[base.meses.length - 1]) }
-        const mesesLbl = base.meses.map(mesLabel).join(', ')
-        setAviso(`Base importada — ${nomesEmp.join(', ')}: ${totalRows} nota(s) (${mesesLbl}). Só os meses do arquivo foram atualizados; os demais ficam intactos.`)
+        if (targetYM.length) { setDeSel(targetYM[0]); setAteSel(targetYM[targetYM.length - 1]) }
+        const removedNota = [...removidos.values()].reduce((s, g) => s + g.notas, 0)
+        const obsRem = removedNota ? ` ${removedNota} nota(s) fora do arquivo foram removidas.` : ''
+        setAviso(`Base de ${mesesLbl} substituída — ${nomesEmp.map(apelidoEmpresa).join(', ')}: ${totalRows} nota(s).${obsRem}`)
         return
       }
 

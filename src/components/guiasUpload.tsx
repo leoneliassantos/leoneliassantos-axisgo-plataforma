@@ -52,21 +52,23 @@ export const GUIA_FATURAMENTO: GuiaUploadProps = {
     {
       titulo: 'Opção B — Base exportada (Baixar base)',
       itens: [
-        { titulo: 'Baixe a base atual', texto: 'Clique em **“Baixar base”** para partir da planilha que já está no ar (colunas Empresa · Cliente · … · Emissão · … · Valor Faturado).' },
-        { titulo: 'Edite e suba', texto: 'Ajuste no Excel e suba pelo mesmo botão. **Não precisa** escolher empresa/mês — o arquivo já traz isso, e pode ter **várias empresas e meses juntos**.' },
+        { titulo: 'Baixe a base atual', texto: 'Clique em **“Baixar base”** para partir da planilha que já está no ar (colunas Empresa · Cliente · … · Emissão · … · Valor Faturado). **Deixe em Consolidado** para vir Batuque e Batux juntas.' },
+        { titulo: 'Edite e suba', texto: 'Ajuste no Excel e suba pelo mesmo botão. **Não precisa** escolher empresa/mês — o arquivo já traz isso. É a **fonte da verdade do mês**: quem sair da planilha, sai do sistema.' },
       ],
     },
   ],
   passos: [
     { titulo: 'Escolha o arquivo', texto: 'Clique no botão de upload e selecione a planilha (`.xlsx` ou `.xls`). O botão mostra **“Processando…”** por alguns segundos.' },
-    { titulo: 'Confira a confirmação verde', texto: 'Ao terminar aparece o aviso verde com a **empresa** e os **meses** atualizados.' },
+    { titulo: 'Confirme se algo for removido', texto: 'Se houver notas no sistema (de qualquer empresa) naquele mês que **não estão** no arquivo, aparece um aviso perguntando se pode **removê-las**. Confira a lista e confirme.' },
+    { titulo: 'Confira a confirmação verde', texto: 'Ao terminar aparece o aviso verde com os **meses** e **empresas** e quantas notas ficaram.' },
   ],
   aviso: {
-    titulo: 'Pode ficar tranquilo',
+    titulo: 'Importante',
     itens: [
-      'Só os **meses enviados** são atualizados; os **demais ficam intactos**.',
-      'Re-subir o mesmo mês **não duplica** — substitui o que havia.',
-      'Na **Base**, cada empresa atualiza só as competências (meses) presentes no arquivo.',
+      'A **Base substitui o mês inteiro** (Batuque **e** Batux): o que não estiver no arquivo é **removido** daquele mês.',
+      'Por isso, comece sempre pelo **“Baixar base” em Consolidado** e edite em cima dela.',
+      'Os **outros meses** (fora do arquivo) **ficam intactos**.',
+      'Notas repetidas no Excel (mesmo documento) são **unificadas** automaticamente.',
     ],
   },
 }
