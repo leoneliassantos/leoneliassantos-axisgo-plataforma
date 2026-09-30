@@ -6,7 +6,7 @@ import { GuiaUpload } from '../../components/GuiaUpload'
 import { GUIA_FATURAMENTO } from '../../components/guiasUpload'
 import { FiltrosToggle } from '../../components/FiltrosToggle'
 import { readFirstSheetAOA } from '../../lib/xls'
-import { parsePubliAOA, MESES_PT, type FaturamentoRow } from './publiFaturamento'
+import { parsePubliAOA, parseBaseFaturamentoAOA, MESES_PT, type FaturamentoRow } from './publiFaturamento'
 import { resolveKpiGradient } from '../../lib/chartPalette'
 
 /* ================================================================== *
@@ -117,6 +117,49 @@ export function FaturamentoLista() {
       const buf = await file.arrayBuffer()
       const aoa = readFirstSheetAOA(XLSX, buf)
       if (!aoa.length) throw new Error('não consegui ler a planilha (arquivo vazio ou formato não suportado).')
+
+      // 1) Formato "Base" (o mesmo do botão "Baixar base"): traz a coluna
+      // EMPRESA e pode ter várias empresas/meses juntos. Sobe tudo do arquivo,
+      // substituindo por empresa só as competências (meses) presentes nele.
+      const base = parseBaseFaturamentoAOA(aoa)
+      if (base && base.empresas.length) {
+        const totalRows = base.empresas.reduce((s, e) => s + e.rows.length, 0)
+        if (!totalRows) throw new Error('a planilha "Base" não tem notas (linhas com data de Emissão).')
+        if (mode === 'supabase' && supabase) {
+          for (const e of base.empresas) {
+            const payload = e.rows.map((r) => ({
+              cliente: r.cliente, sacado: r.sacado, origem: r.origem, descricao: r.descricao,
+              documento: r.documento, ecs: r.ecs, pit: r.pit,
+              emissao: r.emissao, vencimento: r.vencimento, pagamento: r.pagamento, valor: r.valor,
+            }))
+            // substitui por competência: só os meses presentes de cada empresa.
+            const { error } = await supabase.rpc('faturamento_upload', { p_empresa: e.empresa, p_rows: payload })
+            if (error) throw new Error(error.message)
+          }
+          await carregar()
+        } else {
+          // modo demo: por empresa, substitui em memória só as competências do arquivo
+          setRows((prev) => {
+            let next = prev
+            for (const e of base.empresas) {
+              const comps = new Set(e.rows.map((r) => (r.emissao ?? '').slice(0, 7)))
+              next = [
+                ...next.filter((r) => !(r.empresa === e.empresa && comps.has((r.emissao ?? '').slice(0, 7)))),
+                ...e.rows,
+              ]
+            }
+            return next
+          })
+        }
+        const nomesEmp = base.empresas.map((e) => e.empresa)
+        setEmpresaSel(nomesEmp.length === 1 ? nomesEmp[0] : CONSOLIDADO)
+        if (base.meses.length) { setDeSel(base.meses[0]); setAteSel(base.meses[base.meses.length - 1]) }
+        const mesesLbl = base.meses.map(mesLabel).join(', ')
+        setAviso(`Base importada — ${nomesEmp.join(', ')}: ${totalRows} nota(s) (${mesesLbl}). Só os meses do arquivo foram atualizados; os demais ficam intactos.`)
+        return
+      }
+
+      // 2) Formato Mapa de Faturamento (Publi): uma empresa, por mês selecionado.
       const parsed = parsePubliAOA(aoa, uploadEmpresa)
       if (!parsed.rows.length) throw new Error('não encontrei faturamentos (linhas com data de Emissão). Confira se é o "Mapa de Faturamento" do Publi.')
 
@@ -155,7 +198,7 @@ export function FaturamentoLista() {
       const obsIgnorados = ignorados > 0 ? ` (${ignorados} nota(s) de outros meses no arquivo foram ignoradas)` : ''
       setAviso(`${uploadEmpresa}: ${rotuloMes} atualizado — ${rowsMes.length} nota(s). Meses fechados não foram alterados${obsIgnorados}.`)
     } catch (e) {
-      setErro(`Não consegui importar a base do Publi: ${(e as Error).message}`)
+      setErro(`Não consegui importar o arquivo: ${(e as Error).message}`)
     } finally {
       setBusy(false)
     }

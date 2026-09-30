@@ -110,6 +110,108 @@ export function parsePubliAOA(aoa: unknown[][], empresa: string): ParsedPubli {
   }
 }
 
+/* ------------------------------------------------------------------ *
+ *  Formato "Base" (o mesmo que o botão "Baixar base" gera)
+ *  Uma linha por nota, já com a coluna EMPRESA e podendo trazer várias
+ *  empresas/meses juntos. Aceitá-lo no upload fecha o ciclo
+ *  Baixar base → editar → Subir. Colunas: EMPRESA · CLIENTE · SACADO ·
+ *  ORIGEM · DESCRIÇÃO · DOCUMENTO · ECs · PIT · EMISSÃO · VENCIMENTO ·
+ *  PAGAMENTO · VALOR FATURADO.
+ * ------------------------------------------------------------------ */
+export interface ParsedBaseFaturamento {
+  empresas: { empresa: string; rows: FaturamentoRow[] }[]
+  anos: number[]
+  meses: string[] // 'YYYY-MM' presentes (por emissão)
+}
+
+const upH = (s: unknown) => (s ?? '').toString().toUpperCase().replace(/\s+/g, ' ').trim()
+
+/** Data flexível: serial do Excel, Date, 'dd/mm/aaaa' ou ISO 'aaaa-mm-dd'. */
+function toISOflex(v: unknown): string | null {
+  const byNum = toISO(v) // trata Date e serial do Excel
+  if (byNum) return byNum
+  const s = (v ?? '').toString().trim()
+  if (!s || s === '—') return null
+  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+  if (m) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
+  m = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`
+  return null
+}
+
+/** Número flexível: aceita número cru ou texto ("8.212,05" ou "8212.05"). */
+function numFlex(v: unknown): number {
+  if (typeof v === 'number') return isFinite(v) ? v : 0
+  const s = (v ?? '').toString().trim()
+  if (!s) return 0
+  const norm = s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s.replace(/[^\d.-]/g, '')
+  const n = parseFloat(norm)
+  return isFinite(n) ? n : 0
+}
+
+/**
+ * Lê a planilha "Base" (com coluna EMPRESA). Retorna null se o cabeçalho
+ * conhecido não for encontrado (aí o chamador tenta o Mapa do Publi).
+ */
+export function parseBaseFaturamentoAOA(aoa: unknown[][]): ParsedBaseFaturamento | null {
+  let head = -1
+  let cEmp = -1, cCli = -1, cSac = -1, cOri = -1, cDesc = -1, cDoc = -1, cEcs = -1, cPit = -1, cEmi = -1, cVen = -1, cPag = -1, cVal = -1
+  for (let i = 0; i < Math.min(aoa.length, 10); i++) {
+    const hs = (aoa[i] as unknown[]).map(upH)
+    const find = (...n: string[]) => hs.findIndex((h) => n.includes(h))
+    const iEmp = find('EMPRESA')
+    const iEmi = find('EMISSÃO', 'EMISSAO')
+    const iVal = find('VALOR FATURADO', 'VALOR')
+    if (iEmp >= 0 && iEmi >= 0 && iVal >= 0) {
+      head = i
+      cEmp = iEmp; cEmi = iEmi; cVal = iVal
+      cCli = find('CLIENTE'); cSac = find('SACADO'); cOri = find('ORIGEM'); cDesc = find('DESCRIÇÃO', 'DESCRICAO')
+      cDoc = find('DOCUMENTO'); cEcs = find('ECS'); cPit = find('PIT'); cVen = find('VENCIMENTO'); cPag = find('PAGAMENTO')
+      break
+    }
+  }
+  if (head < 0) return null
+
+  const byEmp = new Map<string, FaturamentoRow[]>()
+  const anos = new Set<number>()
+  const meses = new Set<string>()
+  for (let i = head + 1; i < aoa.length; i++) {
+    const r = aoa[i]
+    if (!r) continue
+    const empresa = clean(r[cEmp])
+    if (!empresa) continue
+    const emissao = toISOflex(r[cEmi]) // linha de detalhe = tem data de emissão
+    if (!emissao) continue
+    const cliente = cCli >= 0 ? clean(r[cCli]) : ''
+    if (cliente.toUpperCase().startsWith('TOTAL')) continue
+    const row: FaturamentoRow = {
+      empresa,
+      cliente,
+      sacado: cSac >= 0 ? clean(r[cSac]) : '',
+      origem: cOri >= 0 ? normalizaOrigem(r[cOri]) : '—',
+      descricao: cDesc >= 0 ? clean(r[cDesc]) : '',
+      documento: cDoc >= 0 ? clean(r[cDoc]) : '',
+      ecs: cEcs >= 0 ? clean(r[cEcs]) : '',
+      pit: cPit >= 0 ? clean(r[cPit]) : '',
+      emissao,
+      vencimento: cVen >= 0 ? toISOflex(r[cVen]) : null,
+      pagamento: cPag >= 0 ? toISOflex(r[cPag]) : null,
+      valor: numFlex(r[cVal]),
+    }
+    let arr = byEmp.get(empresa)
+    if (!arr) { arr = []; byEmp.set(empresa, arr) }
+    arr.push(row)
+    anos.add(Number(emissao.slice(0, 4)))
+    meses.add(emissao.slice(0, 7))
+  }
+
+  return {
+    empresas: [...byEmp.entries()].map(([empresa, rows]) => ({ empresa, rows })),
+    anos: [...anos].sort(),
+    meses: [...meses].sort(),
+  }
+}
+
 /* ============================ Indicadores (A–K) ============================ */
 export const MESES_PT = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 

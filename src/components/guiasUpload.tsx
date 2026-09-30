@@ -38,21 +38,35 @@ export const GUIA_DRE: GuiaUploadProps = {
 
 export const GUIA_FATURAMENTO: GuiaUploadProps = {
   title: 'Como atualizar o Faturamento',
-  subtitle: 'Subindo o Mapa de Faturamento (Publi) — passo a passo',
+  subtitle: 'Mapa do Publi ou Base exportada — passo a passo',
   resumo:
-    'É **por mês e por empresa**: cada envio atualiza só o **mês/empresa selecionados** em cima; os outros meses ficam intactos.',
+    'Dá para subir **dois formatos**, o sistema reconhece sozinho: o **Mapa de Faturamento** do Publi (por mês/empresa selecionados) ou a planilha **“Base”** — a mesma do botão **“Baixar base”**. Em qualquer caso, **só os meses enviados são atualizados**; os demais ficam intactos.',
+  secoes: [
+    {
+      titulo: 'Opção A — Mapa do Publi (por mês)',
+      itens: [
+        { titulo: 'Escolha Empresa, Ano e Mês', texto: 'No topo da tela, selecione a **Empresa**, o **Ano** e o **Mês** que vai atualizar. É esse recorte que será substituído.' },
+        { titulo: 'Exporte o Mapa no Publi', texto: 'No Publi, exporte o **Mapa de Faturamento** em Excel (`.xlsx`) e suba pelo botão **“Subir base do mês”**.' },
+      ],
+    },
+    {
+      titulo: 'Opção B — Base exportada (Baixar base)',
+      itens: [
+        { titulo: 'Baixe a base atual', texto: 'Clique em **“Baixar base”** para partir da planilha que já está no ar (colunas Empresa · Cliente · … · Emissão · … · Valor Faturado).' },
+        { titulo: 'Edite e suba', texto: 'Ajuste no Excel e suba pelo mesmo botão. **Não precisa** escolher empresa/mês — o arquivo já traz isso, e pode ter **várias empresas e meses juntos**.' },
+      ],
+    },
+  ],
   passos: [
-    { titulo: 'Escolha Empresa, Ano e Mês', texto: 'No topo da tela, selecione a **Empresa**, o **Ano** e o **Mês** que vai atualizar. É esse recorte que será substituído.' },
-    { titulo: 'Exporte o Mapa no Publi', texto: 'No Publi, exporte o **Mapa de Faturamento** em Excel (`.xlsx`).' },
-    { titulo: 'Clique em “Subir base do mês”', texto: 'Clique no botão **“Subir base do mês”** e selecione o arquivo.' },
-    { titulo: 'Confira a confirmação verde', texto: 'Ao terminar aparece o aviso verde confirmando a **empresa** e o **mês** atualizados.' },
+    { titulo: 'Escolha o arquivo', texto: 'Clique no botão de upload e selecione a planilha (`.xlsx` ou `.xls`). O botão mostra **“Processando…”** por alguns segundos.' },
+    { titulo: 'Confira a confirmação verde', texto: 'Ao terminar aparece o aviso verde com a **empresa** e os **meses** atualizados.' },
   ],
   aviso: {
     titulo: 'Pode ficar tranquilo',
     itens: [
-      'Atualiza **só o mês e a empresa** que você escolheu em cima.',
-      'Os **demais meses ficam intactos**.',
+      'Só os **meses enviados** são atualizados; os **demais ficam intactos**.',
       'Re-subir o mesmo mês **não duplica** — substitui o que havia.',
+      'Na **Base**, cada empresa atualiza só as competências (meses) presentes no arquivo.',
     ],
   },
 }
