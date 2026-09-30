@@ -1,7 +1,8 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
-import { InfoHint } from '../../components/InfoHint'
+import { GuiaUpload } from '../../components/GuiaUpload'
+import { GUIA_CAIXA_PROJETADO_BLING } from '../../components/guiasUpload'
 import { FiltrosToggle } from '../../components/FiltrosToggle'
 import { resolveColor, resolvePalette } from '../../lib/chartPalette'
 
@@ -678,15 +679,7 @@ function ProjetadoView() {
                 </button>
               )}
               {isAdmin && (
-                <InfoHint
-                  title="Como atualizar o Projetado"
-                  steps={[
-                    'No Bling, exporte Contas a Pagar e Contas a Receber (em aberto) para Excel.',
-                    'Monte um arquivo com 2 abas: "Contas a Pagar" e "Contas a Receber".',
-                    'Clique em "Atualizar base" e selecione o arquivo (.xlsx ou .xls).',
-                  ]}
-                  warn="Cada envio substitui TODA a base projetada. Não afeta o saldo de abertura nem os lançamentos fixos."
-                />
+                <GuiaUpload compact {...GUIA_CAIXA_PROJETADO_BLING} />
               )}
             </>
           )}

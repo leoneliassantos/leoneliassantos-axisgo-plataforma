@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { ModuloTopo } from '../../components/ModuloTopo'
-import { GuiaUploadDre } from '../../components/GuiaUploadDre'
+import { GuiaUpload } from '../../components/GuiaUpload'
+import { GUIA_DRE } from '../../components/guiasUpload'
 import { FiltrosToggle } from '../../components/FiltrosToggle'
 import { readFirstSheetAOA } from '../../lib/xls'
 import { resolveKpiGradient } from '../../lib/chartPalette'
@@ -598,7 +599,7 @@ export function Dre() {
                 {busy ? 'Processando…' : 'Subir Razão'}
               </button>
             )}
-            {isAdmin && <GuiaUploadDre />}
+            {isAdmin && <GuiaUpload {...GUIA_DRE} />}
             {!vazio && <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />}
           </div>
         )}

@@ -2,7 +2,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { createPortal } from 'react-dom'
 import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
-import { InfoHint } from '../../components/InfoHint'
+import { GuiaUpload } from '../../components/GuiaUpload'
+import { GUIA_VENDAS } from '../../components/guiasUpload'
 import { FiltrosToggle } from '../../components/FiltrosToggle'
 import { CLIENT } from '../../config/client'
 import { resolvePalette, resolveColor } from '../../lib/chartPalette'
@@ -644,15 +645,7 @@ export function Vendas() {
               </button>
             )}
             {isAdmin && (
-              <InfoHint
-                title="Como atualizar Vendas"
-                steps={[
-                  'Baixe o Excel do Olist OU o PDF do Foodpro (Relatório de NFe Detalhado).',
-                  'Em "Ao enviar", escolha o modo: "Só este arquivo" atualiza apenas o canal e o período do arquivo (o resto fica); "Base inteira" apaga tudo e regrava.',
-                  'Clique em "Atualizar base" e selecione o arquivo.',
-                ]}
-                warn="Olist e Foodpro se somam nos mesmos indicadores. No modo padrão, cada envio mexe só no seu canal e período."
-              />
+              <GuiaUpload compact {...GUIA_VENDAS} />
             )}
             {!vazio && <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />}
           </div>

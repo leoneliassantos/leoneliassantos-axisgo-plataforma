@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
 import { ModuloTopo } from '../../components/ModuloTopo'
-import { InfoHint } from '../../components/InfoHint'
+import { GuiaUpload } from '../../components/GuiaUpload'
+import { GUIA_FLUXO_CAIXA } from '../../components/guiasUpload'
 import { FiltrosToggle } from '../../components/FiltrosToggle'
 import { resolveColor } from '../../lib/chartPalette'
 
@@ -497,16 +498,7 @@ export function FluxoCaixa() {
             </button>
           )}
           {isAdmin && (
-            <InfoHint
-              title="Como atualizar o Fluxo de Caixa"
-              steps={[
-                'Clique em "Baixar base" para partir da planilha atual (opcional).',
-                'No Excel, mantenha as colunas: TIPO, DESCRIÇÃO, CATEGORIA, VALOR e DATA.',
-                'Coloque todos os meses na mesma planilha (uma linha por lançamento).',
-                'Clique em "Atualizar base" e selecione o arquivo (.xlsx ou .xls).',
-              ]}
-              warn="É arquivo único: o envio substitui TODA a base (todos os meses de uma vez)."
-            />
+            <GuiaUpload {...GUIA_FLUXO_CAIXA} />
           )}
           {!vazio && <FiltrosToggle aberto={filtrosAbertos} onToggle={() => setFiltrosAbertos((v) => !v)} />}
         </div>

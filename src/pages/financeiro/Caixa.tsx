@@ -1,7 +1,8 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { supabase, fetchAllRows } from '../../lib/supabase'
 import { useAuth } from '../../auth/AuthContext'
-import { InfoHint } from '../../components/InfoHint'
+import { GuiaUpload } from '../../components/GuiaUpload'
+import { GUIA_CAIXA_TITULOS, GUIA_CAIXA_PROJETADO_FOODPRO } from '../../components/guiasUpload'
 import { FiltrosToggle } from '../../components/FiltrosToggle'
 import { CLIENT } from '../../config/client'
 import { resolveColor, resolvePalette } from '../../lib/chartPalette'
@@ -653,16 +654,7 @@ function RealizadoView() {
                 </button>
               )}
               {isAdmin && (
-                <InfoHint
-                  title="Como atualizar os Títulos (Caixa)"
-                  steps={[
-                    'No Foodpro, exporte o Excel de "Lançamentos Financeiros".',
-                    'Você tem dois canais: Vendas e Distribuidora — envie um de cada vez.',
-                    'Clique em "Atualizar base" e selecione o arquivo (.xlsx ou .xls).',
-                    'Repita para o outro canal.',
-                  ]}
-                  warn="Cada envio substitui todo o canal daquele arquivo. Só entram no fluxo os títulos com pagamento efetivado."
-                />
+                <GuiaUpload compact {...GUIA_CAIXA_TITULOS} />
               )}
             </>
           )}
@@ -1497,15 +1489,7 @@ function ProjetadoView() {
                 </button>
               )}
               {isAdmin && (
-                <InfoHint
-                  title="Como atualizar o Projetado"
-                  steps={[
-                    'No Foodpro, exporte o "Fluxo de Caixa Orçado" (títulos em aberto).',
-                    'Clique em "Atualizar base" e selecione o arquivo (.xlsx ou .xls).',
-                    'O arquivo já traz os dois canais (Vendas e Distribuidora) juntos — é um upload só.',
-                  ]}
-                  warn="Cada envio substitui TODA a base projetada. Não afeta o Realizado nem o saldo de abertura."
-                />
+                <GuiaUpload compact {...GUIA_CAIXA_PROJETADO_FOODPRO} />
               )}
             </>
           )}
