@@ -14,6 +14,7 @@ import {
   MESES,
   montarCatalogo,
   montarClassificador,
+  parseBaseDreAOA,
   parseRazaoAOA,
   reclassParaRows,
   sum12,
@@ -411,6 +412,20 @@ export function Dre() {
   const vazio = rows.length === 0
 
   /* ---------- upload ---------- */
+  // Faz a chave da empresa do arquivo casar com a já gravada na base:
+  // o "Baixar base" grava o apelido (ex.: "Batuque"), mas a chave no banco
+  // costuma ser a razão social. Resolve pelo apelido para não duplicar.
+  const resolveEmpresa = useCallback(
+    (nome: string): string => {
+      const existentes = [...new Set(rows.map((r) => r.empresa))]
+      if (existentes.includes(nome)) return nome
+      const alvo = apelidoEmpresa(nome).toLowerCase()
+      const achou = existentes.find((e) => apelidoEmpresa(e).toLowerCase() === alvo)
+      return achou || nome
+    },
+    [rows],
+  )
+
   async function handleFile(file: File) {
     setErro(null)
     setAviso(null)
@@ -420,9 +435,48 @@ export function Dre() {
       const buf = await file.arrayBuffer()
       const aoa = readFirstSheetAOA(XLSX, buf)
       if (!aoa.length) throw new Error('não consegui ler a planilha (arquivo vazio ou formato não suportado).')
+
+      // 1) Tenta o formato "Base DRE" (o mesmo do botão "Baixar base"): uma
+      // linha por conta·mês, podendo trazer várias empresas no mesmo arquivo.
+      const base = parseBaseDreAOA(aoa)
+      if (base && base.empresas.length) {
+        const empresasArquivo = base.empresas.map((e) => resolveEmpresa(e.empresa))
+        if (mode === 'supabase' && supabase) {
+          for (const e of base.empresas) {
+            const alvo = resolveEmpresa(e.empresa)
+            const payload = e.rows.map((r) => ({ codigo: r.codigo, nome: r.nome, ano: r.ano, mes: r.mes, debito: r.debito, credito: r.credito }))
+            const { error } = await supabase.rpc('dre_upload', { p_empresa: alvo, p_cnpj: '', p_rows: payload })
+            if (error) throw new Error(error.message)
+          }
+          await carregar()
+        } else {
+          // modo demo: substitui em memória, por empresa, só os meses do arquivo
+          setRows((prev) => {
+            let next = prev
+            for (const e of base.empresas) {
+              const alvo = resolveEmpresa(e.empresa)
+              const meses = new Set(e.rows.map((r) => `${r.ano}-${r.mes}`))
+              next = [
+                ...next.filter((r) => !(r.empresa === alvo && meses.has(`${r.ano}-${r.mes}`))),
+                ...e.rows.map((r) => ({ empresa: alvo, ...r })),
+              ]
+            }
+            return next
+          })
+        }
+        setEmpresaSel(empresasArquivo.length === 1 ? empresasArquivo[0] : CONSOLIDADO)
+        setOpen({})
+        const total = base.empresas.reduce((s, e) => s + e.rows.length, 0)
+        const nomeMeses = base.meses.map((m) => MESES[m - 1]).join(', ')
+        const nomesEmp = empresasArquivo.map(apelidoEmpresa).join(', ')
+        setAviso(`Base DRE importada — ${nomesEmp}: ${total} contas·mês (${nomeMeses}).`)
+        return
+      }
+
+      // 2) Formato Razão Contábil bruto (uma empresa por arquivo).
       const parsed = parseRazaoAOA(aoa)
       if (!parsed.empresa) throw new Error('não encontrei a empresa no cabeçalho do Razão (linha "Empresa:").')
-      if (!parsed.rows.length) throw new Error('não encontrei lançamentos de contas de resultado (classes 3, 4 e 5) no Razão.')
+      if (!parsed.rows.length) throw new Error('não encontrei lançamentos de contas de resultado (classes 3, 4 e 5). Envie o Razão Contábil bruto ou a planilha "Base DRE" (a mesma do botão "Baixar base").')
 
       if (mode === 'supabase' && supabase) {
         const payload = parsed.rows.map((r) => ({ codigo: r.codigo, nome: r.nome, ano: r.ano, mes: r.mes, debito: r.debito, credito: r.credito }))
@@ -442,7 +496,7 @@ export function Dre() {
       const nomeMeses = parsed.meses.map((m) => MESES[m - 1]).join(', ')
       setAviso(`${apelidoEmpresa(parsed.empresa)}: base atualizada — ${parsed.rows.length} contas·mês (${nomeMeses}).`)
     } catch (e) {
-      setErro(`Não consegui importar o Razão: ${(e as Error).message}`)
+      setErro(`Não consegui importar o arquivo: ${(e as Error).message}`)
     } finally {
       setBusy(false)
     }

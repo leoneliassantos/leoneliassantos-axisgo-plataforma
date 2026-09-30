@@ -135,6 +135,88 @@ export function parseRazaoAOA(aoa: unknown[][]): ParsedRazao {
   }
 }
 
+/* ------------------------------------------------------------------ *
+ *  Formato "Base DRE" (o mesmo que o botão "Baixar base" gera)
+ *  Uma linha por conta·mês, já agregado, multiempresa. Aceitá-lo no
+ *  upload fecha o ciclo Baixar base → editar → Subir. Colunas:
+ *  EMPRESA · CÓDIGO · CONTA · ANO · MÊS · DÉBITO · CRÉDITO.
+ * ------------------------------------------------------------------ */
+export interface ParsedBaseDre {
+  empresas: { empresa: string; rows: RazaoRow[] }[]
+  anos: number[]
+  meses: number[] // 1..12 presentes
+}
+
+const toNum = (v: unknown): number => {
+  if (typeof v === 'number') return isFinite(v) ? v : 0
+  const s = (v ?? '').toString().trim()
+  if (!s) return 0
+  // aceita tanto "1234.56" quanto o pt-BR "1.234,56"
+  const norm = s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s
+  const n = parseFloat(norm)
+  return isFinite(n) ? n : 0
+}
+
+/**
+ * Lê a planilha "Base DRE". Retorna null se o cabeçalho conhecido não
+ * for encontrado (aí o chamador tenta o Razão Contábil bruto). Descarta
+ * o que está fora do DRE (Balanço 1/2 e Apuração 5.8), como no Razão.
+ */
+export function parseBaseDreAOA(aoa: unknown[][]): ParsedBaseDre | null {
+  let cEmp = -1, cCod = -1, cNome = -1, cAno = -1, cMes = -1, cDeb = -1, cCred = -1
+  let head = -1
+  for (let i = 0; i < Math.min(aoa.length, 10); i++) {
+    const hs = (aoa[i] as unknown[]).map(up)
+    const find = (...names: string[]) => hs.findIndex((h) => names.includes(h))
+    const iEmp = find('EMPRESA')
+    const iCod = find('CÓDIGO', 'CODIGO')
+    const iAno = find('ANO')
+    const iMes = find('MÊS', 'MES')
+    const iDeb = find('DÉBITO', 'DEBITO')
+    const iCred = find('CRÉDITO', 'CREDITO')
+    if (iEmp >= 0 && iCod >= 0 && iAno >= 0 && iMes >= 0 && iDeb >= 0 && iCred >= 0) {
+      head = i
+      cEmp = iEmp; cCod = iCod; cAno = iAno; cMes = iMes; cDeb = iDeb; cCred = iCred
+      cNome = find('CONTA', 'NOME', 'DESCRIÇÃO', 'DESCRICAO')
+      break
+    }
+  }
+  if (head < 0) return null
+
+  const byEmp = new Map<string, Map<string, RazaoRow>>()
+  const anos = new Set<number>()
+  const meses = new Set<number>()
+  for (let i = head + 1; i < aoa.length; i++) {
+    const row = aoa[i] as unknown[]
+    if (!row) continue
+    const empresa = (row[cEmp] ?? '').toString().trim()
+    const codigo = (row[cCod] ?? '').toString().trim()
+    if (!empresa || !codigo) continue
+    if (!/^[345]/.test(codigo) || /^5\.8/.test(codigo)) continue // fora do DRE
+    const ano = Math.trunc(toNum(row[cAno]))
+    const mes = Math.trunc(toNum(row[cMes]))
+    if (!ano || mes < 1 || mes > 12) continue
+    const deb = toNum(row[cDeb])
+    const cred = toNum(row[cCred])
+    if (!deb && !cred) continue
+    const nome = cNome >= 0 ? (row[cNome] ?? '').toString().trim() : ''
+    let m = byEmp.get(empresa)
+    if (!m) { m = new Map(); byEmp.set(empresa, m) }
+    const key = `${codigo}|${ano}|${mes}`
+    const cur = m.get(key)
+    if (cur) { cur.debito += deb; cur.credito += cred }
+    else m.set(key, { codigo, nome, ano, mes, debito: deb, credito: cred })
+    anos.add(ano)
+    meses.add(mes)
+  }
+
+  return {
+    empresas: [...byEmp.entries()].map(([empresa, m]) => ({ empresa, rows: [...m.values()] })),
+    anos: [...anos].sort(),
+    meses: [...meses].sort((a, b) => a - b),
+  }
+}
+
 /* =============================== DRE =============================== */
 export const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
 const z12 = () => new Array(12).fill(0) as number[]

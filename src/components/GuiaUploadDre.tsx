@@ -75,10 +75,13 @@ export function GuiaUploadDre({ className = '' }: { className?: string }) {
               {/* Passo a passo */}
               <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted">Passo a passo</p>
               <ol className="flex flex-col gap-3">
-                <Passo n={1} titulo="Exporte o Razão na contabilidade">
-                  No sistema contábil da empresa, exporte o <strong>Razão Contábil</strong> em Excel
-                  (arquivo terminado em <code className="rounded bg-paper px-1 py-0.5 text-[12px]">.xls</code> ou
-                  <code className="ml-1 rounded bg-paper px-1 py-0.5 text-[12px]">.xlsx</code>). Salve no computador.
+                <Passo n={1} titulo="Tenha o arquivo em Excel">
+                  Você pode subir <strong>dois formatos</strong>, o sistema reconhece sozinho:
+                  o <strong>Razão Contábil</strong> bruto (como sai da contabilidade) ou a planilha
+                  <strong> “Base DRE”</strong> — a mesma que sai do botão <strong>“Baixar base”</strong>
+                  (colunas Empresa · Código · Conta · Ano · Mês · Débito · Crédito). Arquivo
+                  <code className="mx-1 rounded bg-paper px-1 py-0.5 text-[12px]">.xls</code> ou
+                  <code className="ml-1 rounded bg-paper px-1 py-0.5 text-[12px]">.xlsx</code>.
                 </Passo>
                 <Passo n={2} titulo="Clique em “Subir Razão”">
                   Aqui nesta tela, no canto superior direito, clique no botão azul
@@ -93,9 +96,10 @@ export function GuiaUploadDre({ className = '' }: { className?: string }) {
                   e <strong>quais meses</strong> entraram. Se aparecer aviso vermelho, o arquivo não foi lido —
                   confira se é mesmo o Razão em Excel.
                 </Passo>
-                <Passo n={5} titulo="Repita para cada empresa">
-                  A empresa é reconhecida <strong>automaticamente pelo próprio arquivo</strong> (pelo CNPJ).
-                  Para atualizar outra empresa do grupo, é só subir o Razão dela — não precisa escolher nada.
+                <Passo n={5} titulo="Uma ou várias empresas">
+                  A empresa é reconhecida <strong>automaticamente pelo próprio arquivo</strong>. No Razão bruto é
+                  uma empresa por arquivo (repita para cada uma). Já a planilha <strong>“Base DRE” pode trazer
+                  várias empresas juntas</strong> — sobem todas de uma vez.
                 </Passo>
               </ol>
 
