@@ -746,6 +746,11 @@ function LinhaFluxo({ label, children, bg, bold, indent, sub, chevron, open, onT
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function FluxoView({ f }: { f: any }) {
   const [aberto, setAberto] = useState<Set<string>>(new Set())
+  // Matriz abre RECOLHIDA: só as linhas de resumo (Saldo Inicial, Total de Entradas,
+  // Total de Saídas, Fluxo de Caixa Operacional, Saldo Final). Os canais/categorias só
+  // aparecem ao clicar na setinha do respectivo total.
+  const [entAberto, setEntAberto] = useState(false)
+  const [saiAberto, setSaiAberto] = useState(false)
   const cols = f.cols as { key: string; label: string }[]
   const toggle = (c: string) => setAberto((p) => { const n = new Set(p); n.has(c) ? n.delete(c) : n.add(c); return n })
   const entradaRows = f.entradaRows as { nome: string; vals: Record<string, number>; total: number }[]
@@ -781,16 +786,19 @@ function FluxoView({ f }: { f: any }) {
             {cols.map((c) => <ValCell key={c.key} v={f.saldoInicial[c.key]} bold />)}
           </LinhaFluxo>
 
-          {entradaRows.map((r) => (
+          <LinhaFluxo label="Total de Entradas" bold bg={BG_IN} chevron={entradaRows.length > 0} open={entAberto} onToggle={() => setEntAberto((v) => !v)}>
+            {cols.map((c) => <ValCell key={c.key} v={f.totalEntradas[c.key]} bold color={COR_IN} />)}
+          </LinhaFluxo>
+          {entAberto && entradaRows.map((r) => (
             <LinhaFluxo key={r.nome} label={`(+) ${r.nome}`} indent={1}>
               {cols.map((c) => <ValCell key={c.key} v={r.vals[c.key]} color={COR_IN} />)}
             </LinhaFluxo>
           ))}
-          <LinhaFluxo label="Total de Entradas" bold bg={BG_IN}>
-            {cols.map((c) => <ValCell key={c.key} v={f.totalEntradas[c.key]} bold color={COR_IN} />)}
-          </LinhaFluxo>
 
-          {despesaRows.map((r) => (
+          <LinhaFluxo label="Total de Saídas" bold bg={BG_OUT} chevron={despesaRows.length > 0} open={saiAberto} onToggle={() => setSaiAberto((v) => !v)}>
+            {cols.map((c) => <ValCell key={c.key} v={f.totalSaidas[c.key]} bold color={COR_OUT} />)}
+          </LinhaFluxo>
+          {saiAberto && despesaRows.map((r) => (
             <Fragment key={r.nome}>
               <LinhaFluxo label={`(-) ${r.nome}`} indent={1} chevron={r.fornecedores.length > 0} open={aberto.has(r.nome)} onToggle={() => toggle(r.nome)}>
                 {cols.map((c) => <ValCell key={c.key} v={r.vals[c.key]} color={COR_OUT} />)}
@@ -802,9 +810,6 @@ function FluxoView({ f }: { f: any }) {
               ))}
             </Fragment>
           ))}
-          <LinhaFluxo label="Total de Saídas" bold bg={BG_OUT}>
-            {cols.map((c) => <ValCell key={c.key} v={f.totalSaidas[c.key]} bold color={COR_OUT} />)}
-          </LinhaFluxo>
 
           <LinhaFluxo label="Fluxo de Caixa Operacional" bold>
             {cols.map((c) => <ValCell key={c.key} v={f.fluxoOp[c.key]} bold color={f.fluxoOp[c.key] >= 0 ? COR_IN : COR_OUT} />)}
