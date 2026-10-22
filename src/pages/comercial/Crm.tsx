@@ -20,7 +20,7 @@ import {
 import type { CnpjDados } from './cnpj'
 import { ApelidoField, CnpjField, ItensVenda } from './campos'
 import { loadProdutos } from './produtosData'
-import { addCompromisso, createLead, loadLeads, saveLead } from './leadsData'
+import { addCompromisso, createLead, deleteLead, loadLeads, saveLead } from './leadsData'
 
 /* ================================================================== *
  *  Componente do módulo (registrado no registry)
@@ -102,6 +102,22 @@ function CrmBoard() {
   const adicionarCompromisso = useCallback((c: Compromisso, leadId?: string) => {
     addCompromisso(c, leadId).catch(() => { /* silencioso */ })
   }, [])
+
+  // Exclui o card/lead. Some da tela na hora; se o banco recusar, recarrega (desfaz).
+  const excluirLead = useCallback((leadId: string) => {
+    const alvo = leads.find((l) => l.id === leadId)
+    setSel((s) => (s === leadId ? null : s))
+    setLeads((prev) => prev.filter((l) => l.id !== leadId))
+    deleteLead(leadId)
+      .then(() => notify({ title: 'Card excluído', desc: alvo?.empresa || alvo?.nome }))
+      .catch((e) => {
+        notify({ kind: 'error', title: 'Falha ao excluir', desc: (e as Error).message })
+        recarregarLeads()
+      })
+  }, [leads, notify, recarregarLeads])
+
+  // Exclusão é ação destrutiva → só admin (mesmo padrão de "excluir OP" em Operações).
+  const podeExcluir = user?.role === 'admin'
 
   const [fConsultor, setFConsultor] = useState('all')
   const [fOrigem, setFOrigem] = useState('all')
@@ -203,6 +219,7 @@ function CrmBoard() {
             onDrop={() => onDropLead(et.key)}
             onDragStart={setDragId}
             onDragEnd={() => setDragId(null)}
+            onDelete={podeExcluir ? excluirLead : undefined}
           />
         ))}
       </div>
@@ -241,7 +258,7 @@ function CrmBoard() {
  * ================================================================== */
 
 function Coluna({
-  etapa, cor, leads, dragging, onOpen, onDrop, onDragStart, onDragEnd,
+  etapa, cor, leads, dragging, onOpen, onDrop, onDragStart, onDragEnd, onDelete,
 }: {
   etapa: EtapaCRM
   cor: string
@@ -251,6 +268,7 @@ function Coluna({
   onDrop: () => void
   onDragStart: (id: string) => void
   onDragEnd: () => void
+  onDelete?: (id: string) => void
 }) {
   const [over, setOver] = useState(false)
   const total = leads.reduce((a, l) => a + l.valorPotencial, 0)
@@ -273,7 +291,7 @@ function Coluna({
       </div>
       <div className="flex max-h-[calc(100vh-330px)] flex-col gap-2 overflow-y-auto px-2 pb-2">
         {leads.map((l) => (
-          <CardLead key={l.id} lead={l} onOpen={onOpen} onDragStart={onDragStart} onDragEnd={onDragEnd} />
+          <CardLead key={l.id} lead={l} onOpen={onOpen} onDragStart={onDragStart} onDragEnd={onDragEnd} onDelete={onDelete} />
         ))}
         {leads.length === 0 && (
           <div className="rounded-xl border border-dashed border-line py-8 text-center text-xs text-muted/70">
@@ -286,12 +304,13 @@ function Coluna({
 }
 
 function CardLead({
-  lead, onOpen, onDragStart, onDragEnd,
+  lead, onOpen, onDragStart, onDragEnd, onDelete,
 }: {
   lead: Lead
   onOpen: (id: string) => void
   onDragStart: (id: string) => void
   onDragEnd: () => void
+  onDelete?: (id: string) => void
 }) {
   const frio = lead.diasSemContato > 5 && lead.etapa !== 'Fechado ganho' && lead.etapa !== 'Fechado perdido'
   const atrasado = ehAtrasado(lead)
@@ -307,6 +326,19 @@ function CardLead({
         <p className="min-w-0 truncate text-sm font-semibold text-ink group-hover:underline">{lead.empresa}</p>
         <span className="flex items-center gap-1">
           <span className="h-2 w-2 rounded-full" style={{ background: tempCor[lead.temperatura] }} title={lead.temperatura} />
+          {onDelete && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                if (window.confirm(`Excluir o card "${lead.empresa || lead.nome}"? Esta ação não pode ser desfeita.`)) onDelete(lead.id)
+              }}
+              className="rounded p-0.5 text-muted/40 opacity-0 transition hover:bg-neg/10 hover:text-neg group-hover:opacity-100"
+              title="Excluir card"
+            >
+              <Ico n="trash" s={13} />
+            </button>
+          )}
           <span className="text-muted/40" title="Arraste para mover de etapa"><Ico n="grip" s={14} /></span>
         </span>
       </div>
