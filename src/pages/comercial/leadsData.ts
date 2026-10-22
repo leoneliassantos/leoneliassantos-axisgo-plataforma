@@ -23,7 +23,7 @@ const COMPROMISSOS_KEY = 'axg_comercial_compromissos_demo'
 type Row = Record<string, unknown>
 
 const COLS =
-  'id, nome, empresa, tipo, produto_interesse, origem, consultor, valor_potencial, etapa, probabilidade, temperatura, dias_sem_contato, proxima_atividade, telefone, email, motivo_perda, cnpj, cnpj_dados, cliente_op_id, apelido, itens, atividades, propostas, criado_em, atualizado_em'
+  'id, nome, empresa, tipo, produto_interesse, origem, consultor, valor_potencial, etapa, probabilidade, temperatura, dias_sem_contato, proxima_atividade, telefone, email, motivo_perda, cnpj, cnpj_dados, cliente_op_id, apelido, indicado_por_id, indicado_por, itens, atividades, propostas, criado_em, atualizado_em'
 
 function rowToLead(r: Row): Lead {
   const s = (v: unknown, d = '') => (v == null ? d : String(v))
@@ -51,6 +51,8 @@ function rowToLead(r: Row): Lead {
     cnpjDados: (r.cnpj_dados as Lead['cnpjDados']) ?? undefined,
     clienteOpId: r.cliente_op_id ? String(r.cliente_op_id) : undefined,
     apelido: r.apelido ? String(r.apelido) : undefined,
+    indicadoPorId: r.indicado_por_id ? String(r.indicado_por_id) : undefined,
+    indicadoPor: r.indicado_por ? String(r.indicado_por) : undefined,
     itens: arr<LeadItem>(r.itens),
     atividades: arr<Atividade>(r.atividades),
     propostas: arr<PropostaLead>(r.propostas),
@@ -79,6 +81,8 @@ function leadToRow(l: Lead): Row {
     cnpj_dados: l.cnpjDados ?? null,
     cliente_op_id: l.clienteOpId || null,
     apelido: l.apelido ?? null,
+    indicado_por_id: l.indicadoPorId || null,
+    indicado_por: l.indicadoPor ?? null,
     itens: l.itens ?? [],
     atividades: l.atividades ?? [],
     propostas: l.propostas ?? [],

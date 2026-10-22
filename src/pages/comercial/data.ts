@@ -110,6 +110,9 @@ export interface Lead {
   cnpjDados?: CnpjDados // dados oficiais preenchidos pela BrasilAPI
   clienteOpId?: string // id do cliente cadastrado em Operações
   apelido?: string // nome/apelido do cliente de Operações (agrupa vários CNPJs)
+  // --- Indicação (quando a origem é "Indicação" ou "Outro") ---
+  indicadoPorId?: string // id do indicador/representante (ver indicadoresData.ts)
+  indicadoPor?: string // nome do indicador (snapshot) — mede quem mais traz clientes
   // --- Itens de venda (base para a futura proposta) ---
   itens?: LeadItem[]
 }
@@ -161,6 +164,10 @@ export const ORIGENS: OrigemComercial[] = [
   'Cliente recorrente',
   'Outro',
 ]
+
+/** Origens que pedem identificar quem indicou (para medir os representantes). */
+export const origemPedeIndicacao = (o: OrigemComercial): boolean =>
+  o === 'Indicação' || o === 'Outro'
 
 export const CANAIS = ['Ligação', 'WhatsApp', 'E-mail', 'Reunião', 'Mensagem', 'Visita', 'Outro']
 

@@ -3,12 +3,13 @@
  * de Operações) e Itens de venda (produtos + quantidade → total). Usados tanto
  * no cadastro (Novo lead) quanto na edição (aba Dados do painel).
  */
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Btn, Field, Ico, Input } from './ui'
 import { brl, totalItem, uid, valorItens, type LeadItem, type Produto } from './data'
 import { buscarCnpj, mascaraCnpj, soDigitos, type CnpjDados } from './cnpj'
 import { Combobox } from '../operacoes/Combobox'
 import { addCadastro, type Cadastro } from '../operacoes/data'
+import { addIndicador, loadIndicadores, type Indicador } from './indicadoresData'
 
 /* ------------------------------------------------------------------ *
  *  CNPJ — input com máscara + busca na BrasilAPI
@@ -129,6 +130,51 @@ export function ApelidoField({
         />
       )}
       <p className="mt-1 text-[11px] text-muted/80">Agrupa vários CNPJs sob o mesmo cliente (usado nos indicadores).</p>
+    </Field>
+  )
+}
+
+/* ------------------------------------------------------------------ *
+ *  Indicado por — representante que indicou (origem Indicação / Outro)
+ * ------------------------------------------------------------------ */
+
+export function IndicadoPorField({
+  value,
+  onChange,
+}: {
+  value?: string // indicadoPorId
+  onChange: (id: string | undefined, nome: string) => void
+}) {
+  const [lista, setLista] = useState<Indicador[]>([])
+  const [loading, setLoading] = useState(true)
+  const recarregar = useCallback(() => {
+    setLoading(true)
+    loadIndicadores()
+      .then(setLista)
+      .catch(() => { /* sem Supabase em dev: fica sem a lista */ })
+      .finally(() => setLoading(false))
+  }, [])
+  useEffect(() => { recarregar() }, [recarregar])
+
+  return (
+    <Field label="Indicado por (representante)">
+      {loading ? (
+        <div className="rounded-lg border border-line bg-paper/60 px-3 py-2 text-sm text-muted">Carregando…</div>
+      ) : (
+        <Combobox
+          value={value ?? null}
+          options={lista}
+          placeholder="Selecione ou cadastre quem indicou…"
+          addLabel="Cadastrar indicador"
+          onSelect={(id) => { const i = lista.find((x) => x.id === id); onChange(id, i?.nome ?? '') }}
+          onAdd={async (nome) => {
+            const i = await addIndicador(nome)
+            setLista((prev) => (prev.some((x) => x.id === i.id) ? prev : [...prev, i].sort((a, b) => a.nome.localeCompare(b.nome))))
+            onChange(i.id, i.nome)
+          }}
+        />
+      )}
+      <p className="mt-1 text-[11px] text-muted/80">Mede quais representantes mais trazem clientes (ex.: Fabíola, Antônio Rosseti).</p>
     </Field>
   )
 }

@@ -12,13 +12,13 @@ import {
 } from './ui'
 import {
   agora, brl, brlc, corEtapa, dmy, ehAtrasado, iniciais,
-  tempCor, uid, propCor, valorItens,
+  origemPedeIndicacao, tempCor, uid, propCor, valorItens,
   CANAIS, ETAPAS, MOTIVOS_PERDA, ORIGENS, TEMPS, TIPOS_ATIVIDADE, TIPOS_OP,
   type Compromisso, type EtapaCRM, type Lead, type LeadItem,
   type OrigemComercial, type Produto, type StatusProposta, type Temperatura, type TipoOportunidade,
 } from './data'
 import type { CnpjDados } from './cnpj'
-import { ApelidoField, CnpjField, ItensVenda } from './campos'
+import { ApelidoField, CnpjField, IndicadoPorField, ItensVenda } from './campos'
 import { loadProdutos } from './produtosData'
 import { addCompromisso, createLead, deleteLead, loadLeads, saveLead } from './leadsData'
 
@@ -426,6 +426,21 @@ function PainelLead({
   const setApelido = (id: string, nome: string) => {
     mut((l) => { l.clienteOpId = id; l.apelido = nome; log(l, 'Cadastro', `Apelido (cliente): ${nome}`) })
   }
+  const setOrigem = (o: OrigemComercial) => {
+    if (o === lead.origem) return
+    mut((l) => {
+      log(l, 'Cadastro', `Origem: ${l.origem} → ${o}`)
+      l.origem = o
+      if (!origemPedeIndicacao(o)) { l.indicadoPorId = undefined; l.indicadoPor = undefined }
+    })
+  }
+  const setIndicadoPor = (id: string | undefined, nome: string) => {
+    mut((l) => {
+      l.indicadoPorId = id
+      l.indicadoPor = nome || undefined
+      log(l, 'Cadastro', nome ? `Indicado por: ${nome}` : 'Indicação removida')
+    })
+  }
   const setItens = (itens: LeadItem[]) => {
     mut((l) => {
       l.itens = itens
@@ -581,6 +596,12 @@ function PainelLead({
             </div>
             <Field label="Etapa"><Select value={lead.etapa} onChange={(e) => onMover(lead.id, e.target.value as EtapaCRM)}>{ETAPAS.map((e) => <option key={e.key}>{e.key}</option>)}</Select></Field>
             <Field label="Consultor"><Input key={`c${lead.id}`} defaultValue={lead.consultor} onBlur={(e) => setConsultor(e.target.value.trim())} /></Field>
+            <Field label="Origem"><Select value={lead.origem} onChange={(e) => setOrigem(e.target.value as OrigemComercial)}>{ORIGENS.map((o) => <option key={o}>{o}</option>)}</Select></Field>
+            {origemPedeIndicacao(lead.origem) && (
+              <div className="col-span-2">
+                <IndicadoPorField value={lead.indicadoPorId} onChange={setIndicadoPor} />
+              </div>
+            )}
             {temItens ? (
               <Field label="Valor da venda (R$)">
                 <div className="rounded-lg border border-line bg-paper/60 px-3 py-2 text-sm font-semibold text-ink tnum">{brl(lead.valorPotencial)}</div>
@@ -616,6 +637,7 @@ function PainelLead({
             <Info icon={<Ico n="mail" s={14} />} label="E-mail" value={lead.email || '—'} />
             <Info icon={<Ico n="map-pin" s={14} />} label="Empresa" value={lead.empresa} />
             <Info icon={<Ico n="tag" s={14} />} label="Origem" value={lead.origem} />
+            {lead.indicadoPor && <Info icon={<Ico n="user-plus" s={14} />} label="Indicado por" value={lead.indicadoPor} />}
           </div>
           {perdido && lead.motivoPerda && <p className="mt-3 rounded-lg bg-neg/5 px-3 py-2 text-xs text-neg">Motivo da perda: <b>{lead.motivoPerda}</b></p>}
 
@@ -793,10 +815,13 @@ function NovoLead({
   const [cnpjDados, setCnpjDados] = useState<CnpjDados | undefined>(undefined)
   const [clienteOpId, setClienteOpId] = useState('')
   const [apelido, setApelido] = useState('')
+  const [indicadoPorId, setIndicadoPorId] = useState<string | undefined>(undefined)
+  const [indicadoPor, setIndicadoPor] = useState('')
   const [itens, setItens] = useState<LeadItem[]>([])
 
   const totalVenda = valorItens(itens)
   const temItens = itens.length > 0
+  const pedeIndicacao = origemPedeIndicacao((origem || 'Indicação') as OrigemComercial)
 
   const onCnpj = (c: string, d?: CnpjDados) => {
     setCnpj(c)
@@ -832,6 +857,8 @@ function NovoLead({
       cnpjDados,
       clienteOpId: clienteOpId || undefined,
       apelido: apelido || undefined,
+      indicadoPorId: pedeIndicacao ? indicadoPorId : undefined,
+      indicadoPor: pedeIndicacao ? (indicadoPor || undefined) : undefined,
       itens,
     })
 
@@ -849,6 +876,11 @@ function NovoLead({
           <Field label="Produto de interesse (descrição)" className="col-span-2"><Input value={produto} onChange={(e) => setProduto(e.target.value)} placeholder="Ex.: Camisas polo + agasalho (80 peças)" /></Field>
           <Field label="Origem"><Select value={origem} onChange={(e) => setOrigem(e.target.value)}><option value="">Selecione…</option>{ORIGENS.map((o) => <option key={o}>{o}</option>)}</Select></Field>
           <Field label="Consultor"><Input value={consultor} onChange={(e) => setConsultor(e.target.value)} placeholder="Vendedor responsável" /></Field>
+          {(origem === 'Indicação' || origem === 'Outro') && (
+            <div className="col-span-2">
+              <IndicadoPorField value={indicadoPorId} onChange={(id, n) => { setIndicadoPorId(id); setIndicadoPor(n) }} />
+            </div>
+          )}
           {!temItens && <Field label="Valor potencial (R$)"><Input type="number" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0" /></Field>}
           <Field label="Temperatura"><Select value={temp} onChange={(e) => setTemp(e.target.value)}><option value="">Selecione…</option>{TEMPS.map((t) => <option key={t}>{t}</option>)}</Select></Field>
           <Field label="Telefone"><Input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(11) 9…" /></Field>
