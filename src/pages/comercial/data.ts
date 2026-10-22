@@ -84,6 +84,16 @@ export interface LeadItem {
   valorUnit: number // snapshot do valor unitário no momento
 }
 
+/** Como a receita potencial do lead é estimada (expectativa de volume de vendas). */
+export type ModoReceita = 'unico' | 'mensal' | 'anual'
+
+export interface PlanoReceita {
+  modo: ModoReceita
+  ano?: number // mensal/anual: ano em que a receita entra
+  meses?: number[] // mensal: 12 valores (Jan..Dez)
+  valorAnual?: number // anual: valor único no ano
+}
+
 export interface Lead {
   id: string
   nome: string // nome do contato (pessoa)
@@ -92,7 +102,8 @@ export interface Lead {
   produtoInteresse: string
   origem: OrigemComercial
   consultor: string // vendedor responsável (texto livre)
-  valorPotencial: number
+  valorPotencial: number // total derivado do plano de receita (ver `receita`)
+  receita?: PlanoReceita // como o valor potencial foi estimado (mês a mês / anual)
   etapa: EtapaCRM
   probabilidade: number // 0-100
   temperatura: Temperatura
@@ -254,6 +265,30 @@ export const totalItem = (i: LeadItem) => (Number(i.qtd) || 0) * (Number(i.valor
 
 /** Soma dos itens de venda do lead. */
 export const valorItens = (itens?: LeadItem[]) => (itens ?? []).reduce((s, i) => s + totalItem(i), 0)
+
+/** Rótulos curtos dos meses (Jan..Dez) para a grade do modo mensal. */
+export const MESES_LABEL = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez']
+
+/** Garante sempre um array de 12 números (Jan..Dez). */
+export function normalizaMeses(m?: number[]): number[] {
+  const base = Array.from({ length: 12 }, () => 0)
+  if (Array.isArray(m)) for (let i = 0; i < 12; i++) base[i] = Number(m[i]) || 0
+  return base
+}
+
+/** Total de um plano de receita; no modo 'unico' usa o valor avulso informado. */
+export function totalReceita(p: PlanoReceita | undefined, valorUnico: number): number {
+  if (!p || p.modo === 'unico') return Number(valorUnico) || 0
+  if (p.modo === 'mensal') return normalizaMeses(p.meses).reduce((s, v) => s + v, 0)
+  return Number(p.valorAnual) || 0
+}
+
+/** Descrição curta do plano (p/ log do histórico). Ex.: 'R$ 12.000 · anual 2027'. */
+export function descricaoReceita(p: PlanoReceita | undefined, total: number): string {
+  if (!p || p.modo === 'unico') return brl(total)
+  if (p.modo === 'mensal') return `${brl(total)} · mensal ${p.ano ?? ''}`.trim()
+  return `${brl(total)} · anual ${p.ano ?? ''}`.trim()
+}
 
 export function ehAtrasado(l: Lead): boolean {
   if (!l.proximaAtividade) return false

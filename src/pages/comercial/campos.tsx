@@ -4,8 +4,11 @@
  * no cadastro (Novo lead) quanto na edição (aba Dados do painel).
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Btn, Field, Ico, Input } from './ui'
-import { brl, totalItem, uid, valorItens, type LeadItem, type Produto } from './data'
+import { Btn, Field, Ico, Input, Select } from './ui'
+import {
+  brl, MESES_LABEL, normalizaMeses, totalItem, uid, valorItens,
+  type LeadItem, type ModoReceita, type PlanoReceita, type Produto,
+} from './data'
 import { buscarCnpj, mascaraCnpj, soDigitos, type CnpjDados } from './cnpj'
 import { Combobox } from '../operacoes/Combobox'
 import { addCadastro, type Cadastro } from '../operacoes/data'
@@ -176,6 +179,147 @@ export function IndicadoPorField({
       )}
       <p className="mt-1 text-[11px] text-muted/80">Mede quais representantes mais trazem clientes (ex.: Fabíola, Antônio Rosseti).</p>
     </Field>
+  )
+}
+
+/* ------------------------------------------------------------------ *
+ *  Valor potencial — expectativa de receita: valor único, mês a mês
+ *  (dentro de um ano) ou valor anual. O total alimenta o valorPotencial.
+ * ------------------------------------------------------------------ */
+
+export function ValorPotencialField({
+  plano,
+  valor,
+  onChange,
+}: {
+  plano?: PlanoReceita
+  valor: number // valorPotencial atual (usado como valor avulso no modo 'único')
+  onChange: (plano: PlanoReceita, total: number) => void
+}) {
+  const anoAtual = new Date().getFullYear()
+  const ANOS = [anoAtual, anoAtual + 1, anoAtual + 2, anoAtual + 3]
+
+  const [modo, setModo] = useState<ModoReceita>(plano?.modo ?? 'unico')
+  const [ano, setAno] = useState<number>(plano?.ano ?? anoAtual)
+  const [meses, setMeses] = useState<number[]>(normalizaMeses(plano?.meses))
+  const [valAnual, setValAnual] = useState<number>(plano?.valorAnual ?? (plano?.modo === 'anual' ? valor : 0))
+  const [valUnico, setValUnico] = useState<number>(!plano || plano.modo === 'unico' ? valor : 0)
+  const [repetir, setRepetir] = useState('')
+
+  const totalDe = (m: ModoReceita, mm: number[], va: number, vu: number) =>
+    m === 'mensal' ? mm.reduce((s, x) => s + (Number(x) || 0), 0) : m === 'anual' ? Number(va) || 0 : Number(vu) || 0
+  const totalAtual = totalDe(modo, meses, valAnual, valUnico)
+
+  const emit = (over: { modo?: ModoReceita; ano?: number; meses?: number[]; valAnual?: number; valUnico?: number }) => {
+    const m = over.modo ?? modo
+    const a = over.ano ?? ano
+    const mm = (over.meses ?? meses).map((x) => Number(x) || 0)
+    const va = Number(over.valAnual ?? valAnual) || 0
+    const vu = Number(over.valUnico ?? valUnico) || 0
+    const plan: PlanoReceita =
+      m === 'mensal' ? { modo: 'mensal', ano: a, meses: mm }
+      : m === 'anual' ? { modo: 'anual', ano: a, valorAnual: va }
+      : { modo: 'unico' }
+    onChange(plan, totalDe(m, mm, va, vu))
+  }
+
+  const btnModo = (m: ModoReceita, label: string) => (
+    <button
+      type="button"
+      onClick={() => { setModo(m); emit({ modo: m }) }}
+      className={`flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium transition ${
+        modo === m ? 'border-transparent bg-brand text-white' : 'border-line text-muted hover:bg-paper'
+      }`}
+    >
+      {label}
+    </button>
+  )
+
+  const anoSelect = () => (
+    <Select value={ano} onChange={(e) => { const a = Number(e.target.value); setAno(a); emit({ ano: a }) }}>
+      {ANOS.map((a) => <option key={a} value={a}>{a}</option>)}
+    </Select>
+  )
+
+  return (
+    <div className="block">
+      <span className="mb-1 block text-xs font-medium text-muted">Valor potencial (R$)</span>
+      <div className="flex gap-1.5">
+        {btnModo('unico', 'Único')}
+        {btnModo('mensal', 'Mensal')}
+        {btnModo('anual', 'Anual')}
+      </div>
+
+      {modo === 'unico' && (
+        <div className="mt-2">
+          <Input
+            type="number" min={0} placeholder="0" value={valUnico || ''}
+            onChange={(e) => setValUnico(Number(e.target.value) || 0)}
+            onBlur={() => emit({})}
+          />
+        </div>
+      )}
+
+      {modo === 'anual' && (
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <label className="block">
+            <span className="mb-1 block text-[11px] text-muted">Ano da receita</span>
+            {anoSelect()}
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[11px] text-muted">Valor no ano (R$)</span>
+            <Input
+              type="number" min={0} placeholder="0" value={valAnual || ''}
+              onChange={(e) => setValAnual(Number(e.target.value) || 0)}
+              onBlur={() => emit({})}
+            />
+          </label>
+        </div>
+      )}
+
+      {modo === 'mensal' && (
+        <div className="mt-2">
+          <div className="mb-2 flex items-end gap-2">
+            <label className="w-28">
+              <span className="mb-1 block text-[11px] text-muted">Ano</span>
+              {anoSelect()}
+            </label>
+            <label className="block flex-1">
+              <span className="mb-1 block text-[11px] text-muted">Repetir em todos os meses</span>
+              <Input
+                type="number" min={0} placeholder="Ex.: 5000" value={repetir}
+                onChange={(e) => setRepetir(e.target.value)}
+                onBlur={() => {
+                  const v = Number(repetir) || 0
+                  if (v > 0) { const mm = Array<number>(12).fill(v); setMeses(mm); emit({ meses: mm }) }
+                }}
+              />
+            </label>
+          </div>
+          <div className="grid grid-cols-4 gap-1.5">
+            {MESES_LABEL.map((lbl, i) => (
+              <label key={lbl} className="block">
+                <span className="mb-0.5 block text-[10px] uppercase tracking-wide text-muted/80">{lbl}</span>
+                <Input
+                  type="number" min={0} placeholder="0" value={meses[i] || ''} className="px-2 py-1.5"
+                  onChange={(e) => { const mm = meses.slice(); mm[i] = Number(e.target.value) || 0; setMeses(mm) }}
+                  onBlur={() => emit({})}
+                />
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {modo !== 'unico' && (
+        <div className="mt-2 flex items-center justify-between rounded-lg bg-paper px-3 py-1.5">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-muted">
+            Total {modo === 'mensal' ? `em ${ano}` : `anual ${ano}`}
+          </span>
+          <span className="text-sm font-bold text-ink tnum">{brl(totalAtual)}</span>
+        </div>
+      )}
+    </div>
   )
 }
 

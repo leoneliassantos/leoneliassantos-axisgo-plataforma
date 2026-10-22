@@ -11,14 +11,14 @@ import {
   ToastProvider, useToast,
 } from './ui'
 import {
-  agora, brl, brlc, corEtapa, dmy, ehAtrasado, iniciais,
+  agora, brl, brlc, corEtapa, descricaoReceita, dmy, ehAtrasado, iniciais,
   origemPedeIndicacao, tempCor, uid, propCor, valorItens,
   CANAIS, ETAPAS, MOTIVOS_PERDA, ORIGENS, TEMPS, TIPOS_ATIVIDADE, TIPOS_OP,
   type Compromisso, type EtapaCRM, type Lead, type LeadItem,
-  type OrigemComercial, type Produto, type StatusProposta, type Temperatura, type TipoOportunidade,
+  type OrigemComercial, type PlanoReceita, type Produto, type StatusProposta, type Temperatura, type TipoOportunidade,
 } from './data'
 import type { CnpjDados } from './cnpj'
-import { ApelidoField, CnpjField, IndicadoPorField, ItensVenda } from './campos'
+import { ApelidoField, CnpjField, IndicadoPorField, ItensVenda, ValorPotencialField } from './campos'
 import { loadProdutos } from './produtosData'
 import { addCompromisso, createLead, deleteLead, loadLeads, saveLead } from './leadsData'
 
@@ -409,6 +409,13 @@ function PainelLead({
     if (Number.isNaN(valor) || valor === lead[campo]) return
     mut((l) => { log(l, 'Alteração', `${rotulo}: ${fmt(l[campo])} → ${fmt(valor)}`); l[campo] = valor })
   }
+  const setReceita = (plano: PlanoReceita, total: number) => {
+    mut((l) => {
+      if (total !== l.valorPotencial) log(l, 'Alteração', `Valor potencial: ${descricaoReceita(plano, total)}`)
+      l.receita = plano
+      l.valorPotencial = total
+    })
+  }
   const setConsultor = (c: string) => {
     if (c === lead.consultor) return
     mut((l) => { log(l, 'Consultor', `Consultor: ${l.consultor} → ${c}`); l.consultor = c })
@@ -608,7 +615,9 @@ function PainelLead({
                 <span className="mt-1 block text-[11px] text-muted/80">Calculado pelos produtos.</span>
               </Field>
             ) : (
-              <Field label="Valor potencial (R$)"><Input key={`v${lead.id}`} type="number" defaultValue={lead.valorPotencial} onBlur={(e) => commitNum('valorPotencial', Number(e.target.value), 'Valor potencial', (n) => brl(n))} /></Field>
+              <div className="col-span-2">
+                <ValorPotencialField key={`vp${lead.id}`} plano={lead.receita} valor={lead.valorPotencial} onChange={setReceita} />
+              </div>
             )}
             <Field label="Probabilidade (%)"><Input key={`p${lead.id}`} type="number" defaultValue={lead.probabilidade} onBlur={(e) => commitNum('probabilidade', Number(e.target.value), 'Probabilidade', (n) => `${n}%`)} /></Field>
           </div>
@@ -807,7 +816,8 @@ function NovoLead({
   const [produto, setProduto] = useState('')
   const [origem, setOrigem] = useState('')
   const [consultor, setConsultor] = useState(consultorPadrao)
-  const [valor, setValor] = useState('')
+  const [plano, setPlano] = useState<PlanoReceita | undefined>(undefined)
+  const [valorPlano, setValorPlano] = useState(0)
   const [temp, setTemp] = useState('')
   const [telefone, setTelefone] = useState('')
   const [email, setEmail] = useState('')
@@ -842,7 +852,8 @@ function NovoLead({
       produtoInteresse: produto.trim(),
       origem: (origem || 'Indicação') as OrigemComercial,
       consultor: consultor.trim() || 'Comercial MM',
-      valorPotencial: temItens ? totalVenda : Number(valor) || 0,
+      valorPotencial: temItens ? totalVenda : valorPlano,
+      receita: temItens ? undefined : plano,
       etapa: 'Novo lead',
       probabilidade: 10,
       temperatura: (temp || 'Morno') as Temperatura,
@@ -881,7 +892,11 @@ function NovoLead({
               <IndicadoPorField value={indicadoPorId} onChange={(id, n) => { setIndicadoPorId(id); setIndicadoPor(n) }} />
             </div>
           )}
-          {!temItens && <Field label="Valor potencial (R$)"><Input type="number" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0" /></Field>}
+          {!temItens && (
+            <div className="col-span-2">
+              <ValorPotencialField plano={plano} valor={valorPlano} onChange={(p, t) => { setPlano(p); setValorPlano(t) }} />
+            </div>
+          )}
           <Field label="Temperatura"><Select value={temp} onChange={(e) => setTemp(e.target.value)}><option value="">Selecione…</option>{TEMPS.map((t) => <option key={t}>{t}</option>)}</Select></Field>
           <Field label="Telefone"><Input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(11) 9…" /></Field>
           <Field label="E-mail"><Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@cliente.com" /></Field>

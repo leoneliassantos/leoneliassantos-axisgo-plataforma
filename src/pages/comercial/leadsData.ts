@@ -11,7 +11,7 @@ import { isSupabaseConfigured, supabase } from '../../lib/supabase'
 import {
   agora, uid,
   type Atividade, type Compromisso, type EtapaCRM, type Lead, type LeadItem,
-  type OrigemComercial, type PropostaLead, type Temperatura, type TipoOportunidade,
+  type OrigemComercial, type PlanoReceita, type PropostaLead, type Temperatura, type TipoOportunidade,
 } from './data'
 
 const isDemo = !isSupabaseConfigured
@@ -23,7 +23,7 @@ const COMPROMISSOS_KEY = 'axg_comercial_compromissos_demo'
 type Row = Record<string, unknown>
 
 const COLS =
-  'id, nome, empresa, tipo, produto_interesse, origem, consultor, valor_potencial, etapa, probabilidade, temperatura, dias_sem_contato, proxima_atividade, telefone, email, motivo_perda, cnpj, cnpj_dados, cliente_op_id, apelido, indicado_por_id, indicado_por, itens, atividades, propostas, criado_em, atualizado_em'
+  'id, nome, empresa, tipo, produto_interesse, origem, consultor, valor_potencial, receita, etapa, probabilidade, temperatura, dias_sem_contato, proxima_atividade, telefone, email, motivo_perda, cnpj, cnpj_dados, cliente_op_id, apelido, indicado_por_id, indicado_por, itens, atividades, propostas, criado_em, atualizado_em'
 
 function rowToLead(r: Row): Lead {
   const s = (v: unknown, d = '') => (v == null ? d : String(v))
@@ -37,6 +37,7 @@ function rowToLead(r: Row): Lead {
     origem: s(r.origem, 'Indicação') as OrigemComercial,
     consultor: s(r.consultor),
     valorPotencial: Number(r.valor_potencial) || 0,
+    receita: (r.receita as PlanoReceita) ?? undefined,
     etapa: s(r.etapa, 'Novo lead') as EtapaCRM,
     probabilidade: Number(r.probabilidade) || 0,
     temperatura: s(r.temperatura, 'Morno') as Temperatura,
@@ -69,6 +70,7 @@ function leadToRow(l: Lead): Row {
     origem: l.origem,
     consultor: l.consultor,
     valor_potencial: l.valorPotencial,
+    receita: l.receita ?? null,
     etapa: l.etapa,
     probabilidade: l.probabilidade,
     temperatura: l.temperatura,
