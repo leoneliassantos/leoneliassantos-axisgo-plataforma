@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import { podeVerValorFornecedor, podeVerValorVenda, type Role } from '../auth/types'
-import { EmConstrucao } from '../components/EmConstrucao'
 import { Rentabilidade } from '../pages/financeiro/Rentabilidade'
 import { FluxoCaixaHub } from '../pages/financeiro/FluxoCaixaHub'
 import { FaturamentoHub } from '../pages/financeiro/FaturamentoHub'
@@ -16,6 +15,7 @@ import { Cadastros } from '../pages/operacoes/Cadastros'
 import { CadastroClientes } from '../pages/cadastros/Clientes'
 import { Crm } from '../pages/comercial/Crm'
 import { Produtos } from '../pages/comercial/Produtos'
+import { Indicadores } from '../pages/comercial/Indicadores'
 
 /**
  * ============================================================
@@ -219,18 +219,7 @@ const TODAS_FRENTES: Frente[] = [
     modulos: [
       { slug: 'crm', label: 'CRM', icon: icCrm, element: <Crm /> },
       { slug: 'produtos', label: 'Produtos', icon: icProdutos, element: <Produtos />, podeVer: podeVerValorVenda },
-      {
-        slug: 'indicadores',
-        label: 'Indicadores',
-        icon: icVisaoGeral,
-        element: (
-          <EmConstrucao
-            titulo="Indicadores Comerciais"
-            descricao="Funil, meta de vendas, conversão e volume — a partir dos leads do CRM."
-            itens={['Funil de vendas', 'Meta', 'Taxa de conversão', 'Volume por mês']}
-          />
-        ),
-      },
+      { slug: 'indicadores', label: 'Indicadores', icon: icVisaoGeral, element: <Indicadores />, podeVer: podeVerValorVenda },
     ],
   },
   {
