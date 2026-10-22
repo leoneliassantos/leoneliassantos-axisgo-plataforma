@@ -12,14 +12,13 @@ import {
 } from './ui'
 import {
   agora, brl, brlc, corEtapa, descricaoReceita, dmy, ehAtrasado, iniciais,
-  origemPedeIndicacao, tempCor, uid, propCor, valorItens,
+  origemPedeIndicacao, tempCor, uid, propCor,
   CANAIS, ETAPAS, MOTIVOS_PERDA, ORIGENS, TEMPS, TIPOS_ATIVIDADE, TIPOS_OP,
-  type Compromisso, type EtapaCRM, type Lead, type LeadItem,
-  type OrigemComercial, type PlanoReceita, type Produto, type StatusProposta, type Temperatura, type TipoOportunidade,
+  type Compromisso, type EtapaCRM, type Lead,
+  type OrigemComercial, type PlanoReceita, type StatusProposta, type Temperatura, type TipoOportunidade,
 } from './data'
 import type { CnpjDados } from './cnpj'
-import { ApelidoField, CnpjField, IndicadoPorField, ItensVenda, ValorPotencialField } from './campos'
-import { loadProdutos } from './produtosData'
+import { ApelidoField, CnpjField, IndicadoPorField, ValorPotencialField } from './campos'
 import { addCompromisso, createLead, deleteLead, loadLeads, saveLead } from './leadsData'
 
 /* ================================================================== *
@@ -66,12 +65,9 @@ function CrmBoard() {
       setClientesLoading(false)
     }
   }, [])
-  // Catálogo de produtos (Supabase) — alimenta o seletor de itens da venda.
-  const [produtos, setProdutos] = useState<Produto[]>([])
   useEffect(() => {
     recarregarLeads()
     recarregarClientes()
-    loadProdutos().then(setProdutos).catch(() => { /* sem Supabase em dev */ })
   }, [recarregarLeads, recarregarClientes])
 
   // Altera um lead (otimista na tela) e persiste a linha no Supabase.
@@ -228,7 +224,6 @@ function CrmBoard() {
         <PainelLead
           lead={selLead}
           usuario={user?.nome || user?.email || 'Usuário'}
-          produtos={produtos}
           clientes={clientes}
           clientesLoading={clientesLoading}
           onClientesReload={recarregarClientes}
@@ -241,7 +236,6 @@ function CrmBoard() {
       {novo && (
         <NovoLead
           consultorPadrao={user?.nome || ''}
-          produtos={produtos}
           clientes={clientes}
           clientesLoading={clientesLoading}
           onClientesReload={recarregarClientes}
@@ -370,11 +364,10 @@ function CardLead({
  * ================================================================== */
 
 function PainelLead({
-  lead, usuario, produtos, clientes, clientesLoading, onClientesReload, onClose, onMover, mutar, onAddCompromisso,
+  lead, usuario, clientes, clientesLoading, onClientesReload, onClose, onMover, mutar, onAddCompromisso,
 }: {
   lead: Lead
   usuario: string
-  produtos: Produto[]
   clientes: Cadastro[]
   clientesLoading: boolean
   onClientesReload: () => void
@@ -448,14 +441,6 @@ function PainelLead({
       log(l, 'Cadastro', nome ? `Indicado por: ${nome}` : 'Indicação removida')
     })
   }
-  const setItens = (itens: LeadItem[]) => {
-    mut((l) => {
-      l.itens = itens
-      l.valorPotencial = valorItens(itens)
-      log(l, 'Produtos', `Itens da venda atualizados (${itens.length}) — total ${brl(valorItens(itens))}`)
-    })
-  }
-  const temItens = (lead.itens?.length ?? 0) > 0
   const addNota = () => {
     if (!nota.trim()) return
     mut((l) => { log(l, 'Nota', nota.trim()); l.diasSemContato = 0 })
@@ -609,16 +594,9 @@ function PainelLead({
                 <IndicadoPorField value={lead.indicadoPorId} onChange={setIndicadoPor} />
               </div>
             )}
-            {temItens ? (
-              <Field label="Valor da venda (R$)">
-                <div className="rounded-lg border border-line bg-paper/60 px-3 py-2 text-sm font-semibold text-ink tnum">{brl(lead.valorPotencial)}</div>
-                <span className="mt-1 block text-[11px] text-muted/80">Calculado pelos produtos.</span>
-              </Field>
-            ) : (
-              <div className="col-span-2">
-                <ValorPotencialField key={`vp${lead.id}`} plano={lead.receita} valor={lead.valorPotencial} onChange={setReceita} />
-              </div>
-            )}
+            <div className="col-span-2">
+              <ValorPotencialField key={`vp${lead.id}`} plano={lead.receita} valor={lead.valorPotencial} onChange={setReceita} />
+            </div>
             <Field label="Probabilidade (%)"><Input key={`p${lead.id}`} type="number" defaultValue={lead.probabilidade} onBlur={(e) => commitNum('probabilidade', Number(e.target.value), 'Probabilidade', (n) => `${n}%`)} /></Field>
           </div>
 
@@ -626,10 +604,6 @@ function PainelLead({
             <p className="text-xs font-semibold uppercase tracking-wide text-muted/80">Cadastro da empresa</p>
             <CnpjField cnpj={lead.cnpj} dados={lead.cnpjDados} onChange={setCnpj} />
             <ApelidoField value={lead.clienteOpId} clientes={clientes} loading={clientesLoading} onSelect={setApelido} onAdded={onClientesReload} />
-          </div>
-
-          <div className="mt-5">
-            <ItensVenda itens={lead.itens ?? []} produtos={produtos} onChange={setItens} />
           </div>
 
           {lead.proximaAtividade && (
@@ -800,10 +774,9 @@ function NovaAtividade({
 }
 
 function NovoLead({
-  consultorPadrao, produtos, clientes, clientesLoading, onClientesReload, onClose, onSave,
+  consultorPadrao, clientes, clientesLoading, onClientesReload, onClose, onSave,
 }: {
   consultorPadrao: string
-  produtos: Produto[]
   clientes: Cadastro[]
   clientesLoading: boolean
   onClientesReload: () => void
@@ -827,10 +800,7 @@ function NovoLead({
   const [apelido, setApelido] = useState('')
   const [indicadoPorId, setIndicadoPorId] = useState<string | undefined>(undefined)
   const [indicadoPor, setIndicadoPor] = useState('')
-  const [itens, setItens] = useState<LeadItem[]>([])
 
-  const totalVenda = valorItens(itens)
-  const temItens = itens.length > 0
   const pedeIndicacao = origemPedeIndicacao((origem || 'Indicação') as OrigemComercial)
 
   const onCnpj = (c: string, d?: CnpjDados) => {
@@ -852,8 +822,8 @@ function NovoLead({
       produtoInteresse: produto.trim(),
       origem: (origem || 'Indicação') as OrigemComercial,
       consultor: consultor.trim() || 'Comercial MM',
-      valorPotencial: temItens ? totalVenda : valorPlano,
-      receita: temItens ? undefined : plano,
+      valorPotencial: valorPlano,
+      receita: plano,
       etapa: 'Novo lead',
       probabilidade: 10,
       temperatura: (temp || 'Morno') as Temperatura,
@@ -870,7 +840,6 @@ function NovoLead({
       apelido: apelido || undefined,
       indicadoPorId: pedeIndicacao ? indicadoPorId : undefined,
       indicadoPor: pedeIndicacao ? (indicadoPor || undefined) : undefined,
-      itens,
     })
 
   return (
@@ -892,17 +861,13 @@ function NovoLead({
               <IndicadoPorField value={indicadoPorId} onChange={(id, n) => { setIndicadoPorId(id); setIndicadoPor(n) }} />
             </div>
           )}
-          {!temItens && (
-            <div className="col-span-2">
-              <ValorPotencialField plano={plano} valor={valorPlano} onChange={(p, t) => { setPlano(p); setValorPlano(t) }} />
-            </div>
-          )}
+          <div className="col-span-2">
+            <ValorPotencialField plano={plano} valor={valorPlano} onChange={(p, t) => { setPlano(p); setValorPlano(t) }} />
+          </div>
           <Field label="Temperatura"><Select value={temp} onChange={(e) => setTemp(e.target.value)}><option value="">Selecione…</option>{TEMPS.map((t) => <option key={t}>{t}</option>)}</Select></Field>
           <Field label="Telefone"><Input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(11) 9…" /></Field>
           <Field label="E-mail"><Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@cliente.com" /></Field>
         </div>
-
-        <ItensVenda itens={itens} produtos={produtos} onChange={setItens} />
       </div>
     </Modal>
   )
