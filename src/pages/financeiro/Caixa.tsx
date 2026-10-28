@@ -1286,7 +1286,11 @@ function ProjetadoView() {
       for (const f of fixos) {
         if (!f.ativo) continue
         for (const date of ocorrenciasFixo(f, hoje, horizonte)) {
-          eventos.push({ date, valor: f.valor, tipo: f.tipo, canal: 'Lançamentos fixos', quem: f.nome, categoria: f.tipo === 'saida' ? (f.categoria || SEM_CAT) : '', atrasado: date < abertura, numero: '', item: '', fonte: 'fixo' })
+          // Lançamentos fixos NÃO entram em "Atrasado": presume-se que o recorrente
+          // já foi pago. A ocorrência anterior à data de abertura (que cairia em
+          // Atrasado) é ignorada; da abertura em diante segue normal na projeção.
+          if (date < abertura) continue
+          eventos.push({ date, valor: f.valor, tipo: f.tipo, canal: 'Lançamentos fixos', quem: f.nome, categoria: f.tipo === 'saida' ? (f.categoria || SEM_CAT) : '', atrasado: false, numero: '', item: '', fonte: 'fixo' })
         }
       }
     }
@@ -1534,8 +1538,8 @@ function ProjetadoView() {
       ) : view === 'fluxo' ? (
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Kpi lbl="Atrasado a receber" valor={reais(kpis.atrasadoRec)} cor={COR_IN} tip="Títulos ou lançamentos fixos vencidos antes da data do saldo de abertura, ainda não recebidos. Ficam isolados, não entram no saldo." />
-            <Kpi lbl="Atrasado a pagar" valor={reais(kpis.atrasadoPag)} cor={COR_OUT} tip="Títulos ou lançamentos fixos vencidos antes da data do saldo de abertura, ainda não pagos. Ficam isolados, não entram no saldo." />
+            <Kpi lbl="Atrasado a receber" valor={reais(kpis.atrasadoRec)} cor={COR_IN} tip="Títulos da base vencidos antes da data do saldo de abertura, ainda não recebidos. Lançamentos fixos não entram aqui (presumidos pagos). Ficam isolados, não entram no saldo." />
+            <Kpi lbl="Atrasado a pagar" valor={reais(kpis.atrasadoPag)} cor={COR_OUT} tip="Títulos da base vencidos antes da data do saldo de abertura, ainda não pagos. Lançamentos fixos não entram aqui (presumidos pagos). Ficam isolados, não entram no saldo." />
             <Kpi lbl="A receber (até o horizonte)" valor={reais(kpis.futEntradas)} cor={COR_IN} tip="Soma de entradas projetadas da data do saldo de abertura até o horizonte (não inclui o Atrasado)." />
             <Kpi lbl="A pagar (até o horizonte)" valor={reais(kpis.futSaidas)} cor={COR_OUT} tip="Soma de saídas projetadas da data do saldo de abertura até o horizonte (não inclui o Atrasado)." />
           </div>
@@ -1585,7 +1589,7 @@ function FluxoViewProjetado({ f, abertura, onAbrir }: { f: any; abertura: string
   return (
     <div className="rounded-xl border border-line bg-surface shadow-card">
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1 border-b border-line px-4 py-2 text-[11px] text-muted">
-        <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: '#fef3c7', border: '1px solid #fcd34d' }} /><b style={{ color: '#92400e' }}>Atrasado</b> — vencido antes de {br(abertura)}, ainda não pago/recebido. Só para visualizar; não entra no saldo.</span>
+        <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: '#fef3c7', border: '1px solid #fcd34d' }} /><b style={{ color: '#92400e' }}>Atrasado</b> — só títulos da base vencidos antes de {br(abertura)}, ainda não pagos/recebidos (lançamentos fixos não entram). Só para visualizar; não entra no saldo.</span>
         <span className="inline-flex items-center gap-1.5">Saldo inicial em <b className="text-ink">{br(abertura)}</b>.</span>
         <span className="inline-flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: '#fff', border: '1px solid #d9cfc4' }} /><b className="text-ink">Demais colunas</b> — projeção pelo vencimento (títulos em aberto + lançamentos fixos).</span>
       </div>
