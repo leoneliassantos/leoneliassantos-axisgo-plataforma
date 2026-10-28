@@ -95,6 +95,10 @@ function excelDateToISO(v: unknown): string {
   return ''
 }
 const normHeader = (h: unknown) => (h ?? '').toString().toUpperCase().replace(/\s+/g, ' ').trim()
+// Chave de comparação de canal (Origem) ignorando maiúsculas/minúsculas e espaços
+// repetidos — usada para reconhecer que "FoodPro Distribuidora" e "Foodpro
+// Distribuidora" são o MESMO canal, evitando o "canal órfão" que duplica dados.
+const keyCanal = (s: string) => (s ?? '').toString().trim().toLowerCase().replace(/\s+/g, ' ')
 
 /* ------------------------------------------------------------------ *
  *  Foodpro — parser do PDF "Relatório de Notas Fiscais Detalhado".
@@ -478,6 +482,24 @@ export function Vendas() {
           })
         }
         if (!novo.length) throw new Error('nenhuma venda válida encontrada na planilha.')
+      }
+
+      // Padroniza a grafia do canal (Origem): se a base já tem um canal igual
+      // ignorando maiúsculas/minúsculas e espaços, reusa a grafia EXISTENTE. Assim
+      // "FoodPro Distribuidora" vira "Foodpro Distribuidora" e a substituição por
+      // canal+período sobrepõe de verdade, em vez de criar um canal órfão duplicado.
+      // Também unifica grafias divergentes dentro do próprio arquivo.
+      const canonCanal = new Map<string, string>()
+      for (const r of rows) {
+        const k = keyCanal(r.origem)
+        if (k && !canonCanal.has(k)) canonCanal.set(k, r.origem)
+      }
+      for (const r of novo) {
+        const k = keyCanal(r.origem)
+        if (!k) continue
+        const existente = canonCanal.get(k)
+        if (existente) r.origem = existente
+        else { r.origem = r.origem.trim(); canonCanal.set(k, r.origem) }
       }
 
       const fullReplace = upMode === 'full'
