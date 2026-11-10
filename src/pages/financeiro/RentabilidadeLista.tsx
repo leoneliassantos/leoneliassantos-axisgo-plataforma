@@ -29,6 +29,7 @@ const fmtData = (iso: string | null) => {
   const [y, m, d] = iso.split('-')
   return `${d}/${m}/${y}`
 }
+const mesLabel = (ym: string) => `${MESES_FULL[Number(ym.slice(5, 7)) - 1]}/${ym.slice(2, 4)}`
 const parseNum = (s: string) => {
   const v = Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[^\d.-]/g, ''))
   return isFinite(v) ? v : 0
@@ -72,7 +73,8 @@ export function RentabilidadeLista() {
   const [erro, setErro] = useState<string | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const [empresaSel, setEmpresaSel] = useState(CONSOLIDADO)
-  const [mesSel, setMesSel] = useState('todos')
+  const [deSel, setDeSel] = useState('')
+  const [ateSel, setAteSel] = useState('')
   const [unidadeSel, setUnidadeSel] = useState('todos')
   const [busca, setBusca] = useState('')
   const [form, setForm] = useState<MargemJob | null>(null) // modal de lançar/editar
@@ -159,21 +161,30 @@ export function RentabilidadeLista() {
   const empresas = useMemo(() => [...new Set(jobs.map((j) => j.empresa))].filter(Boolean).sort(), [jobs])
   const clientes = useMemo(() => [...new Set(jobs.map((j) => j.cliente))].filter(Boolean).sort(), [jobs])
   const jobsEmp = useMemo(() => empresaSel === CONSOLIDADO ? jobs : jobs.filter((j) => j.empresa === empresaSel), [jobs, empresaSel])
-  const meses = useMemo(() => [...new Set(jobsEmp.map((j) => (j.data ?? '').slice(0, 7)))].filter(Boolean).sort().reverse(), [jobsEmp])
+  const meses = useMemo(() => [...new Set(jobsEmp.map((j) => (j.data ?? '').slice(0, 7)))].filter(Boolean).sort(), [jobsEmp])
   const unidades = useMemo(() => [...new Set(jobsEmp.map((j) => j.unidadeNegocio))].filter(Boolean).sort(), [jobsEmp])
+
+  /* período efetivo: sem seleção = da 1ª à última competência (todos os meses); inverte se De > até */
+  const deEff = meses.includes(deSel) ? deSel : meses[0] ?? ''
+  const ateEff = meses.includes(ateSel) ? ateSel : meses[meses.length - 1] ?? ''
+  const de = deEff <= ateEff ? deEff : ateEff
+  const ate = deEff <= ateEff ? ateEff : deEff
+  const periodoFiltrado = meses.length > 0 && (de !== meses[0] || ate !== meses[meses.length - 1])
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase()
     return jobsEmp
       .filter((j) => {
-        if (mesSel !== 'todos' && (j.data ?? '').slice(0, 7) !== mesSel) return false
+        const ym = (j.data ?? '').slice(0, 7)
+        if (de && ym && ym < de) return false
+        if (ate && ym && ym > ate) return false
         if (unidadeSel !== 'todos' && j.unidadeNegocio !== unidadeSel) return false
         if (q && !`${j.cliente} ${j.campanha} ${j.pit} ${j.ec}`.toLowerCase().includes(q)) return false
         return true
       })
       .map((j) => calcularJob(j, taxa))
       .sort((a, b) => (b.data ?? '').localeCompare(a.data ?? '') || b.valorFaturado - a.valorFaturado)
-  }, [jobsEmp, mesSel, unidadeSel, busca, taxa])
+  }, [jobsEmp, de, ate, unidadeSel, busca, taxa])
 
   const resumo = useMemo(() => {
     const faturado = filtrados.reduce((s, j) => s + j.valorFaturado, 0)
@@ -268,10 +279,19 @@ export function RentabilidadeLista() {
               {empresas.map((e) => <button key={e} className={empresaSel === e ? 'on' : ''} onClick={() => setEmpresaSel(e)}>{e}</button>)}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <select className="sel" value={mesSel} onChange={(e) => setMesSel(e.target.value)} title="Mês">
-                <option value="todos">Todos os meses</option>
-                {meses.map((m) => <option key={m} value={m}>{MESES_FULL[Number(m.slice(5, 7)) - 1]}/{m.slice(2, 4)}</option>)}
-              </select>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[12px] font-bold text-muted">Período</span>
+                <select className="sel" value={de} onChange={(e) => setDeSel(e.target.value)} title="Mês inicial" disabled={!meses.length}>
+                  {meses.map((m) => <option key={m} value={m}>{mesLabel(m)}</option>)}
+                </select>
+                <span className="text-[12px] text-muted">até</span>
+                <select className="sel" value={ate} onChange={(e) => setAteSel(e.target.value)} title="Mês final" disabled={!meses.length}>
+                  {meses.map((m) => <option key={m} value={m}>{mesLabel(m)}</option>)}
+                </select>
+                {periodoFiltrado && (
+                  <button className="limpar-periodo" onClick={() => { setDeSel(''); setAteSel('') }} title="Voltar para todos os meses">Limpar</button>
+                )}
+              </div>
               <select className="sel" value={unidadeSel} onChange={(e) => setUnidadeSel(e.target.value)} title="Unidade de Negócio">
                 <option value="todos">Todas as unidades</option>
                 {unidades.map((u) => <option key={u} value={u}>{u}</option>)}
@@ -495,6 +515,9 @@ function ScopedStyle() {
 .rent-mod .sel,.rent-mod .taxa-inp{font:inherit;font-size:12px;font-weight:700;color:#1F2937;background:#fff;border:1px solid #DBE4EF;border-radius:7px;padding:5px 7px;cursor:pointer}
 .rent-mod .taxa-inp{width:56px;text-align:right;cursor:text}
 .rent-mod .sel:focus,.rent-mod .taxa-inp:focus{outline:2px solid #122238;border-color:#122238}
+.rent-mod .sel:disabled{opacity:.5;cursor:default}
+.rent-mod .limpar-periodo{font:inherit;font-size:11.5px;font-weight:700;color:#7a756c;background:transparent;border:1px solid #DBE4EF;border-radius:7px;padding:5px 9px;cursor:pointer;transition:.12s}
+.rent-mod .limpar-periodo:hover{background:#F3F6FA;color:#1F2937}
 .rent-mod .seg{display:inline-flex;background:#EEEAE3;border-radius:9px;padding:3px;gap:2px}
 .rent-mod .seg button{border:0;background:transparent;font:inherit;font-size:12px;font-weight:700;color:#7a756c;padding:5px 13px;border-radius:7px;cursor:pointer;white-space:nowrap}
 .rent-mod .seg button.on{background:#fff;color:#1F2937;box-shadow:0 1px 2px rgba(0,0,0,.08)}
