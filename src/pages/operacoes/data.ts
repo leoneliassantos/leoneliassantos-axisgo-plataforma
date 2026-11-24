@@ -41,6 +41,14 @@ export function isProduzido(etapaId: string): boolean {
   return ETAPAS_PRODUZIDO.includes(etapaId)
 }
 
+/** Etapas em que a produção já está CONCLUÍDA ("Produção Finalizada" em diante). */
+export const ETAPAS_PRODUCAO_CONCLUIDA = ['finalizada', 'entrega', 'entregue']
+/** true quando o item já concluiu a produção (Produção Finalizada ou além).
+ *  A partir daqui o item é considerado PRONTO e NÃO conta mais como atraso. */
+export function isProducaoConcluida(etapaId: string): boolean {
+  return ETAPAS_PRODUCAO_CONCLUIDA.includes(etapaId)
+}
+
 /** Cor de destaque por etapa (só visual, para o quadro/stepper). */
 export const ETAPA_COR: Record<string, string> = {
   pedido: '#0e9488', ficha: '#3574c4', modelagem: '#6d4bd0', compra: '#1f9d6b',
@@ -256,11 +264,11 @@ export const ALERTA_DIAS = 3
 
 /**
  * Situação AUTOMÁTICA de um item pela previsão de entrega:
- * já saiu para entrega/entregue → No prazo; vencida → Atrasado;
+ * já em Produção Finalizada/entregue → No prazo; vencida → Atrasado;
  * faltando ≤ ALERTA_DIAS → Alerta; senão → No prazo. Sem data → No prazo.
  */
 export function situacaoAutomatica(previsaoEntrega: string, etapaId: string): StatusProd {
-  if (isProduzido(etapaId)) return 'ok'
+  if (isProducaoConcluida(etapaId)) return 'ok'
   if (!previsaoEntrega) return 'ok'
   const dias = diasAte(previsaoEntrega)
   if (dias < 0) return 'atrasado'
@@ -276,9 +284,9 @@ export function situacaoEfetiva(p: { situacaoAuto: boolean; situacaoManual: Stat
 /** Texto explicativo da regra da situação (para tooltips). */
 export const SITUACAO_REGRA =
   'Situação calculada pela previsão de entrega:\n' +
-  '• Atrasado — a previsão já venceu e o item não saiu para entrega\n' +
+  '• Atrasado — a previsão já venceu e o item ainda não chegou à Produção Finalizada\n' +
   `• Alerta — faltam ${ALERTA_DIAS} dias ou menos para a entrega\n` +
-  `• No prazo — mais de ${ALERTA_DIAS} dias, sem data, ou item já entregue\n` +
+  `• No prazo — mais de ${ALERTA_DIAS} dias, sem data, ou item já em Produção Finalizada\n` +
   'Pode ser definida manualmente no detalhe do item.'
 
 /** Progresso (0-100) a partir da etapa atual. */
