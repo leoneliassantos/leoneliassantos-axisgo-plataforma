@@ -11,6 +11,7 @@ import { FluxoProducao } from '../pages/operacoes/FluxoProducao'
 import { OrdensProducao } from '../pages/operacoes/OrdensProducao'
 import { Acompanhamento } from '../pages/operacoes/Acompanhamento'
 import { CobrancaOficinas } from '../pages/operacoes/CobrancaOficinas'
+import { CobrancaLogomarca } from '../pages/operacoes/CobrancaLogomarca'
 import { Cadastros } from '../pages/operacoes/Cadastros'
 import { CadastroClientes } from '../pages/cadastros/Clientes'
 import { Crm } from '../pages/comercial/Crm'
@@ -162,6 +163,12 @@ const icCobranca = (
     <path d="M12 7v10M9.5 9.2c0-1.2 1.1-1.9 2.5-1.9s2.5.7 2.5 1.9c0 2.6-5 1.4-5 4 0 1.2 1.1 1.9 2.5 1.9s2.5-.7 2.5-1.9" strokeWidth="1.5" strokeLinecap="round" />
   </>
 )
+const icLogomarca = (
+  <>
+    <circle cx="12" cy="11" r="7" strokeWidth="1.6" />
+    <path d="M12 7.6l1.18 2.39 2.64.38-1.91 1.86.45 2.63L12 14.0l-2.36 1.24.45-2.63-1.91-1.86 2.64-.38z" strokeWidth="1.3" strokeLinejoin="round" />
+  </>
+)
 // Cadastros
 const icClientes = (
   <>
@@ -233,6 +240,7 @@ const TODAS_FRENTES: Frente[] = [
       { slug: 'ordens-producao', label: 'Ordens de Produção', icon: icOrdens, element: <OrdensProducao /> },
       { slug: 'acompanhamento', label: 'Acompanhamento', icon: icAcompanhamento, element: <Acompanhamento /> },
       { slug: 'cobranca-oficinas', label: 'Cobrança de Oficinas', icon: icCobranca, element: <CobrancaOficinas />, podeVer: podeVerValorFornecedor },
+      { slug: 'cobranca-logomarca', label: 'Cobrança de Logomarca', icon: icLogomarca, element: <CobrancaLogomarca />, podeVer: podeVerValorFornecedor },
       { slug: 'cad-clientes', label: 'Clientes', grupo: 'Cadastros', icon: icClientes, element: <Cadastros tipo="clientes" /> },
       { slug: 'cad-uniformes', label: 'Uniformes', grupo: 'Cadastros', icon: icUniformes, element: <Cadastros tipo="uniformes" /> },
       { slug: 'cad-cores', label: 'Cores', grupo: 'Cadastros', icon: icCores, element: <Cadastros tipo="cores" /> },
